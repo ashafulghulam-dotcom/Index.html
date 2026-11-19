@@ -1,9 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { DESA_PER_KUA_JEPARA, LIST_16_KUA } from '../data/jeparaData';
-import { EducationLevel, Gender } from '../types/bimwin';
-import { useBimwin } from '../store/useBimwinStore';
-import { calculateAgeFromDob, isUnderageMarriage } from '../utils/bimwinLogic';
+import { BimwinUser, EducationLevel, Gender } from '../types/bimwin';
+import { RegisterPayload, useBimwin } from '../store/useBimwinStore';
+import {
+  calculateAgeFromDob,
+  isUnderageMarriage,
+  normalizeVillageName,
+} from '../utils/bimwinLogic';
 import { ModalDialog } from './UiPrimitives';
 
 const EDUCATION_OPTIONS: EducationLevel[] = [
@@ -15,34 +19,63 @@ const EDUCATION_OPTIONS: EducationLevel[] = [
   'S2 / S3',
 ];
 
-export const RegisterModal: React.FC<{ open: boolean; onClose: () => void }> = ({
-  open,
-  onClose,
-}) => {
-  const { registerPeserta } = useBimwin();
-  const [form, setForm] = useState({
+function getSortedDesaForKua(kua: string): string[] {
+  return [...(DESA_PER_KUA_JEPARA[kua] || [])].sort((a, b) => a.localeCompare(b));
+}
+
+function buildInitialRegistrationForm(overrides?: Partial<RegisterPayload>): RegisterPayload {
+  const defaultKua =
+    overrides?.kua && LIST_16_KUA.includes(overrides.kua) ? overrides.kua : 'KUA Jepara';
+  const sortedDesa = getSortedDesaForKua(defaultKua);
+  const normalizedDesa = overrides?.desaTempatNikah
+    ? normalizeVillageName(overrides.desaTempatNikah, defaultKua)
+    : '';
+  const defaultDesa = sortedDesa.includes(normalizedDesa)
+    ? normalizedDesa
+    : sortedDesa.includes('Kauman') && defaultKua === 'KUA Jepara'
+      ? 'Kauman'
+      : sortedDesa[0] || '';
+
+  return {
     username: '',
     password: '',
     nama: '',
     nik: '',
-    jenisKelamin: 'Laki-laki' as Gender,
-    tempatLahir: 'Jepara',
-    tanggalLahir: '1999-05-15',
-    pendidikan: 'S1 / D4' as EducationLevel,
+    jenisKelamin: overrides?.jenisKelamin || 'Laki-laki',
+    tempatLahir: overrides?.tempatLahir || 'Jepara',
+    tanggalLahir: overrides?.tanggalLahir || '1999-05-15',
+    pendidikan: overrides?.pendidikan || 'S1 / D4',
     pekerjaan: '',
     noHp: '',
-    kua: 'KUA Jepara',
-    desaTempatNikah: 'Kauman',
+    kua: defaultKua,
+    desaTempatNikah: defaultDesa,
     alamat: '',
-    tanggalRencanaNikah: '2026-06-20',
-  });
-  const [showPass, setShowPass] = useState(false);
-  const [error, setError] = useState('');
+    tanggalRencanaNikah: overrides?.tanggalRencanaNikah || '2026-06-20',
+  };
+}
 
-  const desaOptions = useMemo(
-    () => [...(DESA_PER_KUA_JEPARA[form.kua] || [])].sort((a, b) => a.localeCompare(b)),
-    [form.kua]
-  );
+interface PesertaRegistrationFormProps {
+  form: RegisterPayload;
+  setForm: React.Dispatch<React.SetStateAction<RegisterPayload>>;
+  error: string;
+  submitLabel: string;
+  namePlaceholder?: string;
+  onCancel: () => void;
+  onSubmit: (e: React.FormEvent) => void;
+}
+
+const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
+  form,
+  setForm,
+  error,
+  submitLabel,
+  namePlaceholder = 'Contoh: Muhammad Arfan',
+  onCancel,
+  onSubmit,
+}) => {
+  const [showPass, setShowPass] = useState(false);
+
+  const desaOptions = useMemo(() => getSortedDesaForKua(form.kua), [form.kua]);
 
   const computedAge = useMemo(
     () => calculateAgeFromDob(form.tanggalLahir),
@@ -51,11 +84,269 @@ export const RegisterModal: React.FC<{ open: boolean; onClose: () => void }> = (
   const underage = isUnderageMarriage(computedAge);
 
   const handleKuaChange = (newKua: string) => {
-    const firstDesa = [...(DESA_PER_KUA_JEPARA[newKua] || [])].sort((a, b) =>
-      a.localeCompare(b)
-    )[0];
+    const firstDesa = getSortedDesaForKua(newKua)[0];
     setForm((prev) => ({ ...prev, kua: newKua, desaTempatNikah: firstDesa || '' }));
   };
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4 text-xs sm:text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Nama Lengkap (Sesuai KTP) *
+          </label>
+          <input
+            type="text"
+            required
+            value={form.nama}
+            onChange={(e) => setForm({ ...form, nama: e.target.value })}
+            placeholder={namePlaceholder}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            NIK (16 Digit Angka) *
+          </label>
+          <input
+            type="text"
+            required
+            maxLength={16}
+            value={form.nik}
+            onChange={(e) => setForm({ ...form, nik: e.target.value.replace(/\D/g, '') })}
+            placeholder="3320xxxxxxxxxxxx"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Username Akun *
+          </label>
+          <input
+            type="text"
+            required
+            value={form.username}
+            onChange={(e) =>
+              setForm({ ...form, username: e.target.value.replace(/\s+/g, '').toLowerCase() })
+            }
+            placeholder="tanpa_spasi"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Kata Sandi (Min. 6 Karakter) *
+          </label>
+          <div className="relative">
+            <input
+              type={showPass ? 'text' : 'password'}
+              required
+              minLength={6}
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              placeholder="Buat kata sandi"
+              className="w-full pl-3 pr-9 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPass((v) => !v)}
+              aria-label={showPass ? 'Sembunyikan kata sandi' : 'Tampilkan kata sandi'}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+            >
+              {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Jenis Kelamin *
+          </label>
+          <select
+            value={form.jenisKelamin}
+            onChange={(e) => setForm({ ...form, jenisKelamin: e.target.value as Gender })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          >
+            <option value="Laki-laki">Laki-laki (Calon Suami)</option>
+            <option value="Perempuan">Perempuan (Calon Istri)</option>
+          </select>
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            No. WhatsApp Aktif *
+          </label>
+          <input
+            type="tel"
+            required
+            value={form.noHp}
+            onChange={(e) => setForm({ ...form, noHp: e.target.value })}
+            placeholder="08xxxxxxxxxx"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Tempat Lahir *
+          </label>
+          <input
+            type="text"
+            required
+            value={form.tempatLahir}
+            onChange={(e) => setForm({ ...form, tempatLahir: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Tanggal Lahir *{' '}
+            {computedAge !== null && (
+              <span className="font-mono-num text-slate-500">({computedAge} thn)</span>
+            )}
+          </label>
+          <input
+            type="date"
+            required
+            value={form.tanggalLahir}
+            onChange={(e) => setForm({ ...form, tanggalLahir: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+      </div>
+
+      {underage && (
+        <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+          <div>
+            <strong>Peringatan UU No. 16 Tahun 2019:</strong> Usia terdeteksi di bawah 19 tahun.
+            Pendaftaran nikah di KUA wajib melampirkan Surat Penetapan Dispensasi Kawin dari
+            Pengadilan Agama.
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            KUA Kecamatan Tujuan Nikah *
+          </label>
+          <select
+            value={form.kua}
+            onChange={(e) => handleKuaChange(e.target.value)}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          >
+            {LIST_16_KUA.map((kua) => (
+              <option key={kua} value={kua}>
+                {kua}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Desa / Kelurahan Tempat Nikah *
+          </label>
+          <select
+            value={form.desaTempatNikah}
+            onChange={(e) => setForm({ ...form, desaTempatNikah: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          >
+            {desaOptions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Pendidikan Terakhir
+          </label>
+          <select
+            value={form.pendidikan}
+            onChange={(e) => setForm({ ...form, pendidikan: e.target.value as EducationLevel })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          >
+            {EDUCATION_OPTIONS.map((opt) => (
+              <option key={opt} value={opt}>
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Rencana Tanggal Akad Nikah
+          </label>
+          <input
+            type="date"
+            value={form.tanggalRencanaNikah}
+            onChange={(e) => setForm({ ...form, tanggalRencanaNikah: e.target.value })}
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Pekerjaan
+          </label>
+          <input
+            type="text"
+            value={form.pekerjaan}
+            onChange={(e) => setForm({ ...form, pekerjaan: e.target.value })}
+            placeholder="Contoh: Karyawan / Wirausaha"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+        <div>
+          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+            Alamat Lengkap
+          </label>
+          <input
+            type="text"
+            value={form.alamat}
+            onChange={(e) => setForm({ ...form, alamat: e.target.value })}
+            placeholder="RT/RW, Desa, Kecamatan"
+            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+      </div>
+
+      {error && (
+        <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end gap-2.5 pt-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-300"
+        >
+          Batal
+        </button>
+        <button
+          type="submit"
+          className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
+        >
+          {submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+};
+
+export const RegisterModal: React.FC<{ open: boolean; onClose: () => void }> = ({
+  open,
+  onClose,
+}) => {
+  const { registerPeserta } = useBimwin();
+  const [form, setForm] = useState<RegisterPayload>(() => buildInitialRegistrationForm());
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,249 +367,74 @@ export const RegisterModal: React.FC<{ open: boolean; onClose: () => void }> = (
       subtitle="Lengkapi identitas diri sesuai KTP dan pilih KUA Kecamatan tujuan nikah."
       maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4 text-xs sm:text-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Nama Lengkap (Sesuai KTP) *
-            </label>
-            <input
-              type="text"
-              required
-              value={form.nama}
-              onChange={(e) => setForm({ ...form, nama: e.target.value })}
-              placeholder="Contoh: Muhammad Arfan"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              NIK (16 Digit Angka) *
-            </label>
-            <input
-              type="text"
-              required
-              maxLength={16}
-              value={form.nik}
-              onChange={(e) => setForm({ ...form, nik: e.target.value.replace(/\D/g, '') })}
-              placeholder="3320xxxxxxxxxxxx"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Username Akun *
-            </label>
-            <input
-              type="text"
-              required
-              value={form.username}
-              onChange={(e) =>
-                setForm({ ...form, username: e.target.value.replace(/\s+/g, '').toLowerCase() })
-              }
-              placeholder="tanpa_spasi"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Kata Sandi (Min. 6 Karakter) *
-            </label>
-            <div className="relative">
-              <input
-                type={showPass ? 'text' : 'password'}
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="Buat kata sandi"
-                className="w-full pl-3 pr-9 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPass((v) => !v)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-              >
-                {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
+      <PesertaRegistrationForm
+        form={form}
+        setForm={setForm}
+        error={error}
+        submitLabel="Daftar & Masuk Sekarang"
+        onCancel={onClose}
+        onSubmit={handleSubmit}
+      />
+    </ModalDialog>
+  );
+};
 
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Jenis Kelamin *
-            </label>
-            <select
-              value={form.jenisKelamin}
-              onChange={(e) => setForm({ ...form, jenisKelamin: e.target.value as Gender })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            >
-              <option value="Laki-laki">Laki-laki (Calon Suami)</option>
-              <option value="Perempuan">Perempuan (Calon Istri)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              No. WhatsApp Aktif *
-            </label>
-            <input
-              type="tel"
-              required
-              value={form.noHp}
-              onChange={(e) => setForm({ ...form, noHp: e.target.value })}
-              placeholder="08xxxxxxxxxx"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
-            />
-          </div>
+export const CreatePartnerModal: React.FC<{
+  open: boolean;
+  onClose: () => void;
+  currentUser: BimwinUser;
+}> = ({ open, onClose, currentUser }) => {
+  const { createAndLinkPartner } = useBimwin();
+  const buildPartnerDefaults = () =>
+    buildInitialRegistrationForm({
+      jenisKelamin: currentUser.jenisKelamin === 'Laki-laki' ? 'Perempuan' : 'Laki-laki',
+      kua: currentUser.kua,
+      desaTempatNikah: currentUser.desaTempatNikah,
+      tanggalRencanaNikah: currentUser.tanggalRencanaNikah,
+    });
 
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Tempat Lahir *
-            </label>
-            <input
-              type="text"
-              required
-              value={form.tempatLahir}
-              onChange={(e) => setForm({ ...form, tempatLahir: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Tanggal Lahir * {computedAge !== null && <span className="font-mono-num text-slate-500">({computedAge} thn)</span>}
-            </label>
-            <input
-              type="date"
-              required
-              value={form.tanggalLahir}
-              onChange={(e) => setForm({ ...form, tanggalLahir: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
-            />
-          </div>
-        </div>
+  const [form, setForm] = useState<RegisterPayload>(buildPartnerDefaults);
+  const [error, setError] = useState('');
 
-        {underage && (
-          <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
-            <div>
-              <strong>Peringatan UU No. 16 Tahun 2019:</strong> Usia terdeteksi di bawah 19 tahun.
-              Pendaftaran nikah di KUA wajib melampirkan Surat Penetapan Dispensasi Kawin dari Pengadilan Agama.
-            </div>
-          </div>
-        )}
+  useEffect(() => {
+    if (open) {
+      setForm(buildPartnerDefaults());
+      setError('');
+    }
+  }, [open, currentUser.id]);
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              KUA Kecamatan Tujuan Nikah *
-            </label>
-            <select
-              value={form.kua}
-              onChange={(e) => handleKuaChange(e.target.value)}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            >
-              {LIST_16_KUA.map((kua) => (
-                <option key={kua} value={kua}>
-                  {kua}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Desa / Kelurahan Tempat Nikah *
-            </label>
-            <select
-              value={form.desaTempatNikah}
-              onChange={(e) => setForm({ ...form, desaTempatNikah: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            >
-              {desaOptions.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-          </div>
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    const res = createAndLinkPartner(form);
+    if (!res.ok) {
+      setError(res.error || 'Gagal membuat akun pasangan.');
+      return;
+    }
+    onClose();
+  };
 
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Pendidikan Terakhir
-            </label>
-            <select
-              value={form.pendidikan}
-              onChange={(e) => setForm({ ...form, pendidikan: e.target.value as EducationLevel })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            >
-              {EDUCATION_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Rencana Tanggal Akad Nikah
-            </label>
-            <input
-              type="date"
-              value={form.tanggalRencanaNikah}
-              onChange={(e) => setForm({ ...form, tanggalRencanaNikah: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Pekerjaan
-            </label>
-            <input
-              type="text"
-              value={form.pekerjaan}
-              onChange={(e) => setForm({ ...form, pekerjaan: e.target.value })}
-              placeholder="Contoh: Karyawan / Wirausaha"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            />
-          </div>
-          <div>
-            <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-              Alamat Lengkap
-            </label>
-            <input
-              type="text"
-              value={form.alamat}
-              onChange={(e) => setForm({ ...form, alamat: e.target.value })}
-              placeholder="RT/RW, Desa, Kecamatan"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
-            />
-          </div>
-        </div>
-
-        {error && (
-          <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        <div className="flex justify-end gap-2.5 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-300"
-          >
-            Batal
-          </button>
-          <button
-            type="submit"
-            className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
-          >
-            Daftar & Masuk Sekarang
-          </button>
-        </div>
-      </form>
+  return (
+    <ModalDialog
+      open={open}
+      onClose={onClose}
+      title="Buat & Hubungkan Akun Pasangan"
+      subtitle={`Lengkapi identitas pasangan sesuai KTP agar langsung terdaftar di ${form.kua} dan tersinkron dengan akun Anda.`}
+      maxWidth="2xl"
+    >
+      <PesertaRegistrationForm
+        form={form}
+        setForm={setForm}
+        error={error}
+        submitLabel="Buat & Sinkronkan"
+        namePlaceholder={
+          form.jenisKelamin === 'Perempuan'
+            ? 'Contoh: Siti Rahmawati'
+            : 'Contoh: Muhammad Arfan'
+        }
+        onCancel={onClose}
+        onSubmit={handleSubmit}
+      />
     </ModalDialog>
   );
 };

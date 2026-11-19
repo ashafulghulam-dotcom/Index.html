@@ -83,14 +83,7 @@ interface BimwinContextValue {
 
   // Peserta workflows
   syncPartnerByUsername: (partnerUsername: string) => { ok: boolean; error?: string };
-  createAndLinkPartner: (payload: {
-    username: string;
-    password: string;
-    nama: string;
-    nik: string;
-    jenisKelamin: Gender;
-    noHp: string;
-  }) => { ok: boolean; error?: string };
+  createAndLinkPartner: (payload: RegisterPayload) => { ok: boolean; error?: string };
   unlinkPartner: () => void;
   completePretest: (score: number) => void;
   markModuleRead: (moduleId: number) => void;
@@ -432,28 +425,26 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const createAndLinkPartner = useCallback(
-    (payload: {
-      username: string;
-      password: string;
-      nama: string;
-      nik: string;
-      jenisKelamin: Gender;
-      noHp: string;
-    }) => {
+    (payload: RegisterPayload) => {
       if (!currentUser || currentUser.role !== 'Peserta') {
         return { ok: false, error: 'Sesi peserta tidak aktif.' };
       }
       const cleanUsername = payload.username.trim().toLowerCase().replace(/\s+/g, '');
       if (cleanUsername.length < 4) {
-        return { ok: false, error: 'Username pasangan minimal 4 karakter.' };
+        return { ok: false, error: 'Username pasangan minimal 4 karakter tanpa spasi.' };
       }
       if (data.users.some((u) => u.username.toLowerCase() === cleanUsername)) {
-        return { ok: false, error: 'Username pasangan sudah digunakan.' };
+        return { ok: false, error: 'Username pasangan sudah digunakan. Gunakan username lain.' };
+      }
+      if (payload.password.length < 6) {
+        return { ok: false, error: 'Kata sandi pasangan minimal 6 karakter.' };
       }
       if (!/^\d{16}$/.test(payload.nik.trim())) {
-        return { ok: false, error: 'NIK pasangan wajib tepat 16 digit angka.' };
+        return { ok: false, error: 'NIK pasangan wajib terdiri dari tepat 16 digit angka.' };
       }
 
+      const targetKua = payload.kua || currentUser.kua;
+      const usia = calculateAgeFromDob(payload.tanggalLahir) ?? undefined;
       const partnerUser: BimwinUser = {
         id: `u_partner_${Date.now()}`,
         username: cleanUsername,
@@ -462,10 +453,20 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         nama: payload.nama.trim(),
         nik: payload.nik.trim(),
         jenisKelamin: payload.jenisKelamin,
+        tempatLahir: payload.tempatLahir.trim(),
+        tanggalLahir: payload.tanggalLahir,
+        ttl: formatTtlFromParts(payload.tempatLahir, payload.tanggalLahir),
+        usia,
+        pendidikan: payload.pendidikan,
+        pekerjaan: payload.pekerjaan.trim(),
         noHp: payload.noHp.trim(),
-        kua: currentUser.kua,
-        desaTempatNikah: currentUser.desaTempatNikah,
-        tanggalRencanaNikah: currentUser.tanggalRencanaNikah,
+        kua: targetKua,
+        desaTempatNikah: normalizeVillageName(
+          payload.desaTempatNikah || currentUser.desaTempatNikah,
+          targetKua
+        ),
+        alamat: payload.alamat.trim(),
+        tanggalRencanaNikah: payload.tanggalRencanaNikah || currentUser.tanggalRencanaNikah,
         pasanganUsername: currentUser.username,
         pasanganNama: currentUser.nama,
         createdAt: new Date().toISOString(),

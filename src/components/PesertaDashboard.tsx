@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { DEFAULT_KOMPAK_COMMITMENTS, DOA_PENGANTIN } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
-import { Gender, ModuleDefinition } from '../types/bimwin';
+import { ModuleDefinition } from '../types/bimwin';
 import {
   calculateBudgetAllocation,
   calculateCompatibilityScore,
@@ -42,6 +42,7 @@ import {
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
+import { CreatePartnerModal } from './AuthModals';
 import {
   IkmSurveyModal,
   ModuleReaderModal,
@@ -54,7 +55,7 @@ import {
   PortfolioPreviewModal,
   StoryCardModal,
 } from './OfficialDocuments';
-import { KemenagLogo, ModalDialog, QRCodeBox } from './UiPrimitives';
+import { KemenagLogo, QRCodeBox } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
 export const PesertaDashboard: React.FC = () => {
@@ -62,7 +63,6 @@ export const PesertaDashboard: React.FC = () => {
     data,
     currentUser,
     syncPartnerByUsername,
-    createAndLinkPartner,
     unlinkPartner,
     completePretest,
     markModuleRead,
@@ -106,15 +106,6 @@ export const PesertaDashboard: React.FC = () => {
   const [partnerInput, setPartnerInput] = useState('');
   const [partnerError, setPartnerError] = useState('');
   const [createPartnerOpen, setCreatePartnerOpen] = useState(false);
-  const [newPartnerForm, setNewPartnerForm] = useState({
-    username: '',
-    password: '',
-    nama: '',
-    nik: '',
-    jenisKelamin: (currentUser?.jenisKelamin === 'Laki-laki' ? 'Perempuan' : 'Laki-laki') as Gender,
-    noHp: '',
-  });
-  const [newPartnerErr, setNewPartnerErr] = useState('');
 
   // Calculators state
   const [calcTab, setCalcTab] = useState<'keuangan' | 'stunting' | 'subur'>('keuangan');
@@ -191,10 +182,6 @@ export const PesertaDashboard: React.FC = () => {
         currentUser.kompak?.disiplinPositif || DEFAULT_KOMPAK_COMMITMENTS.disiplinPositif,
       jawabanKuis: currentUser.kompak?.jawabanKuis || {},
     });
-    setNewPartnerForm((prev) => ({
-      ...prev,
-      jenisKelamin: currentUser.jenisKelamin === 'Laki-laki' ? 'Perempuan' : 'Laki-laki',
-    }));
   }, [currentUser?.id]);
 
   // Stop speech synthesis on unmount
@@ -2076,118 +2063,12 @@ export const PesertaDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Quick Create & Link Partner Modal */}
-      <ModalDialog
+      {/* Create & Link Partner Modal (Aligned with Participant Registration Form) */}
+      <CreatePartnerModal
         open={createPartnerOpen}
         onClose={() => setCreatePartnerOpen(false)}
-        title="Buat & Hubungkan Akun Pasangan"
-        subtitle={`Akun pasangan otomatis terdaftar di ${currentUser.kua} dan langsung tersinkron.`}
-        maxWidth="lg"
-      >
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            setNewPartnerErr('');
-            const res = createAndLinkPartner(newPartnerForm);
-            if (!res.ok) setNewPartnerErr(res.error || 'Gagal membuat akun pasangan.');
-            else setCreatePartnerOpen(false);
-          }}
-          className="space-y-3.5 text-xs sm:text-sm"
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block font-semibold mb-1">Nama Lengkap Pasangan *</label>
-              <input
-                type="text"
-                required
-                value={newPartnerForm.nama}
-                onChange={(e) => setNewPartnerForm({ ...newPartnerForm, nama: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">NIK Pasangan (16 Digit) *</label>
-              <input
-                type="text"
-                required
-                maxLength={16}
-                value={newPartnerForm.nik}
-                onChange={(e) =>
-                  setNewPartnerForm({
-                    ...newPartnerForm,
-                    nik: e.target.value.replace(/\D/g, ''),
-                  })
-                }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Username Pasangan *</label>
-              <input
-                type="text"
-                required
-                value={newPartnerForm.username}
-                onChange={(e) =>
-                  setNewPartnerForm({
-                    ...newPartnerForm,
-                    username: e.target.value.replace(/\s+/g, '').toLowerCase(),
-                  })
-                }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Kata Sandi Pasangan *</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={newPartnerForm.password}
-                onChange={(e) => setNewPartnerForm({ ...newPartnerForm, password: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Jenis Kelamin</label>
-              <select
-                value={newPartnerForm.jenisKelamin}
-                onChange={(e) =>
-                  setNewPartnerForm({ ...newPartnerForm, jenisKelamin: e.target.value as Gender })
-                }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              >
-                <option value="Laki-laki">Laki-laki</option>
-                <option value="Perempuan">Perempuan</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">No. WhatsApp</label>
-              <input
-                type="tel"
-                value={newPartnerForm.noHp}
-                onChange={(e) => setNewPartnerForm({ ...newPartnerForm, noHp: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-              />
-            </div>
-          </div>
-          {newPartnerErr && <p className="text-xs text-red-600">{newPartnerErr}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => setCreatePartnerOpen(false)}
-              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
-            >
-              Batal
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
-            >
-              Buat &amp; Sinkronkan
-            </button>
-          </div>
-        </form>
-      </ModalDialog>
+        currentUser={currentUser}
+      />
 
       {/* Modals */}
       <ModuleReaderModal

@@ -1,11 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
+  BarChart3,
   BookOpen,
+  Building2,
   ChevronDown,
   Copy,
   Eye,
   EyeOff,
+  HelpCircle,
+  Home,
   MapPin,
   Menu,
   MessageSquare,
@@ -40,6 +45,8 @@ import {
 } from './AuthModals';
 import { VerificationModal } from './VerificationModal';
 
+type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq';
+
 export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   initialVerifyCode = '',
 }) => {
@@ -49,7 +56,10 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<PortalSection>(
+    initialVerifyCode ? 'verifikasi' : 'beranda'
+  );
 
   const [verifyInput, setVerifyInput] = useState(initialVerifyCode);
   const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(() =>
@@ -63,6 +73,15 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   const [forgotOpen, setForgotOpen] = useState(false);
   const [kritikOpen, setKritikOpen] = useState(false);
   const [panduanOpen, setPanduanOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuDrawerOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [menuDrawerOpen]);
 
   const pesertaList = useMemo(
     () => data.users.filter((u) => u.role === 'Peserta'),
@@ -103,58 +122,87 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
     if (!res.ok) setLoginError(res.error || 'Gagal masuk.');
   };
 
-  const quickDemoLogin = (u: string, p: string) => {
-    setLoginError('');
-    const res = login(u, p);
-    if (!res.ok) setLoginError(res.error || 'Gagal masuk.');
-  };
-
   const handleVerify = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const res = verifyDocumentQuery(verifyInput, data.users, data.classes);
     setVerifyResult(res);
   };
 
+  const navigateSection = (section: PortalSection) => {
+    setActiveSection(section);
+    setMenuDrawerOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const drawerSections: Array<{
+    id: PortalSection;
+    label: string;
+    desc: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }> = [
+    {
+      id: 'beranda',
+      label: 'Beranda & Masuk Portal',
+      desc: 'Halaman utama, ringkasan, dan login akun',
+      icon: Home,
+    },
+    {
+      id: 'verifikasi',
+      label: 'Verifikasi Dokumen & NIK',
+      desc: 'Cek keabsahan sertifikat, piagam, dan daftar hadir',
+      icon: QrCode,
+    },
+    {
+      id: 'statistik',
+      label: 'Statistik 16 KUA Jepara',
+      desc: 'Grafik sebaran peserta dan kelulusan kecamatan',
+      icon: BarChart3,
+    },
+    {
+      id: 'direktori',
+      label: 'Direktori 16 KUA',
+      desc: 'Alamat, telepon, dan jam layanan seluruh KUA',
+      icon: Building2,
+    },
+    {
+      id: 'faq',
+      label: 'Galeri Kegiatan & FAQ',
+      desc: 'Dokumentasi program dan pertanyaan umum',
+      icon: HelpCircle,
+    },
+  ];
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-clip bg-[#F8FAF9] dark:bg-[#0A110F] text-slate-900 dark:text-slate-100">
-      {/* 3-Zone Single-Row Institutional Top Bar */}
+      {/* Clean Minimal Institutional Top Bar */}
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-b border-slate-200 dark:border-emerald-950">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
-          <a href="#beranda" className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => navigateSection('beranda')}
+            className="flex items-center gap-2.5 sm:gap-3 min-w-0 text-left"
+          >
             <KemenagLogo size="sm" />
-            <div className="leading-snug min-w-0">
-              <span className="font-bold text-xs uppercase tracking-wide text-slate-900 dark:text-white truncate block">
-                BIMWIN KEMENAG JEPARA
-              </span>
-              <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 hidden sm:block truncate">
+            <div className="min-w-0 flex flex-col justify-center">
+              <img
+                src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
+                alt="SAMAWA — Sarana Membangun Wawasan Keluarga"
+                className="h-7 sm:h-8 w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+              />
+              <span className="mt-1 font-semibold text-[9px] leading-none uppercase tracking-[0.04em] text-slate-600 dark:text-slate-300 hidden sm:block truncate">
                 KEMENTERIAN AGAMA KABUPATEN JEPARA
               </span>
             </div>
-          </a>
+          </button>
 
-          <nav className="hidden md:flex items-center gap-6 lg:gap-7 text-sm font-medium text-slate-600 dark:text-slate-300">
-            <a href="#verifikasi" className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap">
-              Verifikasi
-            </a>
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => setPanduanOpen(true)}
-              className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap"
+              onClick={() => setRegisterOpen(true)}
+              className="px-3.5 sm:px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold transition whitespace-nowrap"
             >
-              Panduan
+              Daftar<span className="hidden sm:inline"> Catin</span>
             </button>
-            <a href="#statistik" className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap">
-              Statistik 16 KUA
-            </a>
-            <a href="#direktori" className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap">
-              Direktori KUA
-            </a>
-            <a href="#faq" className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap">
-              FAQ
-            </a>
-          </nav>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               onClick={toggleDarkMode}
@@ -165,375 +213,353 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
             </button>
             <button
               type="button"
-              onClick={() => setRegisterOpen(true)}
-              className="px-3 sm:px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold transition whitespace-nowrap"
-            >
-              Daftar<span className="hidden sm:inline"> Catin</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen((v) => !v)}
+              onClick={() => setMenuDrawerOpen(true)}
               aria-label="Buka menu navigasi"
-              className="md:hidden p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
+              aria-expanded={menuDrawerOpen}
+              className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
             >
-              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              <Menu className="w-4 h-4" />
             </button>
           </div>
         </div>
-
-        {/* Mobile Navigation Dropdown */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#0D1613] px-4 py-3 space-y-1 shadow-lg">
-            {[
-              { label: 'Masuk Portal', href: '#masuk-portal' },
-              { label: 'Verifikasi Dokumen & NIK', href: '#verifikasi' },
-              { label: 'Statistik 16 KUA Jepara', href: '#statistik' },
-              { label: 'Direktori 16 KUA', href: '#direktori' },
-              { label: 'Galeri & FAQ', href: '#faq' },
-            ].map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/50"
-              >
-                {link.label}
-              </a>
-            ))}
-            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-emerald-950 flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setPanduanOpen(true);
-                }}
-                className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
-              >
-                Buku Saku 8 Langkah
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setKritikOpen(true);
-                }}
-                className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
-              >
-                Kritik &amp; Saran
-              </button>
-            </div>
-          </div>
-        )}
       </header>
 
-      <main id="beranda" className="flex-1">
-        {/* Hero & Login Split Section */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-14">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-            {/* Editorial Institutional Pitch (7 cols) */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#0F684E] dark:text-emerald-400">
-                  Layanan Digital Nasional · 16 KUA Kecamatan Kabupaten Jepara
+      {/* Slide-Over Navigation Drawer (Triggered from Garis 3 on All Devices) */}
+      {menuDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="fixed inset-0 bg-slate-950/50 backdrop-blur-[1px]"
+            onClick={() => setMenuDrawerOpen(false)}
+          />
+          <aside
+            aria-label="Menu navigasi portal"
+            className="relative z-10 w-80 max-w-[88vw] h-full bg-white dark:bg-[#0D1613] border-l border-slate-200 dark:border-emerald-950 shadow-2xl flex flex-col"
+          >
+            <div className="h-16 px-5 flex items-center justify-between border-b border-slate-200 dark:border-emerald-950 shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <KemenagLogo size="sm" />
+                <img
+                  src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
+                  alt="SAMAWA"
+                  className="h-6 w-auto object-contain dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuDrawerOpen(false)}
+                aria-label="Tutup menu navigasi"
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <nav className="flex-1 overflow-y-auto p-4 space-y-6">
+              <div className="space-y-1">
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Menu Portal
                 </p>
-                <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] font-semibold tracking-tight text-slate-900 dark:text-white leading-[1.15]">
-                  Kenali Diri, Pahami Pasangan, Siapkan Pernikahan Sakinah.
-                </h1>
-                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-                  Platform resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara.
-                  Dilengkapi kurikulum 5 modul keluarga sakinah, skrining kesiapan gizi pencegahan stunting,
-                  Piagam Komitmen Kami Kompak, dan sertifikat terverifikasi QR Code.
-                </p>
+                {drawerSections.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeSection === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigateSection(item.id)}
+                      className={`w-full text-left px-3 py-2.5 rounded-xl flex items-start gap-3 transition ${
+                        isActive
+                          ? 'bg-[#0F684E] text-white'
+                          : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-4 h-4 shrink-0 mt-0.5 ${
+                          isActive ? 'text-amber-300' : 'text-[#0F684E] dark:text-emerald-400'
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <span className="block text-sm font-semibold leading-snug">
+                          {item.label}
+                        </span>
+                        <span
+                          className={`block text-[11px] leading-snug mt-0.5 ${
+                            isActive ? 'text-emerald-100' : 'text-slate-500 dark:text-slate-400'
+                          }`}
+                        >
+                          {item.desc}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="pt-4 border-t border-slate-200 dark:border-emerald-950 space-y-1">
+                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Panduan &amp; Layanan
+                </p>
                 <button
                   type="button"
-                  onClick={() => setRegisterOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-sm font-semibold transition"
+                  onClick={() => {
+                    setMenuDrawerOpen(false);
+                    setPanduanOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
                 >
-                  <UserPlus className="w-4 h-4" />
-                  Pendaftaran Calon Pengantin
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPanduanOpen(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200 text-sm font-semibold transition"
-                >
-                  <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-emerald-400" />
+                  <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
                   Buku Saku 8 Langkah
                 </button>
-                <a
-                  href="#masuk-portal"
-                  className="lg:hidden inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuDrawerOpen(false);
+                    setKritikOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
                 >
-                  Masuk Portal
-                  <ArrowRight className="w-4 h-4" />
-                </a>
+                  <MessageSquare className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  Kritik &amp; Saran
+                </button>
               </div>
+            </nav>
 
-              {/* Clean Institutional Metrics Bar (Aligned baselines) */}
-              <div className="pt-4 border-t border-slate-200 dark:border-emerald-950 grid grid-cols-3 gap-4 sm:gap-8">
-                <div className="flex flex-col justify-between">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                    Peserta Terdaftar
-                  </p>
-                  <p className="font-mono-num text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
-                    {pesertaList.length}
-                  </p>
-                </div>
-                <div className="flex flex-col justify-between">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                    Pasangan Tersinkron
-                  </p>
-                  <p className="font-mono-num text-2xl sm:text-3xl font-bold text-[#0F684E] dark:text-emerald-400 mt-1">
-                    {totalCouples}
-                  </p>
-                </div>
-                <div className="flex flex-col justify-between">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                    Sertifikat Terbit
-                  </p>
-                  <p className="font-mono-num text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                    {totalCertificates}
-                  </p>
-                </div>
-              </div>
-
-              {/* Document Verification Strip */}
-              <div
-                id="verifikasi"
-                className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-3"
+            <div className="p-4 border-t border-slate-200 dark:border-emerald-950 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuDrawerOpen(false);
+                  setRegisterOpen(true);
+                }}
+                className="w-full py-2.5 rounded-xl bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold inline-flex items-center justify-center gap-2 transition"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-[#0F684E] dark:text-emerald-400" />
-                      Verifikasi Keabsahan Dokumen &amp; NIK
-                    </h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      Cek keaslian Sertifikat (<span className="font-mono-num">JPR-...</span>), Piagam Kami Kompak (<span className="font-mono-num">KOMPAK-...</span>), Daftar Hadir (<span className="font-mono-num">ABSEN-...</span>), atau NIK 16 digit.
+                <UserPlus className="w-4 h-4" />
+                Pendaftaran Calon Pengantin
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      <main id="beranda" className="flex-1 flex flex-col">
+        {/* DEFAULT VIEW: Clean & Simple Main Dashboard (Hero + Login Only) */}
+        {activeSection === 'beranda' && (
+          <section className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-16 flex items-center">
+            <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
+              {/* Editorial Institutional Pitch (7 cols) */}
+              <div className="lg:col-span-7 space-y-7">
+                <div className="space-y-4">
+                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.85rem] font-semibold tracking-tight text-slate-900 dark:text-white leading-[1.15] text-balance">
+                    Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
+                  </h1>
+                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
+                    Platform resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara.
+                    Dilengkapi kurikulum 5 modul keluarga sakinah, skrining kesiapan gizi pencegahan stunting,
+                    Piagam Komitmen Kami Kompak, dan sertifikat terverifikasi QR Code.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-sm font-semibold transition"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Pendaftaran Calon Pengantin
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPanduanOpen(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200 text-sm font-semibold transition"
+                  >
+                    <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-emerald-400" />
+                    Buku Saku 8 Langkah
+                  </button>
+                </div>
+
+                {/* Clean Institutional Metrics Bar */}
+                <div className="pt-6 border-t border-slate-200 dark:border-emerald-950 grid grid-cols-3 gap-4 sm:gap-8 max-w-xl">
+                  <div className="flex flex-col justify-between">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                      Peserta Terdaftar
+                    </p>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
+                      {pesertaList.length}
+                    </p>
+                  </div>
+                  <div className="flex flex-col justify-between">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                      Pasangan Tersinkron
+                    </p>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-[#0F684E] dark:text-emerald-400 mt-1">
+                      {totalCouples}
+                    </p>
+                  </div>
+                  <div className="flex flex-col justify-between">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
+                      Sertifikat Terbit
+                    </p>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                      {totalCertificates}
                     </p>
                   </div>
                 </div>
-                <form onSubmit={handleVerify} className="flex flex-col sm:flex-row gap-2">
-                  <input
-                    type="text"
-                    value={verifyInput}
-                    onChange={(e) => setVerifyInput(e.target.value)}
-                    placeholder="Contoh: JPR-JEP-2026-0001 atau KOMPAK-2026-0001"
-                    className="flex-1 px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm font-mono-num outline-none focus:border-[#0F684E]"
-                  />
+              </div>
+
+              {/* Login Panel (5 cols) */}
+              <div
+                id="masuk-portal"
+                className="lg:col-span-5 bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 sm:p-7 shadow-sm space-y-5"
+              >
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Masuk ke Portal</h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Akses ruang kerja Peserta, Fasilitator, Admin KUA, atau SuperAdmin Kemenag.
+                  </p>
+                </div>
+
+                <form onSubmit={handleLoginSubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
+                      Username
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))}
+                      placeholder="Masukkan username"
+                      className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-sm outline-none focus:border-[#0F684E]"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                        Kata Sandi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setForgotOpen(true)}
+                        className="text-xs font-medium text-[#0F684E] dark:text-emerald-400 hover:underline"
+                      >
+                        Lupa Kata Sandi?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type={showPass ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Masukkan kata sandi"
+                        className="w-full pl-3.5 pr-10 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-sm outline-none focus:border-[#0F684E]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPass((v) => !v)}
+                        aria-label="Tampilkan kata sandi"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      >
+                        {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {loginError && (
+                    <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+                      {loginError}
+                    </p>
+                  )}
+
                   <button
                     type="submit"
-                    className="px-4 py-2.5 rounded-lg bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition shrink-0"
+                    className="w-full py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
                   >
-                    <ShieldCheck className="w-4 h-4" />
-                    Periksa Keabsahan
+                    Masuk Sistem
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>Contoh cepat:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerifyInput('JPR-JEP-2026-0001');
-                      setVerifyResult(verifyDocumentQuery('JPR-JEP-2026-0001', data.users, data.classes));
-                    }}
-                    className="font-mono-num underline hover:text-[#0F684E] dark:hover:text-emerald-400"
-                  >
-                    JPR-JEP-2026-0001
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerifyInput('KOMPAK-2026-0001');
-                      setVerifyResult(verifyDocumentQuery('KOMPAK-2026-0001', data.users, data.classes));
-                    }}
-                    className="font-mono-num underline hover:text-[#0F684E] dark:hover:text-emerald-400"
-                  >
-                    KOMPAK-2026-0001
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setVerifyInput('ABSEN-JEP-2026-01');
-                      setVerifyResult(verifyDocumentQuery('ABSEN-JEP-2026-01', data.users, data.classes));
-                    }}
-                    className="font-mono-num underline hover:text-[#0F684E] dark:hover:text-emerald-400"
-                  >
-                    ABSEN-JEP-2026-01
-                  </button>
-                </div>
               </div>
             </div>
+          </section>
+        )}
 
-            {/* Login Panel (5 cols) */}
-            <div
-              id="masuk-portal"
-              className="lg:col-span-5 bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 sm:p-7 shadow-sm space-y-5"
+        {/* ON-DEMAND VIEW 1: Verifikasi Keabsahan Dokumen & NIK */}
+        {activeSection === 'verifikasi' && (
+          <section
+            id="verifikasi"
+            className="max-w-3xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 lg:py-14 space-y-6"
+          >
+            <button
+              type="button"
+              onClick={() => navigateSection('beranda')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
             >
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Masuk ke Portal</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Akses ruang kerja Peserta, Fasilitator, Admin KUA, atau SuperAdmin Kemenag.
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Kembali ke Beranda
+            </button>
+
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 sm:p-8 space-y-5">
+              <div className="space-y-1.5">
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white flex items-center gap-2.5">
+                  <QrCode className="w-6 h-6 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  Verifikasi Keabsahan Dokumen &amp; NIK
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Periksa keaslian Sertifikat (<span className="font-mono-num">JPR-...</span>), Piagam Kami Kompak (<span className="font-mono-num">KOMPAK-...</span>), Daftar Hadir (<span className="font-mono-num">ABSEN-...</span>), atau NIK 16 digit peserta Bimbingan Perkawinan.
                 </p>
               </div>
-
-              <form onSubmit={handleLoginSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1">
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))}
-                    placeholder="Masukkan username"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-sm outline-none focus:border-[#0F684E]"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                      Kata Sandi
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setForgotOpen(true)}
-                      className="text-xs font-medium text-[#0F684E] dark:text-emerald-400 hover:underline"
-                    >
-                      Lupa Kata Sandi?
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type={showPass ? 'text' : 'password'}
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Masukkan kata sandi"
-                      className="w-full pl-3.5 pr-10 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-sm outline-none focus:border-[#0F684E]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPass((v) => !v)}
-                      aria-label="Tampilkan kata sandi"
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                    >
-                      {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                {loginError && (
-                  <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
-                    {loginError}
-                  </p>
-                )}
-
+              <form onSubmit={handleVerify} className="flex flex-col sm:flex-row gap-2.5">
+                <input
+                  type="text"
+                  value={verifyInput}
+                  onChange={(e) => setVerifyInput(e.target.value)}
+                  placeholder="Contoh: JPR-JEP-2026-0001 atau KOMPAK-2026-0001"
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm font-mono-num outline-none focus:border-[#0F684E]"
+                />
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-sm font-semibold inline-flex items-center justify-center gap-2 transition"
+                  className="px-5 py-2.5 rounded-lg bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition shrink-0"
                 >
-                  Masuk Sistem
-                  <ArrowRight className="w-4 h-4" />
+                  <ShieldCheck className="w-4 h-4" />
+                  Periksa Keabsahan
                 </button>
               </form>
-
-              <div className="pt-4 border-t border-slate-200 dark:border-emerald-950 space-y-2.5">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Akses Demo Cepat Berdasarkan Peran
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => quickDemoLogin('rizky_tahunan', 'bimwin2026')}
-                    className="text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition"
-                  >
-                    <span className="block text-xs font-bold text-slate-900 dark:text-white truncate">
-                      Peserta (Alur 8 Langkah)
-                    </span>
-                    <span className="block text-[11px] text-slate-500 font-mono-num truncate">
-                      rizky_tahunan · Tahunan
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickDemoLogin('ahmad_jepara', 'bimwin2026')}
-                    className="text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition"
-                  >
-                    <span className="block text-xs font-bold text-slate-900 dark:text-white truncate">
-                      Peserta Lulus (4 Dokumen)
-                    </span>
-                    <span className="block text-[11px] text-slate-500 font-mono-num truncate">
-                      ahmad_jepara · Jepara
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickDemoLogin('fasilitator_jepara', 'fasilitator2026')}
-                    className="text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition"
-                  >
-                    <span className="block text-xs font-bold text-slate-900 dark:text-white truncate">
-                      Fasilitator KUA
-                    </span>
-                    <span className="block text-[11px] text-slate-500 font-mono-num truncate">
-                      fasilitator_jepara
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => quickDemoLogin('admin', 'admin2026')}
-                    className="text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition"
-                  >
-                    <span className="block text-xs font-bold text-slate-900 dark:text-white truncate">
-                      SuperAdmin Kemenag
-                    </span>
-                    <span className="block text-[11px] text-slate-500 font-mono-num truncate">
-                      admin · 16 KUA Jepara
-                    </span>
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => quickDemoLogin('admin_jepara', 'kua2026')}
-                  className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition flex items-center justify-between gap-2"
-                >
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    Admin Operator KUA (KUA Jepara)
-                  </span>
-                  <span className="text-[11px] text-slate-500 font-mono-num shrink-0">
-                    admin_jepara
-                  </span>
-                </button>
-              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* Statistik 16 KUA Section */}
-        <section
-          id="statistik"
-          className="border-t border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#0D1613] py-12"
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        {/* ON-DEMAND VIEW 2: Statistik 16 KUA Jepara */}
+        {activeSection === 'statistik' && (
+          <section
+            id="statistik"
+            className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6"
+          >
+            <button
+              type="button"
+              onClick={() => navigateSection('beranda')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Kembali ke Beranda
+            </button>
+
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
                   Transparansi Layanan Publik
                 </p>
-                <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white mt-1">
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white mt-1">
                   Sebaran Peserta &amp; Kelulusan 16 KUA Jepara
-                </h2>
+                </h1>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Data terakumulasi real-time dari seluruh kecamatan · Tahun Anggaran 2026
               </p>
             </div>
 
-            <div className="bg-[#F8FAF9] dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 sm:p-6 overflow-x-auto">
               <div className="h-72 min-w-[620px] sm:min-w-0 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={kuaChartData} margin={{ top: 10, right: 12, left: -16, bottom: 28 }}>
@@ -574,174 +600,199 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                 <span className="sm:hidden">Geser grafik untuk melihat 16 KUA →</span>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* Direktori 16 KUA Section */}
-        <section id="direktori" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
-                Unit Layanan Kecamatan
-              </p>
-              <h2 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white mt-1">
-                Direktori 16 KUA Kabupaten Jepara
-              </h2>
-            </div>
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={kuaSearch}
-                onChange={(e) => setKuaSearch(e.target.value)}
-                placeholder="Cari kecamatan atau alamat..."
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs sm:text-sm outline-none focus:border-[#0F684E]"
-              />
-            </div>
-          </div>
+        {/* ON-DEMAND VIEW 3: Direktori 16 KUA Kabupaten Jepara */}
+        {activeSection === 'direktori' && (
+          <section
+            id="direktori"
+            className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6"
+          >
+            <button
+              type="button"
+              onClick={() => navigateSection('beranda')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Kembali ke Beranda
+            </button>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {filteredDirectory.map((entry) => {
-              const kuaStat = kuaChartData.find((k) => `KUA ${k.kua}` === entry.kua);
-              return (
-                <div
-                  key={entry.kua}
-                  className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-[#0F684E]/50 transition"
-                >
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="font-bold text-sm text-[#0F684E] dark:text-emerald-400">
-                        {entry.kua}
-                      </h3>
-                      {kuaStat && (
-                        <span className="font-mono-num text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                          {kuaStat.lulus}/{kuaStat.peserta} lulus
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                      <span>{entry.alamat}</span>
-                    </p>
-                    <p className="text-xs font-mono-num text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                      <span>{entry.telp}</span>
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
-                    <p className="text-[11px] text-slate-400 truncate">{entry.jamLayanan}</p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
-                        navigator.clipboard?.writeText(text).catch(() => {});
-                        pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
-                      }}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline shrink-0"
-                    >
-                      <Copy className="w-3 h-3" />
-                      Salin
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* Galeri Kegiatan & FAQ */}
-        <section
-          id="faq"
-          className="border-t border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#0D1613] py-12"
-        >
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-10">
-            {/* Galeri (5 cols) */}
-            <div className="lg:col-span-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
-                  Dokumentasi Program
+                  Unit Layanan Kecamatan
                 </p>
-                <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                  Galeri Kegiatan KUA
-                </h2>
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-white mt-1">
+                  Direktori 16 KUA Kabupaten Jepara
+                </h1>
               </div>
-              <div className="space-y-3">
-                {data.gallery.slice(0, 4).map((item) => (
-                  <article
-                    key={item.id}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#111C18] space-y-1"
-                  >
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                      <span className="font-semibold text-[#0F684E] dark:text-emerald-400">
-                        {item.kua}
-                      </span>
-                      <span className="font-mono-num">{item.tanggal}</span>
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{item.judul}</h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {item.deskripsi}
-                    </p>
-                  </article>
-                ))}
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={kuaSearch}
+                  onChange={(e) => setKuaSearch(e.target.value)}
+                  placeholder="Cari kecamatan atau alamat..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs sm:text-sm outline-none focus:border-[#0F684E]"
+                />
               </div>
             </div>
 
-            {/* FAQ (7 cols) */}
-            <div className="lg:col-span-7 space-y-4">
-              <div className="flex items-end justify-between gap-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
-                    Pusat Bantuan
-                  </p>
-                  <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-1">
-                    Pertanyaan Umum (FAQ)
-                  </h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setKritikOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  Kirim Kritik &amp; Saran
-                </button>
-              </div>
-              <div className="divide-y divide-slate-200 dark:divide-emerald-950 border border-slate-200 dark:border-emerald-950 rounded-xl overflow-hidden bg-[#F8FAF9] dark:bg-[#111C18]">
-                {data.faqs.map((faq) => {
-                  const isOpen = openFaqId === faq.id;
-                  return (
-                    <div key={faq.id}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {filteredDirectory.map((entry) => {
+                const kuaStat = kuaChartData.find((k) => `KUA ${k.kua}` === entry.kua);
+                return (
+                  <div
+                    key={entry.kua}
+                    className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-[#0F684E]/50 transition"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="font-bold text-sm text-[#0F684E] dark:text-emerald-400">
+                          {entry.kua}
+                        </h3>
+                        {kuaStat && (
+                          <span className="font-mono-num text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                            {kuaStat.lulus}/{kuaStat.peserta} lulus
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                        <span>{entry.alamat}</span>
+                      </p>
+                      <p className="text-xs font-mono-num text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                        <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                        <span>{entry.telp}</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
+                      <p className="text-[11px] text-slate-400 truncate">{entry.jamLayanan}</p>
                       <button
                         type="button"
-                        onClick={() => setOpenFaqId(isOpen ? '' : faq.id)}
-                        className="w-full px-4 py-3.5 text-left flex items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-emerald-950/30 transition"
+                        onClick={() => {
+                          const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
+                          navigator.clipboard?.writeText(text).catch(() => {});
+                          pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
+                        }}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline shrink-0"
                       >
-                        <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {faq.t}
-                        </span>
-                        <ChevronDown
-                          className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
-                            isOpen ? 'rotate-180' : ''
-                          }`}
-                        />
+                        <Copy className="w-3 h-3" />
+                        Salin
                       </button>
-                      {isOpen && (
-                        <div className="px-4 pb-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                          {faq.j}
-                        </div>
-                      )}
                     </div>
-                  );
-                })}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* ON-DEMAND VIEW 4: Galeri Kegiatan & FAQ */}
+        {activeSection === 'faq' && (
+          <section
+            id="faq"
+            className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6"
+          >
+            <button
+              type="button"
+              onClick={() => navigateSection('beranda')}
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Kembali ke Beranda
+            </button>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+              {/* Galeri (5 cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
+                    Dokumentasi Program
+                  </p>
+                  <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-1">
+                    Galeri Kegiatan KUA
+                  </h2>
+                </div>
+                <div className="space-y-3">
+                  {data.gallery.slice(0, 4).map((item) => (
+                    <article
+                      key={item.id}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111C18] space-y-1"
+                    >
+                      <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold text-[#0F684E] dark:text-emerald-400">
+                          {item.kua}
+                        </span>
+                        <span className="font-mono-num">{item.tanggal}</span>
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{item.judul}</h3>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {item.deskripsi}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+
+              {/* FAQ (7 cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest text-[#0F684E] dark:text-emerald-400">
+                      Pusat Bantuan
+                    </p>
+                    <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-1">
+                      Pertanyaan Umum (FAQ)
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setKritikOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Kirim Kritik &amp; Saran
+                  </button>
+                </div>
+                <div className="divide-y divide-slate-200 dark:divide-emerald-950 border border-slate-200 dark:border-emerald-950 rounded-xl overflow-hidden bg-white dark:bg-[#111C18]">
+                  {data.faqs.map((faq) => {
+                    const isOpen = openFaqId === faq.id;
+                    return (
+                      <div key={faq.id}>
+                        <button
+                          type="button"
+                          onClick={() => setOpenFaqId(isOpen ? '' : faq.id)}
+                          className="w-full px-4 py-3.5 text-left flex items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-emerald-950/30 transition"
+                        >
+                          <span className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-slate-100">
+                            {faq.t}
+                          </span>
+                          <ChevronDown
+                            className={`w-4 h-4 text-slate-400 shrink-0 transition-transform ${
+                              isOpen ? 'rotate-180' : ''
+                            }`}
+                          />
+                        </button>
+                        {isOpen && (
+                          <div className="px-4 pb-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {faq.j}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
       </main>
 
       {/* Clean Institutional Footer */}
       <footer className="border-t border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0A110F]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2.5">
             <KemenagLogo size="sm" />
             <span>
