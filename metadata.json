@@ -1,0 +1,8 @@
+{
+  "name": "BIMWIN Kemenag Jepara",
+  "description": "Platform digital resmi Bimbingan Perkawinan Mandiri Kementerian Agama Kabupaten Jepara untuk 16 KUA Kecamatan: MOOC 8 langkah, pencegahan stunting, verifikasi dokumen QR, dan analitik eksekutif.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
