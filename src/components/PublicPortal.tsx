@@ -49,7 +49,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [showNotice, setShowNotice] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [verifyInput, setVerifyInput] = useState(initialVerifyCode);
@@ -123,12 +122,12 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
           <a href="#beranda" className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
             <KemenagLogo size="sm" />
-            <div className="leading-tight min-w-0">
-              <span className="font-bold text-[13px] sm:text-base tracking-tight text-slate-900 dark:text-white truncate block">
-                BIMWIN Kemenag Jepara
+            <div className="leading-snug min-w-0">
+              <span className="font-bold text-xs uppercase tracking-wide text-slate-900 dark:text-white truncate block">
+                BIMWIN KEMENAG JEPARA
               </span>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hidden sm:block truncate">
-                Kementerian Agama Kabupaten Jepara
+              <span className="font-semibold text-xs uppercase tracking-wide text-slate-600 dark:text-slate-300 hidden sm:block truncate">
+                KEMENTERIAN AGAMA KABUPATEN JEPARA
               </span>
             </div>
           </a>
@@ -226,26 +225,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
           </div>
         )}
       </header>
-
-      {/* Calm Institutional Notice Strip (Replaces Scrolling Marquee) */}
-      {showNotice && (
-        <div className="bg-[#094232] text-emerald-50 border-b border-amber-500/30">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between gap-3 text-[11px] sm:text-xs">
-            <p className="leading-snug line-clamp-2 sm:line-clamp-none">
-              <span className="font-bold text-amber-300 mr-1.5">Pengumuman Resmi:</span>
-              {data.settings.announcement}
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowNotice(false)}
-              aria-label="Tutup pengumuman"
-              className="text-emerald-200 hover:text-white shrink-0"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
 
       <main id="beranda" className="flex-1">
         {/* Hero & Login Split Section */}
@@ -768,23 +747,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
             <span>
               Kantor Kementerian Agama Kabupaten Jepara · Seksi Bimbingan Masyarakat Islam
             </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setKritikOpen(true)}
-              className="hover:text-[#0F684E] dark:hover:text-emerald-400 font-medium"
-            >
-              Kritik &amp; Saran
-            </button>
-            <button
-              type="button"
-              onClick={toggleDarkMode}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 hover:bg-white dark:hover:bg-[#111C18] text-slate-700 dark:text-slate-200 font-medium transition"
-            >
-              {darkMode ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
-              {darkMode ? 'Mode Terang' : 'Mode Gelap'}
-            </button>
           </div>
         </div>
       </footer>

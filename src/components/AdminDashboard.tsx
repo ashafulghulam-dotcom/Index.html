@@ -1204,17 +1204,6 @@ export const AdminDashboard: React.FC = () => {
             <h2 className="font-display text-xl font-semibold">
               Konfigurasi Sistem &amp; Pejabat Penandatangan
             </h2>
-            <div>
-              <label className="block font-semibold mb-1">Teks Pengumuman Portal Utama</label>
-              <textarea
-                rows={2}
-                value={settingsDraft.announcement}
-                onChange={(e) =>
-                  setSettingsDraft({ ...settingsDraft, announcement: e.target.value })
-                }
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-semibold mb-1">Jabatan Penandatangan</label>
