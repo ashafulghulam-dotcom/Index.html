@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award,
   Bell,
@@ -6,6 +6,9 @@ import {
   Calculator,
   Calendar,
   CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  Copy,
   CreditCard,
   Download,
   FileCheck2,
@@ -23,6 +26,7 @@ import {
   UserCheck,
   UserPlus,
   Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { DEFAULT_KOMPAK_COMMITMENTS, DOA_PENGANTIN } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
@@ -34,6 +38,7 @@ import {
   calculateStuntingReadiness,
   evaluatePesertaStep,
   formatIndonesianDate,
+  isUnderageMarriage,
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
@@ -72,8 +77,10 @@ export const PesertaDashboard: React.FC = () => {
     submitConsultation,
     submitPostMarriageJournal,
     updateOwnProfile,
+    toggleBerkasChecklist,
     markNotificationRead,
     requestConfirm,
+    pushToast,
   } = useBimwin();
 
   const [activeTab, setActiveTab] = useState('belajar');
@@ -135,6 +142,7 @@ export const PesertaDashboard: React.FC = () => {
 
   // Doa Pengantin state
   const [doaLang, setDoaLang] = useState<'id' | 'jv' | 'en' | 'ar'>('id');
+  const [speakingDoaId, setSpeakingDoaId] = useState<string | null>(null);
 
   // Konsultasi & Pasca Nikah state
   const [konsulTopik, setKonsulTopik] = useState('Berkas Nikah & SIMKAH');
@@ -157,6 +165,46 @@ export const PesertaDashboard: React.FC = () => {
 
   // Izin reason per class
   const [izinReasons, setIzinReasons] = useState<Record<string, string>>({});
+
+  // Sync local form drafts whenever active user account changes
+  useEffect(() => {
+    if (!currentUser) return;
+    setProfileForm({
+      nama: currentUser.nama || '',
+      noHp: currentUser.noHp || '',
+      pekerjaan: currentUser.pekerjaan || '',
+      alamat: currentUser.alamat || '',
+      tanggalRencanaNikah: currentUser.tanggalRencanaNikah || '',
+    });
+    setStuntingForm({
+      tinggiCm: currentUser.stunting?.tinggiCm || 160,
+      beratKg: currentUser.stunting?.beratKg || 54,
+      lilaCm: currentUser.stunting?.lilaCm || 25,
+      hbGdL: currentUser.stunting?.hbGdL || 12.6,
+    });
+    setKompakForm({
+      peranKeluarga:
+        currentUser.kompak?.peranKeluarga || DEFAULT_KOMPAK_COMMITMENTS.peranKeluarga,
+      pendidikanKarakter:
+        currentUser.kompak?.pendidikanKarakter || DEFAULT_KOMPAK_COMMITMENTS.pendidikanKarakter,
+      disiplinPositif:
+        currentUser.kompak?.disiplinPositif || DEFAULT_KOMPAK_COMMITMENTS.disiplinPositif,
+      jawabanKuis: currentUser.kompak?.jawabanKuis || {},
+    });
+    setNewPartnerForm((prev) => ({
+      ...prev,
+      jenisKelamin: currentUser.jenisKelamin === 'Laki-laki' ? 'Perempuan' : 'Laki-laki',
+    }));
+  }, [currentUser?.id]);
+
+  // Stop speech synthesis on unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   if (!currentUser) return null;
 
@@ -207,11 +255,92 @@ export const PesertaDashboard: React.FC = () => {
     [kompakForm.jawabanKuis, partnerUser?.kompak?.jawabanKuis, data.compatibilityQuiz.length]
   );
 
+  const needsDispensasiPA = isUnderageMarriage(currentUser.usia);
+
+  const berkasItems = useMemo(() => {
+    const base = [
+      {
+        key: 'n1_n2_n4',
+        title: 'Surat Pengantar Nikah (Model N1, N2, N4)',
+        desc: 'Diperoleh dari Kantor Kelurahan/Desa tempat tinggal masing-masing calon pengantin.',
+        wajib: true,
+        autoDone: false,
+      },
+      {
+        key: 'ktp_kk',
+        title: 'Fotokopi e-KTP & Kartu Keluarga (KK)',
+        desc: 'KTP dan KK kedua calon pengantin beserta KTP orang tua / wali nikah.',
+        wajib: true,
+        autoDone: false,
+      },
+      {
+        key: 'akta_ijazah',
+        title: 'Fotokopi Akta Kelahiran / Ijazah Terakhir',
+        desc: 'Digunakan untuk verifikasi nama lengkap, tempat tanggal lahir, dan nama orang tua di buku nikah.',
+        wajib: true,
+        autoDone: false,
+      },
+      {
+        key: 'pasfoto_biru',
+        title: 'Pasfoto Berlatar Belakang Biru (2×3 & 4×6)',
+        desc: 'Masing-masing 4 lembar ukuran 2×3 cm dan 2 lembar ukuran 4×6 cm + file digital untuk SIMKAH.',
+        wajib: true,
+        autoDone: false,
+      },
+      {
+        key: 'elsimil_tt',
+        title: 'Surat Imunisasi TT & Sertifikat Elsimil Puskesmas',
+        desc: 'Pemeriksaan kesehatan pra-nikah, skrining gizi/anemia, dan imunisasi Tetanus Toksoid di Puskesmas.',
+        wajib: true,
+        autoDone: Boolean(currentUser.stunting),
+      },
+      {
+        key: 'sertifikat_bimwin',
+        title: 'Sertifikat Bimbingan Perkawinan (BIMWIN) Kemenag',
+        desc: 'Otomatis tercentang setelah lulus MOOC 5 modul, mengisi IKM, dan disahkan oleh Fasilitator KUA.',
+        wajib: true,
+        autoDone: Boolean(currentUser.progress?.verifikasiFasilitator),
+      },
+      {
+        key: 'daftar_simkah',
+        title: 'Bukti Pendaftaran Online SIMKAH Web (simkah4.kemenag.go.id)',
+        desc: 'Minimal H-10 hari kerja sebelum tanggal pelaksanaan akad nikah di KUA kecamatan.',
+        wajib: true,
+        autoDone: false,
+      },
+    ];
+    if (needsDispensasiPA) {
+      base.push({
+        key: 'dispensasi_pa',
+        title: 'Penetapan Dispensasi Kawin Pengadilan Agama (Usia < 19 Tahun)',
+        desc: 'Wajib berdasarkan UU No. 16 Tahun 2019 apabila salah satu calon pengantin berusia di bawah 19 tahun.',
+        wajib: true,
+        autoDone: false,
+      });
+    }
+    return base;
+  }, [currentUser.progress?.verifikasiFasilitator, currentUser.stunting, needsDispensasiPA]);
+
+  const berkasDoneCount = berkasItems.filter(
+    (item) => item.autoDone || Boolean(currentUser.berkasChecklist?.[item.key])
+  ).length;
+  const berkasPercent = Math.round((berkasDoneCount / berkasItems.length) * 100);
+
+  const daysToAkad = useMemo(() => {
+    if (!currentUser.tanggalRencanaNikah) return null;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(`${currentUser.tanggalRencanaNikah}T00:00:00`);
+    if (Number.isNaN(target.getTime())) return null;
+    return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }, [currentUser.tanggalRencanaNikah]);
+
   const navItems: NavItem[] = [
     { id: 'belajar', label: 'Ruang Belajar', icon: GraduationCap, badge: `${evalStep.progressPercent}%`, section: 'Pembelajaran MOOC' },
     { id: 'selesai', label: 'Selesai & Dokumen', icon: FileCheck2, badge: evalStep.canDownloadDocuments ? 'Siap' : undefined, section: 'Pembelajaran MOOC' },
     { id: 'kompak', label: 'Piagam Kami Kompak', icon: HeartHandshake, section: 'Pembelajaran MOOC' },
     { id: 'kelas', label: 'Kelas Online & Offline', icon: Calendar, badge: myClasses.length, section: 'Pembelajaran MOOC' },
+    { id: 'berkas', label: 'Checklist Berkas SIMKAH', icon: ClipboardCheck, badge: `${berkasDoneCount}/${berkasItems.length}`, section: 'Perangkat Catin' },
     { id: 'kalkulator', label: 'Kalkulator Keluarga', icon: Calculator, section: 'Perangkat Catin' },
     { id: 'doa', label: 'Doa Pengantin (4 Bahasa)', icon: Sparkles, section: 'Perangkat Catin' },
     { id: 'konsultasi', label: 'Pojok Konsultasi', icon: MessageCircle, badge: myConsultations.length || undefined, section: 'Pendampingan' },
@@ -224,13 +353,34 @@ export const PesertaDashboard: React.FC = () => {
   const formatRupiah = (n: number) =>
     new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
 
-  const speakDoa = (text: string, lang: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  const toggleSpeakDoa = (doaId: string, text: string, lang: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      pushToast('info', 'Browser Anda belum mendukung fitur pembaca suara.');
+      return;
+    }
+    if (speakingDoaId === doaId) {
+      window.speechSynthesis.cancel();
+      setSpeakingDoaId(null);
+      return;
+    }
     window.speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = lang;
     u.rate = 0.92;
+    u.onend = () => setSpeakingDoaId(null);
+    u.onerror = () => setSpeakingDoaId(null);
+    setSpeakingDoaId(doaId);
     window.speechSynthesis.speak(u);
+  };
+
+  const copyDoaText = async (judul: string, arab: string, latin: string, terjemah: string) => {
+    const content = `${judul}\n\n${arab}\n\n${latin}\n\nArtinya: ${terjemah}`;
+    try {
+      await navigator.clipboard.writeText(content);
+      pushToast('success', `Teks "${judul}" berhasil disalin.`);
+    } catch {
+      pushToast('error', 'Gagal menyalin teks doa.');
+    }
   };
 
   return (
@@ -276,33 +426,57 @@ export const PesertaDashboard: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center text-[11px]">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-1.5 text-center text-[11px]">
               {[
-                '1. Sinkron',
-                '2. Pretest',
-                '3. 5 Modul',
-                '4. Postest',
-                '5. Selesai',
-                '6. IKM',
-                '7. Kelas',
-                '8. Dokumen',
-              ].map((label, idx) => {
+                { label: '1. Sinkron', action: () => {} },
+                {
+                  label: '2. Pretest',
+                  action: () => {
+                    if (evalStep.canTakePretest) setQuizTarget({ kind: 'pretest' });
+                  },
+                },
+                { label: '3. 5 Modul', action: () => {} },
+                {
+                  label: '4. Postest',
+                  action: () => {
+                    if (evalStep.canTakePostest) setQuizTarget({ kind: 'postest' });
+                  },
+                },
+                {
+                  label: '5. Selesai',
+                  action: () => {
+                    if (evalStep.canOpenSelesai) markSelesaiClicked();
+                    setActiveTab('selesai');
+                  },
+                },
+                {
+                  label: '6. IKM',
+                  action: () => {
+                    if (evalStep.moocFinished && !currentUser.progress?.ikmDone) setIkmOpen(true);
+                    else setActiveTab('selesai');
+                  },
+                },
+                { label: '7. Kelas', action: () => setActiveTab('kelas') },
+                { label: '8. Dokumen', action: () => setActiveTab('selesai') },
+              ].map((stepItem, idx) => {
                 const stepNo = idx + 1;
                 const done = evalStep.completedSteps.includes(stepNo);
                 const active = evalStep.currentStep === stepNo && !done;
                 return (
-                  <div
-                    key={label}
-                    className={`px-2 py-1.5 rounded-lg border font-medium truncate ${
+                  <button
+                    key={stepItem.label}
+                    type="button"
+                    onClick={stepItem.action}
+                    className={`px-2 py-2 rounded-lg border font-medium truncate transition cursor-pointer ${
                       done
-                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300 hover:bg-emerald-100/70'
                         : active
-                          ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-bold'
-                          : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950 text-slate-400'
+                          ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-bold hover:bg-amber-100/60'
+                          : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950 text-slate-500 hover:border-slate-300'
                     }`}
                   >
-                    {label}
-                  </div>
+                    {stepItem.label}
+                  </button>
                 );
               })}
             </div>
@@ -973,6 +1147,126 @@ export const PesertaDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB BARU: CHECKLIST BERKAS SIMKAH & HITUNG MUNDUR AKAD NIKAH */}
+      {activeTab === 'berkas' && (
+        <div className="space-y-5">
+          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
+                  Persiapan Administrasi · {currentUser.kua}
+                </p>
+                <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-0.5">
+                  Checklist Berkas Nikah SIMKAH &amp; Hitung Mundur Akad
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Tandai dokumen yang sudah siap agar berkas pendaftaran di KUA Kecamatan lengkap tepat waktu (minimal H-10 hari kerja).
+                </p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#094232] text-white shrink-0 min-w-[210px]">
+                <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-300 font-semibold">
+                  <Clock className="w-3.5 h-3.5" />
+                  Hitung Mundur Akad
+                </div>
+                {daysToAkad !== null ? (
+                  <>
+                    <p className="font-mono-num text-xl sm:text-2xl font-bold mt-1">
+                      {daysToAkad > 0
+                        ? `H-${daysToAkad} Hari`
+                        : daysToAkad === 0
+                          ? 'Hari Ini!'
+                          : 'Jadwal Terlaksana'}
+                    </p>
+                    <p className="text-[11px] text-emerald-100 mt-0.5">
+                      Rencana: {formatIndonesianDate(currentUser.tanggalRencanaNikah)}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold mt-1">Tanggal Belum Diisi</p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('profil')}
+                      className="text-[11px] text-amber-300 underline mt-1"
+                    >
+                      Atur di Profil Akun →
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-emerald-950">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-700 dark:text-slate-200">
+                  Kesiapan Dokumen KUA
+                </span>
+                <span className="font-mono-num font-bold text-[#0F684E] dark:text-emerald-400">
+                  {berkasDoneCount}/{berkasItems.length} berkas ({berkasPercent}%)
+                </span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 dark:bg-emerald-950 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#0F684E] transition-all duration-300"
+                  style={{ width: `${berkasPercent}%` }}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="space-y-2.5">
+            {berkasItems.map((item) => {
+              const checked = item.autoDone || Boolean(currentUser.berkasChecklist?.[item.key]);
+              return (
+                <label
+                  key={item.key}
+                  className={`flex items-start gap-3.5 p-4 rounded-2xl border transition cursor-pointer ${
+                    checked
+                      ? 'bg-emerald-50/60 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-white dark:bg-[#111C18] border-slate-200 dark:border-emerald-950 hover:border-slate-300'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={item.autoDone}
+                    onChange={() => toggleBerkasChecklist(item.key)}
+                    className="mt-1 w-4 h-4 accent-[#0F684E] shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`text-sm font-bold ${
+                          checked
+                            ? 'text-[#0F684E] dark:text-emerald-300 line-through decoration-emerald-500/60'
+                            : 'text-slate-900 dark:text-white'
+                        }`}
+                      >
+                        {item.title}
+                      </span>
+                      {item.autoDone && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-[#0F684E] dark:text-emerald-200">
+                          Terverifikasi Sistem
+                        </span>
+                      )}
+                      {item.key === 'dispensasi_pa' && (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300">
+                          Wajib Usia &lt; 19 Th
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                      {item.desc}
+                    </p>
+                  </div>
+                </label>
+              );
+            })}
+          </section>
+        </div>
+      )}
+
       {/* TAB 5: KALKULATOR KELUARGA (KEUANGAN, STUNTING, MASA SUBUR) */}
       {activeTab === 'kalkulator' && (
         <div className="space-y-5">
@@ -1256,19 +1550,46 @@ export const PesertaDashboard: React.FC = () => {
                     <h3 className="font-bold text-base text-slate-900 dark:text-white">{doa.judul}</h3>
                     <p className="text-xs text-slate-500">{doa.subjudul}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      speakDoa(
-                        doa.translations[doaLang],
-                        doaLang === 'en' ? 'en-US' : doaLang === 'ar' ? 'ar-SA' : 'id-ID'
-                      )
-                    }
-                    className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-[#0F684E] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60"
-                    title="Bacakan doa"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyDoaText(doa.judul, doa.arab, doa.latin, doa.translations[doaLang])
+                      }
+                      className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-emerald-950/60"
+                      title="Salin teks doa"
+                      aria-label={`Salin ${doa.judul}`}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        toggleSpeakDoa(
+                          doa.id,
+                          doa.translations[doaLang],
+                          doaLang === 'en' ? 'en-US' : doaLang === 'ar' ? 'ar-SA' : 'id-ID'
+                        )
+                      }
+                      className={`p-2 rounded-lg border transition ${
+                        speakingDoaId === doa.id
+                          ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300'
+                          : 'border-slate-200 dark:border-emerald-900 text-[#0F684E] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
+                      }`}
+                      title={speakingDoaId === doa.id ? 'Hentikan suara' : 'Bacakan doa'}
+                      aria-label={
+                        speakingDoaId === doa.id
+                          ? `Hentikan pembacaan ${doa.judul}`
+                          : `Bacakan ${doa.judul}`
+                      }
+                    >
+                      {speakingDoaId === doa.id ? (
+                        <VolumeX className="w-4 h-4" />
+                      ) : (
+                        <Volume2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <p
                   dir="rtl"

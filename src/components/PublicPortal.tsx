@@ -3,9 +3,11 @@ import {
   ArrowRight,
   BookOpen,
   ChevronDown,
+  Copy,
   Eye,
   EyeOff,
   MapPin,
+  Menu,
   MessageSquare,
   Moon,
   Phone,
@@ -41,13 +43,14 @@ import { VerificationModal } from './VerificationModal';
 export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   initialVerifyCode = '',
 }) => {
-  const { data, login, darkMode, toggleDarkMode } = useBimwin();
+  const { data, login, darkMode, toggleDarkMode, pushToast } = useBimwin();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [showNotice, setShowNotice] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [verifyInput, setVerifyInput] = useState(initialVerifyCode);
   const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(() =>
@@ -114,23 +117,23 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F8FAF9] dark:bg-[#0A110F] text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen flex flex-col overflow-x-clip bg-[#F8FAF9] dark:bg-[#0A110F] text-slate-900 dark:text-slate-100">
       {/* 3-Zone Single-Row Institutional Top Bar */}
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-b border-slate-200 dark:border-emerald-950">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-6">
-          <a href="#beranda" className="flex items-center gap-3 shrink-0">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-2 sm:gap-4">
+          <a href="#beranda" className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 sm:flex-initial">
             <KemenagLogo size="sm" />
-            <div className="leading-tight">
-              <span className="font-bold text-sm sm:text-base tracking-tight text-slate-900 dark:text-white whitespace-nowrap block">
+            <div className="leading-tight min-w-0">
+              <span className="font-bold text-[13px] sm:text-base tracking-tight text-slate-900 dark:text-white truncate block">
                 BIMWIN Kemenag Jepara
               </span>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 hidden sm:block truncate">
                 Kementerian Agama Kabupaten Jepara
               </span>
             </div>
           </a>
 
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-600 dark:text-slate-300">
+          <nav className="hidden md:flex items-center gap-6 lg:gap-7 text-sm font-medium text-slate-600 dark:text-slate-300">
             <a href="#verifikasi" className="hover:text-[#0F684E] dark:hover:text-emerald-400 transition whitespace-nowrap">
               Verifikasi
             </a>
@@ -152,16 +155,76 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
             </a>
           </nav>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              aria-label={darkMode ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
+              className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
+            >
+              {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
+            </button>
             <button
               type="button"
               onClick={() => setRegisterOpen(true)}
-              className="px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold transition whitespace-nowrap"
+              className="px-3 sm:px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold transition whitespace-nowrap"
             >
-              Daftar Catin
+              Daftar<span className="hidden sm:inline"> Catin</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              aria-label="Buka menu navigasi"
+              className="md:hidden p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
+            >
+              {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </button>
           </div>
         </div>
+
+        {/* Mobile Navigation Dropdown */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#0D1613] px-4 py-3 space-y-1 shadow-lg">
+            {[
+              { label: 'Masuk Portal', href: '#masuk-portal' },
+              { label: 'Verifikasi Dokumen & NIK', href: '#verifikasi' },
+              { label: 'Statistik 16 KUA Jepara', href: '#statistik' },
+              { label: 'Direktori 16 KUA', href: '#direktori' },
+              { label: 'Galeri & FAQ', href: '#faq' },
+            ].map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/50"
+              >
+                {link.label}
+              </a>
+            ))}
+            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-emerald-950 flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setPanduanOpen(true);
+                }}
+                className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
+              >
+                Buku Saku 8 Langkah
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setKritikOpen(true);
+                }}
+                className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200"
+              >
+                Kritik &amp; Saran
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Calm Institutional Notice Strip (Replaces Scrolling Marquee) */}
@@ -454,6 +517,18 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     </span>
                   </button>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => quickDemoLogin('admin_jepara', 'kua2026')}
+                  className="w-full text-left px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 hover:border-[#0F684E] hover:bg-emerald-50/50 dark:hover:bg-emerald-950/40 transition flex items-center justify-between gap-2"
+                >
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">
+                    Admin Operator KUA (KUA Jepara)
+                  </span>
+                  <span className="text-[11px] text-slate-500 font-mono-num shrink-0">
+                    admin_jepara
+                  </span>
+                </button>
               </div>
             </div>
           </div>
@@ -479,8 +554,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               </p>
             </div>
 
-            <div className="bg-[#F8FAF9] dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 sm:p-6">
-              <div className="h-72 w-full">
+            <div className="bg-[#F8FAF9] dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 sm:p-6 overflow-x-auto">
+              <div className="h-72 min-w-[620px] sm:min-w-0 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={kuaChartData} margin={{ top: 10, right: 12, left: -16, bottom: 28 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1e3a32' : '#e2e8f0'} />
@@ -507,6 +582,17 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     <Bar dataKey="lulus" name="Sertifikat Terbit" fill="#C69214" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex items-center justify-between pt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex items-center gap-4">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#0F684E]" /> Total Peserta
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-sm bg-[#C69214]" /> Sertifikat Terbit
+                  </span>
+                </div>
+                <span className="sm:hidden">Geser grafik untuk melihat 16 KUA →</span>
               </div>
             </div>
           </div>
@@ -536,29 +622,51 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {filteredDirectory.map((entry) => (
-              <div
-                key={entry.kua}
-                className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 flex flex-col justify-between gap-3"
-              >
-                <div className="space-y-1.5">
-                  <h3 className="font-bold text-sm text-[#0F684E] dark:text-emerald-400">
-                    {entry.kua}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                    <span>{entry.alamat}</span>
-                  </p>
-                  <p className="text-xs font-mono-num text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                    <span>{entry.telp}</span>
-                  </p>
+            {filteredDirectory.map((entry) => {
+              const kuaStat = kuaChartData.find((k) => `KUA ${k.kua}` === entry.kua);
+              return (
+                <div
+                  key={entry.kua}
+                  className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 flex flex-col justify-between gap-3 hover:border-[#0F684E]/50 transition"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-sm text-[#0F684E] dark:text-emerald-400">
+                        {entry.kua}
+                      </h3>
+                      {kuaStat && (
+                        <span className="font-mono-num text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                          {kuaStat.lulus}/{kuaStat.peserta} lulus
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                      <span>{entry.alamat}</span>
+                    </p>
+                    <p className="text-xs font-mono-num text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                      <span>{entry.telp}</span>
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
+                    <p className="text-[11px] text-slate-400 truncate">{entry.jamLayanan}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
+                        navigator.clipboard?.writeText(text).catch(() => {});
+                        pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline shrink-0"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Salin
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 pt-2 border-t border-slate-100 dark:border-emerald-950">
-                  {entry.jamLayanan}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

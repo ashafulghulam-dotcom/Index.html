@@ -206,9 +206,44 @@ export const WorkspaceShell: React.FC<{
           </div>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-6xl w-full mx-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-24 lg:pb-8 max-w-6xl w-full mx-auto">
           {children}
         </main>
+
+        {/* Mobile & Tablet Quick Bottom Navigation Bar */}
+        <nav
+          aria-label="Navigasi cepat perangkat seluler"
+          className="lg:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-t border-slate-200 dark:border-emerald-950 px-1.5 py-1.5 flex items-center justify-around no-print"
+        >
+          {navItems.slice(0, 4).map((item) => {
+            const Icon = item.icon;
+            const isActive = item.id === activeTab;
+            const shortLabel = item.label.split(' ')[0];
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectTab(item.id)}
+                className={`flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[60px] transition ${
+                  isActive
+                    ? 'text-[#0F684E] dark:text-emerald-400 font-bold'
+                    : 'text-slate-500 dark:text-slate-400 font-medium'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-[10px] leading-tight truncate max-w-[68px]">{shortLabel}</span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[60px] text-slate-500 dark:text-slate-400 font-medium"
+          >
+            <Menu className="w-4 h-4" />
+            <span className="text-[10px] leading-tight">Menu</span>
+          </button>
+        </nav>
       </div>
     </div>
   );

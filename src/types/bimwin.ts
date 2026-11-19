@@ -91,6 +91,7 @@ export interface BimwinUser {
   progress?: PesertaProgress;
   stunting?: StuntingCheckRecord;
   kompak?: KompakData;
+  berkasChecklist?: Record<string, boolean>;
   createdAt: string;
   jabatan?: string; // for Fasilitator/Admin
   nip?: string;

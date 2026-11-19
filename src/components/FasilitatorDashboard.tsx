@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   Calendar,
   CheckCheck,
   CheckCircle2,
+  Eye,
   MessageSquare,
   Plus,
   Printer,
@@ -15,11 +16,12 @@ import {
 } from 'lucide-react';
 import { FASILITATOR_QUICK_NOTES } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
-import { AttendanceStatus, BimwinClassSchedule } from '../types/bimwin';
+import { AttendanceStatus, BimwinClassSchedule, BimwinUser } from '../types/bimwin';
 import {
   canFasilitatorVerify,
   evaluatePesertaStep,
   formatIndonesianDate,
+  maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
 import { AttendanceSheetModal } from './OfficialDocuments';
@@ -77,13 +79,24 @@ export const FasilitatorDashboard: React.FC = () => {
   const [remMsg, setRemMsg] = useState('');
   const [remUser, setRemUser] = useState('');
 
-  // Profile form
+  // Profile form & peserta detail inspection
+  const [detailPeserta, setDetailPeserta] = useState<BimwinUser | null>(null);
   const [profForm, setProfForm] = useState({
     nama: currentUser?.nama || '',
     jabatan: currentUser?.jabatan || '',
     nip: currentUser?.nip || '',
     noHp: currentUser?.noHp || '',
   });
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setProfForm({
+      nama: currentUser.nama || '',
+      jabatan: currentUser.jabatan || '',
+      nip: currentUser.nip || '',
+      noHp: currentUser.noHp || '',
+    });
+  }, [currentUser?.id]);
 
   if (!currentUser) return null;
 
@@ -185,7 +198,7 @@ export const FasilitatorDashboard: React.FC = () => {
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs sm:text-sm outline-none focus:border-[#0F684E]"
               />
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(
                 [
                   { id: 'all', label: 'Semua' },
@@ -305,33 +318,44 @@ export const FasilitatorDashboard: React.FC = () => {
                             </select>
                           </td>
                           <td className="px-4 py-3 align-top text-right space-y-1.5">
-                            <button
-                              type="button"
-                              disabled={!moocReady && !verified}
-                              onClick={() =>
-                                verifyPesertaByFasilitator(u.id, {
-                                  verified: !verified,
-                                  kehadiranKelas:
-                                    !verified && currentAttend === 'Belum Hadir'
-                                      ? 'Hadir Kelas Offline'
-                                      : currentAttend,
-                                  catatanFasilitator: currentNote,
-                                })
-                              }
-                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                                verified
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300'
+                            <div className="inline-flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setDetailPeserta(u)}
+                                className="p-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-emerald-950"
+                                title="Lihat detail progres & gizi"
+                                aria-label="Lihat detail peserta"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={!moocReady && !verified}
+                                onClick={() =>
+                                  verifyPesertaByFasilitator(u.id, {
+                                    verified: !verified,
+                                    kehadiranKelas:
+                                      !verified && currentAttend === 'Belum Hadir'
+                                        ? 'Hadir Kelas Offline'
+                                        : currentAttend,
+                                    catatanFasilitator: currentNote,
+                                  })
+                                }
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
+                                  verified
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300'
+                                    : moocReady
+                                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                                      : 'bg-slate-100 dark:bg-emerald-950/40 text-slate-400 cursor-not-allowed'
+                                }`}
+                              >
+                                {verified
+                                  ? 'Sah · Batalkan'
                                   : moocReady
-                                    ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                                    : 'bg-slate-100 dark:bg-emerald-950/40 text-slate-400 cursor-not-allowed'
-                              }`}
-                            >
-                              {verified
-                                ? 'Sah · Batalkan'
-                                : moocReady
-                                  ? 'Sahkan Lulus'
-                                  : 'MOOC Belum Tuntas'}
-                            </button>
+                                    ? 'Sahkan Lulus'
+                                    : 'MOOC Belum Tuntas'}
+                              </button>
+                            </div>
                             {u.progress?.nomorSertifikat && (
                               <p className="font-mono-num text-[10px] text-slate-500">
                                 {u.progress.nomorSertifikat}
@@ -834,6 +858,101 @@ export const FasilitatorDashboard: React.FC = () => {
         onClose={() => setSheetClass(null)}
         schedule={sheetClass}
       />
+
+      {/* Detail Peserta Inspection Modal */}
+      {detailPeserta && (
+        <ModalDialog
+          open={Boolean(detailPeserta)}
+          onClose={() => setDetailPeserta(null)}
+          title={`Rincian Progres Peserta — ${detailPeserta.nama}`}
+          subtitle={`${detailPeserta.kua} · Desa ${normalizeVillageName(detailPeserta.desaTempatNikah, detailPeserta.kua)}`}
+          maxWidth="2xl"
+          footer={
+            <button
+              type="button"
+              onClick={() => setDetailPeserta(null)}
+              className="px-4 py-2 rounded-lg bg-[#0F684E] text-white text-xs font-semibold"
+            >
+              Tutup Rincian
+            </button>
+          }
+        >
+          <div className="space-y-4 text-xs sm:text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950">
+              <div>
+                <p className="text-[11px] text-slate-500">NIK (Tersamar) &amp; Usia</p>
+                <p className="font-mono-num font-bold">
+                  {maskNik(detailPeserta.nik)} · {detailPeserta.usia ?? '-'} tahun
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Pasangan Tersinkron</p>
+                <p className="font-bold">{detailPeserta.pasanganNama || 'Belum tersinkron'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Rencana Akad &amp; WhatsApp</p>
+                <p className="font-mono-num">
+                  {formatIndonesianDate(detailPeserta.tanggalRencanaNikah)} · {detailPeserta.noHp || '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-slate-500">Skrining Gizi &amp; Stunting</p>
+                <p className="font-semibold">
+                  {detailPeserta.stunting
+                    ? `${detailPeserta.stunting.status} (IMT ${detailPeserta.stunting.imt}, LiLA ${detailPeserta.stunting.lilaCm} cm, Hb ${detailPeserta.stunting.hbGdL})`
+                    : 'Belum melakukan skrining'}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-emerald-950">
+                <p className="text-[11px] text-slate-500">Pretest</p>
+                <p className="font-mono-num text-lg font-bold">
+                  {detailPeserta.progress?.pretestDone ? detailPeserta.progress.pretestScore : '—'}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-emerald-950">
+                <p className="text-[11px] text-slate-500">Postest</p>
+                <p className="font-mono-num text-lg font-bold text-[#0F684E] dark:text-emerald-400">
+                  {detailPeserta.progress?.postestDone ? detailPeserta.progress.postestScore : '—'}
+                </p>
+              </div>
+              <div className="p-3 rounded-xl border border-slate-200 dark:border-emerald-950 col-span-2 sm:col-span-1">
+                <p className="text-[11px] text-slate-500">Piagam Kami Kompak</p>
+                <p className="font-mono-num text-xs font-bold mt-1">
+                  {detailPeserta.kompak?.kodePiagam || 'Belum disusun'}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <p className="font-bold text-xs uppercase tracking-wider text-slate-500">
+                Rincian Nilai 5 Modul Nasional
+              </p>
+              <div className="divide-y divide-slate-200 dark:divide-emerald-950 border border-slate-200 dark:border-emerald-950 rounded-xl overflow-hidden">
+                {data.modules.map((m) => {
+                  const score = detailPeserta.progress?.moduleScores[m.id];
+                  const passed = detailPeserta.progress?.modulesCompleted.includes(m.id);
+                  return (
+                    <div key={m.id} className="px-3.5 py-2 flex items-center justify-between gap-2 text-xs">
+                      <span className="font-medium truncate">
+                        Modul {m.id}: {m.shortTitle}
+                      </span>
+                      <span className="font-mono-num font-bold shrink-0">
+                        {score !== undefined ? `${score}%` : '—'} ·{' '}
+                        <span className={passed ? 'text-[#0F684E] dark:text-emerald-400' : 'text-slate-400'}>
+                          {passed ? 'Lulus' : 'Belum'}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </ModalDialog>
+      )}
     </WorkspaceShell>
   );
 };

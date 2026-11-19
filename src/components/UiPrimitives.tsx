@@ -95,7 +95,7 @@ export const ModalDialog: React.FC<{
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-[2px] no-print"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/65 backdrop-blur-[2px] print-modal-root"
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -104,9 +104,9 @@ export const ModalDialog: React.FC<{
       }}
     >
       <div
-        className={`w-full ${widthMap[maxWidth]} bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]`}
+        className={`w-full ${widthMap[maxWidth]} bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] print-modal-card`}
       >
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-emerald-950/80 flex items-start justify-between gap-4 bg-[#F8FAF9] dark:bg-[#0D1613]">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-emerald-950/80 flex items-start justify-between gap-4 bg-[#F8FAF9] dark:bg-[#0D1613] no-print">
           <div className="min-w-0">
             <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-snug">
               {title}
@@ -124,9 +124,9 @@ export const ModalDialog: React.FC<{
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5 overflow-y-auto flex-1">{children}</div>
+        <div className="p-4 sm:p-5 overflow-y-auto flex-1 print-modal-body">{children}</div>
         {footer && (
-          <div className="px-5 py-3.5 border-t border-slate-200 dark:border-emerald-950/80 bg-[#F8FAF9] dark:bg-[#0D1613] flex items-center justify-end gap-2.5">
+          <div className="px-4 sm:px-5 py-3.5 border-t border-slate-200 dark:border-emerald-950/80 bg-[#F8FAF9] dark:bg-[#0D1613] flex flex-wrap items-center justify-end gap-2.5 no-print">
             {footer}
           </div>
         )}

@@ -1,13 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   Bell,
   BookMarked,
   Database,
-  Download,
   Edit3,
   Eye,
   EyeOff,
+  Upload,
   FileSpreadsheet,
   History,
   MessageSquare,
@@ -35,7 +35,7 @@ import {
 } from 'recharts';
 import { DESA_PER_KUA_JEPARA, LIST_16_KUA } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
-import { BimwinUser, ModuleDefinition } from '../types/bimwin';
+import { BimwinUser, ModuleDefinition, QuizQuestion } from '../types/bimwin';
 import {
   buildPesertaCsv,
   countUniqueSyncedCouples,
@@ -58,6 +58,7 @@ export const AdminDashboard: React.FC = () => {
     deleteUserByAdmin,
     saveStaffAccount,
     updateModuleCurriculum,
+    updateAssessmentQuiz,
     updateSystemSettings,
     addFaq,
     deleteFaq,
@@ -67,6 +68,7 @@ export const AdminDashboard: React.FC = () => {
     deleteGalleryItem,
     replyKritikSaran,
     sendReminderNotification,
+    importBackupJson,
     resetDemoDatabase,
     requestConfirm,
   } = useBimwin();
@@ -97,22 +99,50 @@ export const AdminDashboard: React.FC = () => {
   });
   const [staffErr, setStaffErr] = useState('');
 
-  // LMS Curriculum Editor state
+  // LMS Curriculum Editor state (Modul 1-5 + Pretest + Postest)
+  const [lmsSection, setLmsSection] = useState<'modul' | 'pretest' | 'postest'>('modul');
   const [selectedModuleId, setSelectedModuleId] = useState<number>(1);
   const selectedModule = data.modules.find((m) => m.id === selectedModuleId) || data.modules[0];
   const [lmsDraft, setLmsDraft] = useState<ModuleDefinition>(selectedModule);
+  const [assessmentDraft, setAssessmentDraft] = useState<QuizQuestion[]>(data.pretest);
 
   // Settings & CMS state
   const [settingsDraft, setSettingsDraft] = useState(data.settings);
   const [newFaq, setNewFaq] = useState({ t: '', j: '' });
   const [newDoc, setNewDoc] = useState({ judul: '', kat: 'Dokumen Nikah', url: '' });
   const [newGal, setNewGal] = useState({ judul: '', kua: 'KUA Jepara', tanggal: 'April 2026', deskripsi: '' });
+  const restoreFileRef = useRef<HTMLInputElement | null>(null);
 
-  // Kritik reply & broadcast reminder
+  // Kritik reply, IKM filter, Audit search & broadcast reminder
   const [kritikReplies, setKritikReplies] = useState<Record<string, string>>({});
+  const [ikmKuaFilter, setIkmKuaFilter] = useState<string>(isSuper ? 'ALL' : currentUser?.kua || 'KUA Jepara');
+  const [auditSearch, setAuditSearch] = useState('');
   const [broadcastKua, setBroadcastKua] = useState(isSuper ? 'ALL' : currentUser?.kua || 'KUA Jepara');
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
+
+  // Keep drafts synced when database resets/restores or active user changes
+  useEffect(() => {
+    setSettingsDraft(data.settings);
+  }, [data.settings]);
+
+  useEffect(() => {
+    const found = data.modules.find((m) => m.id === selectedModuleId) || data.modules[0];
+    if (found) setLmsDraft(found);
+  }, [data.modules, selectedModuleId]);
+
+  useEffect(() => {
+    if (lmsSection === 'pretest') setAssessmentDraft(data.pretest);
+    if (lmsSection === 'postest') setAssessmentDraft(data.postest);
+  }, [lmsSection, data.pretest, data.postest]);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    const scope = currentUser.role === 'SuperAdmin' ? 'ALL' : currentUser.kua;
+    setSelectedKua(scope);
+    setIkmKuaFilter(scope);
+    setBroadcastKua(scope);
+  }, [currentUser?.id, currentUser?.role, currentUser?.kua]);
 
   if (!currentUser) return null;
 
@@ -413,30 +443,32 @@ export const AdminDashboard: React.FC = () => {
                   </button>
                 )}
               </div>
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={distributionData} margin={{ top: 10, right: 10, left: -16, bottom: 26 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1e3a32' : '#e2e8f0'} />
-                    <XAxis
-                      dataKey="name"
-                      angle={-25}
-                      textAnchor="end"
-                      interval={0}
-                      tick={{ fontSize: 11, fill: darkMode ? '#94a3b8' : '#475569' }}
-                    />
-                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: darkMode ? '#94a3b8' : '#475569' }} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: darkMode ? '#0D1613' : '#FFFFFF',
-                        borderColor: darkMode ? '#14532d' : '#e2e8f0',
-                        borderRadius: '10px',
-                        fontSize: '12px',
-                      }}
-                    />
-                    <Bar dataKey="Peserta" fill="#0F684E" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Lulus" fill="#C69214" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="overflow-x-auto -mx-2 px-2">
+                <div className="h-72 min-w-[580px] sm:min-w-0 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={distributionData} margin={{ top: 10, right: 10, left: -16, bottom: 26 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1e3a32' : '#e2e8f0'} />
+                      <XAxis
+                        dataKey="name"
+                        angle={-25}
+                        textAnchor="end"
+                        interval={0}
+                        tick={{ fontSize: 11, fill: darkMode ? '#94a3b8' : '#475569' }}
+                      />
+                      <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: darkMode ? '#94a3b8' : '#475569' }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: darkMode ? '#0D1613' : '#FFFFFF',
+                          borderColor: darkMode ? '#14532d' : '#e2e8f0',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                        }}
+                      />
+                      <Bar dataKey="Peserta" fill="#0F684E" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="Lulus" fill="#C69214" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
@@ -611,80 +643,128 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* TAB 3: SURVEI IKM & KRITIK SARAN */}
-      {activeTab === 'ikm' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <h2 className="font-display text-xl font-semibold">
-              Ulasan Survei IKM ({data.ikmSurveys.length})
-            </h2>
-            {data.ikmSurveys.map((ikm) => (
-              <div
-                key={ikm.id}
-                className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 space-y-1.5"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold">
-                    {ikm.nama} · <span className="text-[#0F684E] dark:text-emerald-400">{ikm.kua}</span>
-                  </span>
-                  <span className="inline-flex items-center gap-1 font-mono-num font-bold text-amber-600">
-                    <Star className="w-3.5 h-3.5 fill-current" /> {ikm.rating}/5
-                  </span>
-                </div>
-                <p className="text-[11px] font-semibold text-slate-500">{ikm.aspek}</p>
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">{ikm.ulasan}</p>
+      {activeTab === 'ikm' && (() => {
+        const effectiveIkmKua = isSuper ? ikmKuaFilter : currentUser.kua;
+        const visibleIkm = data.ikmSurveys.filter(
+          (i) => effectiveIkmKua === 'ALL' || i.kua === effectiveIkmKua
+        );
+        const visibleKritik = data.kritikSaran.filter(
+          (k) => effectiveIkmKua === 'ALL' || k.kua === effectiveIkmKua
+        );
+        return (
+          <div className="space-y-4">
+            {isSuper && (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">
+                  Menampilkan umpan balik untuk{' '}
+                  <strong className="text-slate-900 dark:text-white">
+                    {effectiveIkmKua === 'ALL' ? 'Semua 16 KUA' : effectiveIkmKua}
+                  </strong>
+                </p>
+                <select
+                  value={ikmKuaFilter}
+                  onChange={(e) => setIkmKuaFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs font-semibold"
+                >
+                  <option value="ALL">Semua 16 KUA Jepara</option>
+                  {LIST_16_KUA.map((kua) => (
+                    <option key={kua} value={kua}>
+                      {kua}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
+            )}
 
-          <div className="space-y-3">
-            <h2 className="font-display text-xl font-semibold">
-              Kritik &amp; Saran Publik ({data.kritikSaran.length})
-            </h2>
-            {data.kritikSaran.map((ks) => (
-              <div
-                key={ks.id}
-                className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 space-y-2.5"
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold">
-                    {ks.nama} · {ks.kua}
-                  </span>
-                  <span className="font-mono-num text-slate-500">{formatIndonesianDate(ks.createdAt)}</span>
-                </div>
-                <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">{ks.pesan}</p>
-                {ks.balasanAdmin ? (
-                  <p className="text-xs p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
-                    <strong>Tanggapan Admin:</strong> {ks.balasanAdmin}
-                  </p>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={kritikReplies[ks.id] || ''}
-                      onChange={(e) =>
-                        setKritikReplies((prev) => ({ ...prev, [ks.id]: e.target.value }))
-                      }
-                      placeholder="Tulis tanggapan resmi..."
-                      className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!kritikReplies[ks.id]?.trim()) return;
-                        replyKritikSaran(ks.id, kritikReplies[ks.id]);
-                        setKritikReplies((prev) => ({ ...prev, [ks.id]: '' }));
-                      }}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#0F684E] text-white text-xs font-semibold"
-                    >
-                      Balas
-                    </button>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <h2 className="font-display text-xl font-semibold">
+                  Ulasan Survei IKM ({visibleIkm.length})
+                </h2>
+                {visibleIkm.length === 0 ? (
+                  <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-6 text-center text-xs text-slate-500">
+                    Belum ada ulasan IKM pada wilayah terpilih.
                   </div>
+                ) : (
+                  visibleIkm.map((ikm) => (
+                    <div
+                      key={ikm.id}
+                      className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 space-y-1.5"
+                    >
+                      <div className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-bold">
+                          {ikm.nama} · <span className="text-[#0F684E] dark:text-emerald-400">{ikm.kua}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 font-mono-num font-bold text-amber-600 shrink-0">
+                          <Star className="w-3.5 h-3.5 fill-current" /> {ikm.rating}/5
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-500">{ikm.aspek}</p>
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">{ikm.ulasan}</p>
+                    </div>
+                  ))
                 )}
               </div>
-            ))}
+
+              <div className="space-y-3">
+                <h2 className="font-display text-xl font-semibold">
+                  Kritik &amp; Saran Publik ({visibleKritik.length})
+                </h2>
+                {visibleKritik.length === 0 ? (
+                  <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-6 text-center text-xs text-slate-500">
+                    Belum ada kritik atau saran pada wilayah terpilih.
+                  </div>
+                ) : (
+                  visibleKritik.map((ks) => (
+                    <div
+                      key={ks.id}
+                      className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-4 space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between text-xs gap-2">
+                        <span className="font-bold">
+                          {ks.nama} · {ks.kua}
+                        </span>
+                        <span className="font-mono-num text-slate-500 shrink-0">
+                          {formatIndonesianDate(ks.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">{ks.pesan}</p>
+                      {ks.balasanAdmin ? (
+                        <p className="text-xs p-2.5 rounded-lg bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900">
+                          <strong>Tanggapan Admin:</strong> {ks.balasanAdmin}
+                        </p>
+                      ) : (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            value={kritikReplies[ks.id] || ''}
+                            onChange={(e) =>
+                              setKritikReplies((prev) => ({ ...prev, [ks.id]: e.target.value }))
+                            }
+                            placeholder="Tulis tanggapan resmi..."
+                            className="flex-1 px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!kritikReplies[ks.id]?.trim()) return;
+                              replyKritikSaran(ks.id, kritikReplies[ks.id]);
+                              setKritikReplies((prev) => ({ ...prev, [ks.id]: '' }));
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#0F684E] text-white text-xs font-semibold shrink-0"
+                          >
+                            Balas
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* TAB 4: BROADCAST PENGINGAT */}
       {activeTab === 'pengingat' && (
@@ -750,24 +830,25 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB 5: MANAJEMEN KURIKULUM LMS (SUPERADMIN) */}
       {isSuper && activeTab === 'lms' && (
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <h2 className="font-display text-2xl font-semibold">Manajemen Kurikulum LMS</h2>
               <p className="text-xs text-slate-500">
-                Perbarui judul modul, tautan video, intisari materi, dan bank soal evaluasi peserta.
+                Perbarui judul modul, tautan video, intisari materi, serta bank soal Pretest, 5 Modul, dan Postest.
               </p>
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {data.modules.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   onClick={() => {
+                    setLmsSection('modul');
                     setSelectedModuleId(m.id);
                     setLmsDraft(m);
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                    selectedModuleId === m.id
+                    lmsSection === 'modul' && selectedModuleId === m.id
                       ? 'bg-[#0F684E] text-white'
                       : 'bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950'
                   }`}
@@ -775,115 +856,220 @@ export const AdminDashboard: React.FC = () => {
                   Modul {m.id}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4 text-xs sm:text-sm">
-            <div>
-              <label className="block font-semibold mb-1">Judul Lengkap Modul {lmsDraft.id}</label>
-              <input
-                type="text"
-                value={lmsDraft.judul}
-                onChange={(e) => setLmsDraft({ ...lmsDraft, judul: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold mb-1">Deskripsi Ringkas</label>
-                <input
-                  type="text"
-                  value={lmsDraft.desc}
-                  onChange={(e) => setLmsDraft({ ...lmsDraft, desc: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">URL Video Embed YouTube</label>
-                <input
-                  type="url"
-                  value={lmsDraft.videoUrl}
-                  onChange={(e) => setLmsDraft({ ...lmsDraft, videoUrl: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Intisari Kunci Evaluasi</label>
-              <textarea
-                rows={2}
-                value={lmsDraft.keyTakeaway}
-                onChange={(e) => setLmsDraft({ ...lmsDraft, keyTakeaway: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-
-            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-emerald-950">
-              <h3 className="font-bold text-sm">Bank Soal Kuis Modul {lmsDraft.id} ({lmsDraft.quiz.length} Soal)</h3>
-              {lmsDraft.quiz.map((q, qIdx) => (
-                <div
-                  key={q.id}
-                  className="p-3.5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-2"
-                >
-                  <input
-                    type="text"
-                    value={q.q}
-                    onChange={(e) => {
-                      const nextQuiz = lmsDraft.quiz.map((item, i) =>
-                        i === qIdx ? { ...item, q: e.target.value } : item
-                      );
-                      setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
-                    }}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs font-semibold"
-                  />
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {q.opt.map((optText, oIdx) => (
-                      <div key={oIdx} className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name={`ans_${q.id}`}
-                          checked={q.ans === oIdx}
-                          onChange={() => {
-                            const nextQuiz = lmsDraft.quiz.map((item, i) =>
-                              i === qIdx ? { ...item, ans: oIdx } : item
-                            );
-                            setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
-                          }}
-                          className="accent-[#0F684E]"
-                        />
-                        <input
-                          type="text"
-                          value={optText}
-                          onChange={(e) => {
-                            const nextQuiz = lmsDraft.quiz.map((item, i) =>
-                              i === qIdx
-                                ? {
-                                    ...item,
-                                    opt: item.opt.map((o, j) => (j === oIdx ? e.target.value : o)),
-                                  }
-                                : item
-                            );
-                            setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
-                          }}
-                          className="flex-1 px-2.5 py-1 rounded border border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => updateModuleCurriculum(lmsDraft.id, lmsDraft)}
-                className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                onClick={() => {
+                  setLmsSection('pretest');
+                  setAssessmentDraft(data.pretest);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  lmsSection === 'pretest'
+                    ? 'bg-[#0F684E] text-white'
+                    : 'bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950'
+                }`}
               >
-                Simpan Perubahan Modul {lmsDraft.id}
+                Soal Pretest
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLmsSection('postest');
+                  setAssessmentDraft(data.postest);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  lmsSection === 'postest'
+                    ? 'bg-[#0F684E] text-white'
+                    : 'bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950'
+                }`}
+              >
+                Soal Postest
               </button>
             </div>
           </div>
+
+          {lmsSection === 'modul' ? (
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
+              <div>
+                <label className="block font-semibold mb-1">Judul Lengkap Modul {lmsDraft.id}</label>
+                <input
+                  type="text"
+                  value={lmsDraft.judul}
+                  onChange={(e) => setLmsDraft({ ...lmsDraft, judul: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1">Deskripsi Ringkas</label>
+                  <input
+                    type="text"
+                    value={lmsDraft.desc}
+                    onChange={(e) => setLmsDraft({ ...lmsDraft, desc: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">URL Video Embed YouTube</label>
+                  <input
+                    type="url"
+                    value={lmsDraft.videoUrl}
+                    onChange={(e) => setLmsDraft({ ...lmsDraft, videoUrl: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block font-semibold mb-1">Intisari Kunci Evaluasi</label>
+                <textarea
+                  rows={2}
+                  value={lmsDraft.keyTakeaway}
+                  onChange={(e) => setLmsDraft({ ...lmsDraft, keyTakeaway: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-emerald-950">
+                <h3 className="font-bold text-sm">
+                  Bank Soal Kuis Modul {lmsDraft.id} ({lmsDraft.quiz.length} Soal)
+                </h3>
+                {lmsDraft.quiz.map((q, qIdx) => (
+                  <div
+                    key={q.id}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-2"
+                  >
+                    <input
+                      type="text"
+                      value={q.q}
+                      onChange={(e) => {
+                        const nextQuiz = lmsDraft.quiz.map((item, i) =>
+                          i === qIdx ? { ...item, q: e.target.value } : item
+                        );
+                        setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs font-semibold"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {q.opt.map((optText, oIdx) => (
+                        <div key={oIdx} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`ans_${q.id}`}
+                            checked={q.ans === oIdx}
+                            onChange={() => {
+                              const nextQuiz = lmsDraft.quiz.map((item, i) =>
+                                i === qIdx ? { ...item, ans: oIdx } : item
+                              );
+                              setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
+                            }}
+                            className="accent-[#0F684E]"
+                          />
+                          <input
+                            type="text"
+                            value={optText}
+                            onChange={(e) => {
+                              const nextQuiz = lmsDraft.quiz.map((item, i) =>
+                                i === qIdx
+                                  ? {
+                                      ...item,
+                                      opt: item.opt.map((o, j) => (j === oIdx ? e.target.value : o)),
+                                    }
+                                  : item
+                              );
+                              setLmsDraft({ ...lmsDraft, quiz: nextQuiz });
+                            }}
+                            className="flex-1 px-2.5 py-1 rounded border border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => updateModuleCurriculum(lmsDraft.id, lmsDraft)}
+                  className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                >
+                  Simpan Perubahan Modul {lmsDraft.id}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4 text-xs sm:text-sm">
+              <div>
+                <h3 className="font-bold text-base">
+                  Bank Soal {lmsSection === 'pretest' ? 'Pretest (Evaluasi Awal)' : 'Postest (Evaluasi Akhir)'} ({assessmentDraft.length} Soal)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Pilih tombol radio di kiri pilihan jawaban untuk menetapkan kunci jawaban benar.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {assessmentDraft.map((q, qIdx) => (
+                  <div
+                    key={q.id}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-2"
+                  >
+                    <input
+                      type="text"
+                      value={q.q}
+                      onChange={(e) =>
+                        setAssessmentDraft((prev) =>
+                          prev.map((item, i) => (i === qIdx ? { ...item, q: e.target.value } : item))
+                        )
+                      }
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs font-semibold"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {q.opt.map((optText, oIdx) => (
+                        <div key={oIdx} className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name={`assess_${lmsSection}_${q.id}`}
+                            checked={q.ans === oIdx}
+                            onChange={() =>
+                              setAssessmentDraft((prev) =>
+                                prev.map((item, i) => (i === qIdx ? { ...item, ans: oIdx } : item))
+                              )
+                            }
+                            className="accent-[#0F684E]"
+                          />
+                          <input
+                            type="text"
+                            value={optText}
+                            onChange={(e) =>
+                              setAssessmentDraft((prev) =>
+                                prev.map((item, i) =>
+                                  i === qIdx
+                                    ? {
+                                        ...item,
+                                        opt: item.opt.map((o, j) => (j === oIdx ? e.target.value : o)),
+                                      }
+                                    : item
+                                )
+                              )
+                            }
+                            className="flex-1 px-2.5 py-1 rounded border border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => updateAssessmentQuiz(lmsSection, assessmentDraft)}
+                  className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                >
+                  Simpan Bank Soal {lmsSection === 'pretest' ? 'Pretest' : 'Postest'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1093,10 +1279,36 @@ export const AdminDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleExportBackupJson}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-emerald-950/60"
                 >
                   <Database className="w-3.5 h-3.5 text-[#0F684E]" />
                   Unduh Backup JSON
+                </button>
+                <input
+                  ref={restoreFileRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === 'string') {
+                        importBackupJson(reader.result);
+                      }
+                    };
+                    reader.readAsText(file);
+                    e.target.value = '';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => restoreFileRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-emerald-950/60"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#0F684E]" />
+                  Pulihkan Backup JSON
                 </button>
                 <button
                   type="button"
@@ -1109,7 +1321,7 @@ export const AdminDashboard: React.FC = () => {
                       onConfirm: resetDemoDatabase,
                     })
                   }
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-600 text-xs font-semibold"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-red-200 dark:border-red-900 text-red-600 text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-950/30"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Reset Data Demo
@@ -1272,37 +1484,71 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* TAB 8: AUDIT TRAIL (SUPERADMIN) */}
-      {isSuper && activeTab === 'audit' && (
-        <div className="space-y-4">
-          <h2 className="font-display text-2xl font-semibold">Audit Trail Aktivitas Petugas</h2>
-          <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl overflow-hidden">
-            <table className="w-full text-xs">
-              <thead className="bg-[#F8FAF9] dark:bg-[#0D1613] border-b border-slate-200 dark:border-emerald-950">
-                <tr>
-                  <th className="text-left px-4 py-3 font-semibold">Waktu</th>
-                  <th className="text-left px-4 py-3 font-semibold">Petugas</th>
-                  <th className="text-left px-4 py-3 font-semibold">Peran</th>
-                  <th className="text-left px-4 py-3 font-semibold">Aktivitas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-emerald-950">
-                {data.auditLogs.map((log) => (
-                  <tr key={log.id}>
-                    <td className="px-4 py-2.5 font-mono-num text-slate-500 whitespace-nowrap">
-                      {formatIndonesianDate(log.timestamp)}
-                    </td>
-                    <td className="px-4 py-2.5 font-semibold">{log.actor}</td>
-                    <td className="px-4 py-2.5 text-[#0F684E] dark:text-emerald-400 font-semibold">
-                      {log.role}
-                    </td>
-                    <td className="px-4 py-2.5">{log.action}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {isSuper && activeTab === 'audit' && (() => {
+        const q = auditSearch.trim().toLowerCase();
+        const filteredLogs = data.auditLogs.filter(
+          (log) =>
+            !q ||
+            log.actor.toLowerCase().includes(q) ||
+            log.role.toLowerCase().includes(q) ||
+            log.action.toLowerCase().includes(q)
+        );
+        return (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <h2 className="font-display text-2xl font-semibold">
+                Audit Trail Aktivitas Petugas ({filteredLogs.length})
+              </h2>
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder="Cari petugas, peran, aktivitas..."
+                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs"
+                />
+              </div>
+            </div>
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs min-w-[540px]">
+                  <thead className="bg-[#F8FAF9] dark:bg-[#0D1613] border-b border-slate-200 dark:border-emerald-950">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold">Waktu</th>
+                      <th className="text-left px-4 py-3 font-semibold">Petugas</th>
+                      <th className="text-left px-4 py-3 font-semibold">Peran</th>
+                      <th className="text-left px-4 py-3 font-semibold">Aktivitas</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-emerald-950">
+                    {filteredLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
+                          Tidak ada log aktivitas yang cocok dengan pencarian.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td className="px-4 py-2.5 font-mono-num text-slate-500 whitespace-nowrap">
+                            {formatIndonesianDate(log.timestamp)}
+                          </td>
+                          <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{log.actor}</td>
+                          <td className="px-4 py-2.5 text-[#0F684E] dark:text-emerald-400 font-semibold whitespace-nowrap">
+                            {log.role}
+                          </td>
+                          <td className="px-4 py-2.5">{log.action}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Edit Peserta Modal */}
       {editingPeserta && (

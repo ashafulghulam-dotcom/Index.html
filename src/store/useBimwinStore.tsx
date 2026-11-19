@@ -115,6 +115,7 @@ interface BimwinContextValue {
     butuhMediasi: boolean;
   }) => void;
   updateOwnProfile: (updates: Partial<BimwinUser>) => void;
+  toggleBerkasChecklist: (itemKey: string) => void;
   markNotificationRead: (notifId: string) => void;
 
   // Fasilitator workflows
@@ -159,6 +160,7 @@ interface BimwinContextValue {
   deleteGalleryItem: (id: string) => void;
   submitKritikSaran: (nama: string, kua: string, pesan: string) => void;
   replyKritikSaran: (id: string, balasan: string) => void;
+  importBackupJson: (jsonText: string) => { ok: boolean; error?: string };
   resetDemoDatabase: () => void;
 }
 
@@ -856,6 +858,21 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [currentUser, pushToast]
   );
 
+  const toggleBerkasChecklist = useCallback(
+    (itemKey: string) => {
+      if (!currentUser) return;
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) => {
+          if (u.id !== currentUser.id) return u;
+          const nextMap = { ...(u.berkasChecklist || {}), [itemKey]: !(u.berkasChecklist?.[itemKey]) };
+          return { ...u, berkasChecklist: nextMap };
+        }),
+      }));
+    },
+    [currentUser]
+  );
+
   const markNotificationRead = useCallback(
     (notifId: string) => {
       if (!currentUser) return;
@@ -1424,6 +1441,35 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [pushToast]
   );
 
+  const importBackupJson = useCallback(
+    (jsonText: string) => {
+      try {
+        const parsed = JSON.parse(jsonText) as BimwinStoreSnapshot;
+        if (
+          !parsed ||
+          !Array.isArray(parsed.users) ||
+          !Array.isArray(parsed.modules) ||
+          !parsed.settings
+        ) {
+          return { ok: false, error: 'Format file JSON tidak sesuai struktur cadangan BIMWIN.' };
+        }
+        setData(
+          appendAudit(
+            parsed,
+            currentUser?.nama || 'SuperAdmin',
+            currentUser?.role || 'SuperAdmin',
+            `Memulihkan cadangan database JSON (${parsed.users.length} akun)`
+          )
+        );
+        pushToast('success', 'Cadangan Database Dipulihkan', `${parsed.users.length} akun berhasil dimuat.`);
+        return { ok: true };
+      } catch {
+        return { ok: false, error: 'File JSON rusak atau tidak dapat dibaca.' };
+      }
+    },
+    [appendAudit, currentUser, pushToast]
+  );
+
   const resetDemoDatabase = useCallback(() => {
     const fresh = createInitialSeedData();
     setData(fresh);
@@ -1462,6 +1508,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     submitConsultation,
     submitPostMarriageJournal,
     updateOwnProfile,
+    toggleBerkasChecklist,
     markNotificationRead,
     verifyPesertaByFasilitator,
     batchVerifyMoocGraduates,
@@ -1486,6 +1533,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     deleteGalleryItem,
     submitKritikSaran,
     replyKritikSaran,
+    importBackupJson,
     resetDemoDatabase,
   };
 

@@ -11,6 +11,7 @@ import {
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
+import { KEMENAG_LOGO_SVG } from '../data/jeparaData';
 import { KemenagLogo, ModalDialog, QRCodeBox } from './UiPrimitives';
 
 export const CertificatePreviewModal: React.FC<{
@@ -196,10 +197,10 @@ export const PiagamKompakPreviewModal: React.FC<{
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 items-end pt-5 text-center text-xs">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-4 items-end pt-5 text-center text-xs">
           <div>
             <p className="text-slate-600">Calon Mempelai I</p>
-            <div className="h-12" />
+            <div className="h-10 sm:h-12" />
             <p className="font-bold underline">{user.nama}</p>
           </div>
           <div className="flex flex-col items-center">
@@ -209,7 +210,7 @@ export const PiagamKompakPreviewModal: React.FC<{
           <div>
             <p className="text-slate-600">Jepara, {formatIndonesianDate()}</p>
             <p className="text-slate-600">Calon Mempelai II</p>
-            <div className="h-9" />
+            <div className="h-8 sm:h-9" />
             <p className="font-bold underline">{user.pasanganNama || 'Pasangan'}</p>
           </div>
         </div>
@@ -354,79 +355,91 @@ export const StoryCardModal: React.FC<{
     canvas.width = 1080;
     canvas.height = 1920;
 
-    // Background gradient
-    const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
-    grad.addColorStop(0, '#073326');
-    grad.addColorStop(0.55, '#0F684E');
-    grad.addColorStop(1, '#094232');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1080, 1920);
+    const drawCard = (logoImg?: HTMLImageElement) => {
+      // Background gradient
+      const grad = ctx.createLinearGradient(0, 0, 1080, 1920);
+      grad.addColorStop(0, '#073326');
+      grad.addColorStop(0.55, '#0F684E');
+      grad.addColorStop(1, '#094232');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 1080, 1920);
 
-    // Subtle geometric frame
-    ctx.strokeStyle = 'rgba(212, 155, 22, 0.65)';
-    ctx.lineWidth = 8;
-    ctx.strokeRect(64, 64, 952, 1792);
+      // Subtle geometric frame
+      ctx.strokeStyle = 'rgba(212, 155, 22, 0.65)';
+      ctx.lineWidth = 8;
+      ctx.strokeRect(64, 64, 952, 1792);
 
-    ctx.fillStyle = '#F3D06B';
-    ctx.font = 'bold 34px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('KEMENTERIAN AGAMA KABUPATEN JEPARA', 540, 220);
+      if (logoImg && logoImg.naturalWidth > 0) {
+        ctx.drawImage(logoImg, 470, 120, 140, 134);
+      }
 
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 64px Georgia, serif';
-    ctx.fillText('LULUS BIMWIN MANDIRI', 540, 350);
+      ctx.fillStyle = '#F3D06B';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('KEMENTERIAN AGAMA KABUPATEN JEPARA', 540, 315);
 
-    ctx.fillStyle = '#D1FAE5';
-    ctx.font = '32px sans-serif';
-    ctx.fillText('“Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.”', 540, 420);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 62px Georgia, serif';
+      ctx.fillText('LULUS BIMWIN MANDIRI', 540, 415);
 
-    // Center card
-    ctx.fillStyle = 'rgba(255,255,255,0.96)';
-    ctx.beginPath();
-    ctx.roundRect(110, 560, 860, 760, 36);
-    ctx.fill();
+      ctx.fillStyle = '#D1FAE5';
+      ctx.font = '30px sans-serif';
+      ctx.fillText('“Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.”', 540, 480);
 
-    ctx.fillStyle = '#0F684E';
-    ctx.font = 'bold 30px sans-serif';
-    ctx.fillText('PASANGAN CALON PENGANTIN', 540, 660);
+      // Center card
+      ctx.fillStyle = 'rgba(255,255,255,0.97)';
+      ctx.beginPath();
+      ctx.roundRect(110, 570, 860, 760, 36);
+      ctx.fill();
 
-    ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 54px Georgia, serif';
-    ctx.fillText(user.nama, 540, 770);
+      ctx.fillStyle = '#0F684E';
+      ctx.font = 'bold 30px sans-serif';
+      ctx.fillText('PASANGAN CALON PENGANTIN', 540, 670);
 
-    ctx.fillStyle = '#C69214';
-    ctx.font = 'bold 48px Georgia, serif';
-    ctx.fillText('&', 540, 845);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 52px Georgia, serif';
+      ctx.fillText(user.nama, 540, 780);
 
-    ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 54px Georgia, serif';
-    ctx.fillText(user.pasanganNama || 'Pasangan Sakinah', 540, 925);
+      ctx.fillStyle = '#C69214';
+      ctx.font = 'bold 48px Georgia, serif';
+      ctx.fillText('&', 540, 855);
 
-    ctx.fillStyle = '#334155';
-    ctx.font = '32px sans-serif';
-    ctx.fillText(`${user.kua} · Kabupaten Jepara`, 540, 1020);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 52px Georgia, serif';
+      ctx.fillText(user.pasanganNama || 'Pasangan Sakinah', 540, 935);
 
-    ctx.fillStyle = '#0F684E';
-    ctx.font = 'bold 34px monospace';
-    ctx.fillText(user.progress?.nomorSertifikat || 'TERVERIFIKASI DIGITAL', 540, 1130);
+      ctx.fillStyle = '#334155';
+      ctx.font = '32px sans-serif';
+      ctx.fillText(`${user.kua} · Kabupaten Jepara`, 540, 1030);
 
-    ctx.fillStyle = '#475569';
-    ctx.font = '28px sans-serif';
-    ctx.fillText(
-      `Skor Evaluasi: ${user.progress?.postestScore ?? 100}/100 · 5 Modul Sakinah Tuntas`,
-      540,
-      1210
-    );
+      ctx.fillStyle = '#0F684E';
+      ctx.font = 'bold 34px monospace';
+      ctx.fillText(user.progress?.nomorSertifikat || 'TERVERIFIKASI DIGITAL', 540, 1140);
 
-    ctx.fillStyle = '#F3D06B';
-    ctx.font = 'bold 32px sans-serif';
-    ctx.fillText('#KeluargaSakinah #BimwinKemenagJepara', 540, 1650);
+      ctx.fillStyle = '#475569';
+      ctx.font = '28px sans-serif';
+      ctx.fillText(
+        `Skor Evaluasi: ${user.progress?.postestScore ?? 100}/100 · 5 Modul Sakinah Tuntas`,
+        540,
+        1220
+      );
 
-    ctx.fillStyle = '#A7F3D0';
-    ctx.font = '26px sans-serif';
-    ctx.fillText('Terverifikasi Digital oleh Seksi Bimas Islam Kemenag Jepara', 540, 1720);
+      ctx.fillStyle = '#F3D06B';
+      ctx.font = 'bold 32px sans-serif';
+      ctx.fillText('#KeluargaSakinah #BimwinKemenagJepara', 540, 1650);
 
-    setPreviewUrl(canvas.toDataURL('image/png'));
+      ctx.fillStyle = '#A7F3D0';
+      ctx.font = '26px sans-serif';
+      ctx.fillText('Terverifikasi Digital oleh Seksi Bimas Islam Kemenag Jepara', 540, 1720);
+
+      setPreviewUrl(canvas.toDataURL('image/png'));
+    };
+
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => drawCard(img);
+    img.onerror = () => drawCard();
+    img.src = KEMENAG_LOGO_SVG;
   }, [open, user]);
 
   const handleDownload = () => {

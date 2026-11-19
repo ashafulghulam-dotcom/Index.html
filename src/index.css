@@ -19,6 +19,7 @@
     margin: 0;
     min-height: 100vh;
     overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .font-display {
@@ -50,10 +51,10 @@
   background: rgba(15, 104, 78, 0.45);
 }
 
-/* Print Styles for Official Certificates, Piagam, Portfolio, Attendance Lists */
+/* Print Styles for Official Certificates, Piagam, Portfolio, Attendance Lists, ID Card */
 @media print {
   @page {
-    margin: 8mm;
+    margin: 10mm;
   }
 
   body {
@@ -67,11 +68,34 @@
     display: none !important;
   }
 
+  .print-modal-root {
+    position: static !important;
+    inset: auto !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    backdrop-filter: none !important;
+    display: block !important;
+  }
+
+  .print-modal-card {
+    max-width: none !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .print-modal-body {
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
   .print-only-sheet {
     box-shadow: none !important;
-    border: none !important;
     margin: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    break-inside: avoid;
   }
 }
