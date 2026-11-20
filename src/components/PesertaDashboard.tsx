@@ -843,26 +843,26 @@ export const PesertaDashboard: React.FC = () => {
           <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
               {
-                title: '1. Sertifikat Bimwin Mandiri (PDF)',
-                desc: 'Sertifikat resmi Kemenag Kabupaten Jepara ber-QR Code sebagai syarat berkas SIMKAH KUA.',
+                title: '1. Sertifikat Bimwin Mandiri (A4 Horizontal)',
+                desc: 'Sertifikat resmi Kemenag Kabupaten Jepara format A4 Horizontal siap cetak & PDF ber-QR Code untuk berkas SIMKAH KUA.',
                 icon: Award,
                 action: () => setCertOpen(true),
               },
               {
-                title: '2. Piagam Komitmen "Kami Kompak"',
-                desc: 'Piagam kesepakatan visi keluarga & pola asuh positif ditandatangani kedua mempelai.',
+                title: '2. Piagam Komitmen "Kami Kompak" (A4 Vertikal)',
+                desc: 'Piagam kesepakatan visi keluarga & pola asuh positif format A4 Vertikal siap cetak ditandatangani kedua mempelai.',
                 icon: HeartHandshake,
                 action: () => setPiagamOpen(true),
               },
               {
-                title: '3. Rapor Portofolio Catin (PDF)',
-                desc: 'Ringkasan nilai Pretest, Postest, 5 Modul, hasil skrining stunting, dan catatan Fasilitator.',
+                title: '3. Rapor Portofolio Catin (A4 Vertikal)',
+                desc: 'Ringkasan nilai Pretest, Postest, 5 Modul, skrining stunting, dan catatan Fasilitator format A4 siap cetak.',
                 icon: FileText,
                 action: () => setPortfolioOpen(true),
               },
               {
                 title: '4. Kartu Story WA / IG / TikTok',
-                desc: 'Gambar kelulusan HD 1080×1920 PNG siap dibagikan untuk syiar keluarga sakinah.',
+                desc: 'Desain latar putih bersih HD 1080×1920 PNG ber-QR Code siap dibagikan untuk syiar keluarga sakinah.',
                 icon: Share2,
                 action: () => setStoryOpen(true),
               },

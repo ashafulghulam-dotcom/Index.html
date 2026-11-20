@@ -45,7 +45,8 @@ import {
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
-import { CertificatePreviewModal } from './OfficialDocuments';
+import { buildExecutiveReportRows, ExecutiveReportData } from '../utils/pdfDocuments';
+import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
@@ -80,9 +81,10 @@ export const AdminDashboard: React.FC = () => {
   const [selectedKua, setSelectedKua] = useState<string>(isSuper ? 'ALL' : currentUser?.kua || 'KUA Jepara');
   const [search, setSearch] = useState('');
 
-  // Peserta Edit & Certificate Preview modals
+  // Peserta Edit, Certificate Preview & Executive Report modals
   const [editingPeserta, setEditingPeserta] = useState<BimwinUser | null>(null);
   const [certPreviewUser, setCertPreviewUser] = useState<BimwinUser | null>(null);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
 
   // Staff manager state
   const [revealedPassIds, setRevealedPassIds] = useState<Record<string, boolean>>({});
@@ -250,6 +252,25 @@ export const AdminDashboard: React.FC = () => {
 
   const PIE_COLORS = ['#0F684E', '#C69214', '#2563EB', '#0D9488', '#64748B', '#D97706'];
 
+  const executiveReport: ExecutiveReportData = useMemo(() => {
+    const scopeLabel = effectiveKua === 'ALL' ? 'Semua 16 KUA Kabupaten Jepara' : effectiveKua;
+    const unitColumnLabel = effectiveKua === 'ALL' ? 'Unit KUA Kecamatan' : 'Desa / Kelurahan';
+    const kuaCode =
+      effectiveKua === 'ALL'
+        ? 'JPR16'
+        : effectiveKua.replace('KUA ', '').slice(0, 3).toUpperCase();
+    return {
+      reportCode: `LAP-BIMWIN-2026-${kuaCode}`,
+      scopeLabel,
+      unitColumnLabel,
+      printedDate: formatIndonesianDate(),
+      kpis,
+      rows: buildExecutiveReportRows(distributionData),
+      educationSummary: educationData,
+      pejabat: data.settings.pejabat,
+    };
+  }, [effectiveKua, kpis, distributionData, educationData, data.settings.pejabat]);
+
   const handleExportCsv = () => {
     const csv = buildPesertaCsv(scopedPeserta);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -336,11 +357,11 @@ export const AdminDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => setReportModalOpen(true)}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
               >
                 <Printer className="w-3.5 h-3.5" />
-                Cetak Laporan
+                Laporan A4
               </button>
             </div>
           </div>
@@ -1767,6 +1788,12 @@ export const AdminDashboard: React.FC = () => {
           pejabat={data.settings.pejabat}
         />
       )}
+
+      <ExecutiveReportPreviewModal
+        open={reportModalOpen}
+        onClose={() => setReportModalOpen(false)}
+        report={executiveReport}
+      />
     </WorkspaceShell>
   );
 };
