@@ -180,16 +180,16 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
           <button
             type="button"
             onClick={() => navigateSection('beranda')}
-            className="flex items-center gap-2.5 sm:gap-3 min-w-0 text-left"
+            className="flex items-center gap-2.5 sm:gap-3 h-full min-w-0 text-left"
           >
             <KemenagLogo size="sm" />
             <div className="min-w-0 flex flex-col justify-center">
               <img
                 src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
                 alt="SAMAWA — Sarana Membangun Wawasan Keluarga"
-                className="h-7 sm:h-8 w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+                className="h-5 sm:h-[22px] w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
               />
-              <span className="mt-1 font-semibold text-[9px] leading-none uppercase tracking-[0.04em] text-slate-600 dark:text-slate-300 hidden sm:block truncate">
+              <span className="mt-[3px] font-semibold text-[9px] leading-none uppercase tracking-[0.04em] text-slate-600 dark:text-slate-300 hidden sm:block truncate">
                 KEMENTERIAN AGAMA KABUPATEN JEPARA
               </span>
             </div>
