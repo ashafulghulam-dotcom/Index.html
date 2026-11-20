@@ -10,6 +10,7 @@ import {
   Upload,
   FileSpreadsheet,
   History,
+  KeyRound,
   MessageSquare,
   Plus,
   Printer,
@@ -46,6 +47,7 @@ import {
   normalizeVillageName,
 } from '../utils/bimwinLogic';
 import { buildExecutiveReportRows, ExecutiveReportData } from '../utils/pdfDocuments';
+import { AccountSecurityCard } from './AccountSecurityCard';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
@@ -310,6 +312,7 @@ export const AdminDashboard: React.FC = () => {
           { id: 'audit', label: 'Audit Trail Aktivitas', icon: History, badge: data.auditLogs.length, section: 'SuperAdmin Kemenag' },
         ]
       : []),
+    { id: 'akun', label: 'Ubah Username & Sandi', icon: KeyRound, section: 'Akun Saya' },
   ];
 
   return (
@@ -1786,6 +1789,13 @@ export const AdminDashboard: React.FC = () => {
           onClose={() => setCertPreviewUser(null)}
           user={certPreviewUser}
           pejabat={data.settings.pejabat}
+        />
+      )}
+
+      {/* TAB AKUN SAYA: UBAH USERNAME & KATA SANDI (ADMIN KUA & SUPERADMIN) */}
+      {activeTab === 'akun' && (
+        <AccountSecurityCard
+          roleDisplay={isSuper ? 'SuperAdmin Kemenag' : `Admin ${currentUser.kua}`}
         />
       )}
 

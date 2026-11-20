@@ -17,6 +17,34 @@ export const KemenagLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'm
   );
 };
 
+export const SamawaBrandHeader: React.FC<{
+  subtitle?: string;
+  hideSubtitleOnMobile?: boolean;
+  subtitleTone?: 'muted' | 'emerald';
+}> = ({ subtitle, hideSubtitleOnMobile = false, subtitleTone = 'muted' }) => (
+  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+    <KemenagLogo size="sm" />
+    <div className="min-w-0 flex flex-col justify-center">
+      <img
+        src="/assets/aistudio/samawa-logo-clean.png"
+        alt="SAMAWA — Sarana Membangun Wawasan Keluarga"
+        className="h-[16px] sm:h-[18px] w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+      />
+      {subtitle && (
+        <span
+          className={`mt-[4px] font-semibold text-[9px] leading-none uppercase tracking-[0.04em] truncate ${
+            subtitleTone === 'emerald'
+              ? 'text-[#0F684E] dark:text-emerald-400'
+              : 'text-slate-600 dark:text-slate-300'
+          } ${hideSubtitleOnMobile ? 'hidden sm:block' : 'block'}`}
+        >
+          {subtitle}
+        </span>
+      )}
+    </div>
+  </div>
+);
+
 export const QRCodeBox: React.FC<{ value: string; size?: number; className?: string }> = ({
   value,
   size = 96,

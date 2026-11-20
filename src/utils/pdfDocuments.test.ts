@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildExecutiveReportRows,
   DOCUMENT_A4_SPECS,
+  resolveCoupleRoles,
   sanitizeFilenameSegment,
 } from './pdfDocuments';
 
@@ -36,4 +37,15 @@ test('sanitizeFilenameSegment strips unsafe filename characters cleanly', () => 
   assert.equal(sanitizeFilenameSegment('KUA Jepara / 2026'), 'KUA_Jepara_2026');
   assert.equal(sanitizeFilenameSegment('JPR-JEP-2026-0001'), 'JPR-JEP-2026-0001');
   assert.equal(sanitizeFilenameSegment('   '), 'dokumen');
+});
+
+test('resolveCoupleRoles maps Calon Suami and Calon Istri accurately regardless of logged-in gender', () => {
+  assert.deepEqual(
+    resolveCoupleRoles({ nama: 'Ahmad Rifai', pasanganNama: 'Siti Nurhaliza', jenisKelamin: 'Laki-laki' }),
+    { suami: 'Ahmad Rifai', istri: 'Siti Nurhaliza' }
+  );
+  assert.deepEqual(
+    resolveCoupleRoles({ nama: 'Siti Nurhaliza', pasanganNama: 'Ahmad Rifai', jenisKelamin: 'Perempuan' }),
+    { suami: 'Ahmad Rifai', istri: 'Siti Nurhaliza' }
+  );
 });

@@ -20,11 +20,12 @@ import {
   downloadPortfolioPdfA4,
   ExecutiveReportData,
   printA4Document,
+  resolveCoupleRoles,
 } from '../utils/pdfDocuments';
 import { KEMENAG_LOGO_SVG } from '../data/jeparaData';
 import { KemenagLogo, ModalDialog, QRCodeBox } from './UiPrimitives';
 
-const SAMAWA_LOGO_URL = '/assets/aistudio/SAMAWA_transparent_HD_ac107033.png';
+const SAMAWA_LOGO_URL = '/assets/aistudio/samawa-logo-clean.png';
 
 /**
  * 1. SERTIFIKAT BIMWIN MANDIRI — A4 HORIZONTAL (297mm × 210mm) SIAP CETAK
@@ -93,14 +94,14 @@ export const CertificatePreviewModal: React.FC<{
           <div className="flex-1 border-[3px] border-[#0F684E] p-1.5 flex flex-col">
             <div className="flex-1 border border-[#C69214] px-6 sm:px-8 py-5 sm:py-6 flex flex-col justify-between relative">
               {/* Institutional Header */}
-              <div className="flex items-start justify-between border-b-2 border-[#C69214]/70 pb-3.5 gap-4">
-                <div className="flex items-center gap-3.5">
+              <div className="flex items-start justify-between border-b-2 border-[#C69214]/70 pb-3.5 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <KemenagLogo size="lg" />
-                  <div>
-                    <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.2em] text-[#0F684E]">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#0F684E]">
                       Kementerian Agama Republik Indonesia
                     </p>
-                    <h2 className="font-display text-lg sm:text-2xl font-bold text-slate-900 leading-tight">
+                    <h2 className="font-display text-base sm:text-xl font-bold text-slate-900 leading-tight whitespace-nowrap">
                       Kantor Kementerian Agama Kabupaten Jepara
                     </h2>
                     <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
@@ -113,7 +114,7 @@ export const CertificatePreviewModal: React.FC<{
                   <img
                     src={SAMAWA_LOGO_URL}
                     alt="SAMAWA"
-                    className="h-6 sm:h-7 w-auto object-contain mb-1.5"
+                    className="h-[18px] sm:h-5 w-auto object-contain mb-1.5"
                   />
                   <p className="text-[9px] uppercase tracking-wider text-slate-500">
                     Nomor Sertifikat
@@ -125,7 +126,7 @@ export const CertificatePreviewModal: React.FC<{
               </div>
 
               {/* Main Recipient Body */}
-              <div className="text-center space-y-2 py-2">
+              <div className="text-center space-y-1.5 py-1.5">
                 <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.28em] text-[#B47D0E]">
                   Sertifikat Bimbingan Perkawinan Mandiri
                 </p>
@@ -138,41 +139,41 @@ export const CertificatePreviewModal: React.FC<{
                   NIK: {maskNik(user.nik)} · TTL: {user.ttl || '-'} · Pasangan:{' '}
                   {user.pasanganNama || '-'}
                 </p>
-                <p className="text-xs sm:text-[13px] text-slate-700 max-w-2xl mx-auto pt-1.5 leading-relaxed">
+                <p className="text-xs sm:text-[13px] text-slate-700 max-w-2xl mx-auto pt-1 leading-relaxed">
                   Telah menyelesaikan seluruh rangkaian Bimbingan Perkawinan Mandiri (MOOC 5 Modul
                   Keluarga Sakinah, Pretest, Postest, Survei IKM, serta Sesi Bimbingan{' '}
-                  {user.progress?.kehadiranKelas || 'KUA'}) dengan predikat{' '}
-                  <strong>LULUS &amp; TERVERIFIKASI</strong>.
+                  {user.progress?.kehadiranKelas || 'KUA'}) dengan predikat:
+                </p>
+                <p className="text-sm sm:text-base font-bold tracking-[0.14em] text-[#0F684E] whitespace-nowrap pt-0.5">
+                  LULUS &amp; TERVERIFIKASI
                 </p>
               </div>
 
-              {/* Footer: QR, Evaluation Summary, Official Signature */}
-              <div className="grid grid-cols-3 gap-4 items-end pt-3.5 border-t border-slate-200">
-                <div className="flex items-center gap-2.5">
-                  <QRCodeBox value={certCode} size={78} />
-                  <div className="text-[10px] text-slate-500 leading-snug">
-                    <p className="font-bold text-slate-800">Terverifikasi Digital</p>
-                    <p>Pindai QR atau cek kode pada portal resmi Kemenag Jepara.</p>
-                  </div>
-                </div>
-                <div className="text-center text-xs text-slate-600 bg-[#F8FAF9] border border-slate-200 rounded-lg px-3 py-2.5">
+              {/* Footer: Evaluation Summary + Pejabat Signature with QR */}
+              <div className="grid grid-cols-12 gap-4 items-center pt-3 border-t border-slate-200">
+                <div className="col-span-6 text-center text-xs text-slate-600 bg-[#F8FAF9] border border-slate-200 rounded-lg px-4 py-3 space-y-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[#0F684E]">
-                    Capaian Evaluasi
+                    Capaian Evaluasi &amp; Verifikasi
                   </p>
-                  <p className="font-mono-num text-xs sm:text-sm font-bold text-slate-900 mt-0.5">
+                  <p className="font-mono-num text-xs sm:text-sm font-bold text-slate-900">
                     Pretest {user.progress?.pretestScore ?? 0} → Postest{' '}
                     {user.progress?.postestScore ?? 0}
                   </p>
-                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">
+                  <p className="text-[11px] text-slate-600 truncate">
                     Fasilitator: {user.progress?.verifikasiOleh || `Fasilitator ${user.kua}`}
                   </p>
-                </div>
-                <div className="text-right text-[11px] sm:text-xs">
-                  <p className="text-slate-600">
-                    Jepara, {user.progress?.tanggalTerbitSertifikat || formatIndonesianDate()}
+                  <p className="text-[10px] text-slate-500">
+                    Pindai QR tanda tangan elektronik pada portal resmi Kemenag Jepara.
                   </p>
-                  <p className="font-semibold text-[#0F684E] mt-0.5">{pejabat.jabatan}</p>
-                  <div className="h-11" />
+                </div>
+                <div className="col-span-6 flex flex-col items-center text-center text-[11px] sm:text-xs">
+                  <p className="text-slate-600">Jepara, {formatIndonesianDate(new Date())}</p>
+                  <p className="font-semibold text-[#0F684E] mt-0.5 whitespace-nowrap">
+                    {pejabat.jabatan}
+                  </p>
+                  <div className="my-2">
+                    <QRCodeBox value={certCode} size={70} />
+                  </div>
                   <p className="font-bold underline text-slate-900">{pejabat.nama}</p>
                   <p className="font-mono-num text-[10px] text-slate-600">{pejabat.nip}</p>
                 </div>
@@ -194,6 +195,7 @@ export const PiagamKompakPreviewModal: React.FC<{
   user: BimwinUser;
 }> = ({ open, onClose, user }) => {
   const code = user.kompak?.kodePiagam || 'KOMPAK-2026-0001';
+  const couple = resolveCoupleRoles(user);
   const [downloading, setDownloading] = useState(false);
 
   const handleDownloadPdf = async () => {
@@ -254,7 +256,7 @@ export const PiagamKompakPreviewModal: React.FC<{
                 <img
                   src={SAMAWA_LOGO_URL}
                   alt="SAMAWA"
-                  className="h-5 w-auto object-contain hidden sm:block absolute right-0 top-0"
+                  className="h-4 w-auto object-contain hidden sm:block absolute right-0 top-0"
                 />
                 <div className="flex justify-center mb-2">
                   <KemenagLogo size="md" />
@@ -322,21 +324,19 @@ export const PiagamKompakPreviewModal: React.FC<{
               {/* Signatures & QR */}
               <div className="grid grid-cols-3 gap-4 items-end pt-4 border-t border-slate-200 text-center text-xs">
                 <div>
-                  <p className="text-slate-600">Calon Mempelai I</p>
+                  <p className="text-slate-600">Calon Suami</p>
                   <div className="h-14" />
-                  <p className="font-bold underline text-slate-900">{user.nama}</p>
+                  <p className="font-bold underline text-slate-900">{couple.suami}</p>
                 </div>
                 <div className="flex flex-col items-center">
                   <QRCodeBox value={code} size={76} />
                   <span className="text-[10px] text-slate-500 mt-1">Validasi QR Resmi</span>
                 </div>
                 <div>
-                  <p className="text-slate-600">Jepara, {formatIndonesianDate()}</p>
-                  <p className="text-slate-600">Calon Mempelai II</p>
+                  <p className="text-slate-600">Jepara, {formatIndonesianDate(new Date())}</p>
+                  <p className="text-slate-600">Calon Istri</p>
                   <div className="h-10" />
-                  <p className="font-bold underline text-slate-900">
-                    {user.pasanganNama || 'Pasangan'}
-                  </p>
+                  <p className="font-bold underline text-slate-900">{couple.istri}</p>
                 </div>
               </div>
             </div>
@@ -432,7 +432,7 @@ export const PortfolioPreviewModal: React.FC<{
               <img
                 src={SAMAWA_LOGO_URL}
                 alt="SAMAWA"
-                className="h-6 w-auto object-contain shrink-0 hidden sm:block"
+                className="h-[18px] w-auto object-contain shrink-0 hidden sm:block"
               />
             </div>
 
@@ -673,7 +673,7 @@ export const ExecutiveReportPreviewModal: React.FC<{
               <img
                 src={SAMAWA_LOGO_URL}
                 alt="SAMAWA"
-                className="h-6 w-auto object-contain shrink-0 hidden sm:block"
+                className="h-[18px] w-auto object-contain shrink-0 hidden sm:block"
               />
             </div>
 
@@ -883,9 +883,9 @@ export const StoryCardModal: React.FC<{
       }
 
       if (samawaImg && samawaImg.naturalWidth > 0) {
-        const sh = 64;
+        const sh = 52;
         const sw = (samawaImg.naturalWidth / samawaImg.naturalHeight) * sh;
-        ctx.drawImage(samawaImg, (1080 - sw) / 2, 286, sw, sh);
+        ctx.drawImage(samawaImg, (1080 - sw) / 2, 292, sw, sh);
       }
 
       ctx.textAlign = 'center';

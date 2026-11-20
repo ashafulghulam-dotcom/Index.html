@@ -111,6 +111,21 @@ export function sanitizeFilenameSegment(raw: string): string {
     .replace(/^_+|_+$/g, '') || 'dokumen';
 }
 
+export function resolveCoupleRoles(
+  user: Pick<BimwinUser, 'nama' | 'pasanganNama' | 'jenisKelamin'>
+): { suami: string; istri: string } {
+  if (user.jenisKelamin === 'Perempuan') {
+    return {
+      suami: user.pasanganNama || 'Calon Suami',
+      istri: user.nama,
+    };
+  }
+  return {
+    suami: user.nama,
+    istri: user.pasanganNama || 'Calon Istri',
+  };
+}
+
 /**
  * Triggers browser print dialog with exact A4 orientation (@page size: A4 landscape|portrait)
  * and marks body so only the active A4 print sheet is rendered on paper.
@@ -144,7 +159,7 @@ interface RasterImageAsset {
   height: number;
 }
 
-const SAMAWA_LOGO_PATH = '/assets/aistudio/SAMAWA_transparent_HD_ac107033.png';
+const SAMAWA_LOGO_PATH = '/assets/aistudio/samawa-logo-clean.png';
 
 async function loadImageAsPngDataUrl(src: string, targetHeight = 220): Promise<RasterImageAsset | null> {
   if (typeof window === 'undefined') return null;
@@ -266,7 +281,7 @@ export async function downloadCertificatePdfA4(
   doc.line(W - 15.5, H - 15.5 - cLen, W - 15.5, H - 15.5);
 
   // Header band
-  drawHeaderLogos(doc, kemenagImg, samawaImg, 21, 19, 18, 8.5, W - 21);
+  drawHeaderLogos(doc, kemenagImg, samawaImg, 21, 19, 18, 6.2, W - 21);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9.5);
@@ -274,7 +289,7 @@ export async function downloadCertificatePdfA4(
   doc.text('KEMENTERIAN AGAMA REPUBLIK INDONESIA', 43, 24.5);
 
   doc.setFont('times', 'bold');
-  doc.setFontSize(17.5);
+  doc.setFontSize(17);
   doc.setTextColor(15, 23, 42);
   doc.text('Kantor Kementerian Agama Kabupaten Jepara', 43, 31.5);
 
@@ -304,129 +319,127 @@ export async function downloadCertificatePdfA4(
 
   // Center certificate body
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10.8);
   doc.setTextColor(180, 125, 14);
-  doc.text('SERTIFIKAT BIMBINGAN PERKAWINAN MANDIRI', W / 2, 56, { align: 'center' });
+  doc.text('SERTIFIKAT BIMBINGAN PERKAWINAN MANDIRI', W / 2, 53.5, { align: 'center' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10);
+  doc.setFontSize(9.8);
   doc.setTextColor(71, 85, 105);
-  doc.text('Diberikan kepada Calon Pengantin:', W / 2, 65, { align: 'center' });
+  doc.text('Diberikan kepada Calon Pengantin:', W / 2, 61.5, { align: 'center' });
 
   doc.setFont('times', 'bold');
-  doc.setFontSize(28);
+  doc.setFontSize(27);
   doc.setTextColor(9, 66, 50);
-  doc.text(user.nama, W / 2, 79, { align: 'center' });
+  doc.text(user.nama, W / 2, 74.5, { align: 'center' });
 
   // Accent line under recipient name
   doc.setDrawColor(198, 146, 20);
   doc.setLineWidth(0.45);
-  doc.line(W / 2 - 64, 83.5, W / 2 + 64, 83.5);
+  doc.line(W / 2 - 64, 78.8, W / 2 + 64, 78.8);
 
   doc.setFont('courier', 'normal');
-  doc.setFontSize(9.5);
+  doc.setFontSize(9.3);
   doc.setTextColor(71, 85, 105);
   doc.text(
     `NIK: ${maskNik(user.nik)}   ·   TTL: ${user.ttl || '-'}   ·   Pasangan: ${user.pasanganNama || '-'}`,
     W / 2,
-    91,
+    85.8,
     { align: 'center' }
   );
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(10.5);
+  doc.setFontSize(10.2);
   doc.setTextColor(51, 65, 85);
-  const statement = `Telah menyelesaikan seluruh rangkaian Bimbingan Perkawinan Mandiri (MOOC 5 Modul Keluarga Sakinah, Pretest, Postest, Survei IKM, serta Sesi Bimbingan ${user.progress?.kehadiranKelas || 'KUA'}) dengan predikat LULUS & TERVERIFIKASI.`;
-  const wrappedStatement = doc.splitTextToSize(statement, 215);
-  doc.text(wrappedStatement, W / 2, 103, { align: 'center', lineHeightFactor: 1.5 });
+  const statement = `Telah menyelesaikan seluruh rangkaian Bimbingan Perkawinan Mandiri (MOOC 5 Modul Keluarga Sakinah, Pretest, Postest, Survei IKM, serta Sesi Bimbingan ${user.progress?.kehadiranKelas || 'KUA'}) dengan predikat:`;
+  const wrappedStatement = doc.splitTextToSize(statement, 224);
+  doc.text(wrappedStatement, W / 2, 95.5, { align: 'center', lineHeightFactor: 1.45 });
+
+  // Dedicated single line below for LULUS & TERVERIFIKASI
+  const badgeY = 95.5 + wrappedStatement.length * 5.2 + 5.5;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(15, 104, 78);
+  doc.text('LULUS & TERVERIFIKASI', W / 2, badgeY, { align: 'center' });
 
   // Subtle horizontal divider above footer row
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.4);
-  doc.line(21, 130, W - 21, 130);
+  doc.line(21, 123, W - 21, 123);
 
-  // Left: QR Verification Block
-  if (qrPng) {
-    doc.setDrawColor(226, 232, 240);
-    doc.setLineWidth(0.35);
-    doc.roundedRect(21, 138, 28, 28, 2, 2);
-    doc.addImage(qrPng, 'PNG', 22.5, 139.5, 25, 25);
-  }
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.setTextColor(15, 23, 42);
-  doc.text('Terverifikasi Digital', 53, 146);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  const qrNote = doc.splitTextToSize(
-    'Pindai QR atau masukkan kode registrasi pada portal verifikasi resmi Kemenag Kabupaten Jepara.',
-    52
-  );
-  doc.text(qrNote, 53, 151.5, { lineHeightFactor: 1.4 });
-
-  // Center: Evaluation Summary Box
+  // Left: Evaluation Summary & Digital Verification Note
   doc.setFillColor(248, 250, 249);
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.35);
-  doc.roundedRect(108, 138, 70, 30, 2.5, 2.5, 'FD');
+  doc.roundedRect(22, 134, 110, 38, 2.5, 2.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.2);
+  doc.setFontSize(8.4);
   doc.setTextColor(15, 104, 78);
-  doc.text('CAPAIAN EVALUASI BIMWIN', 143, 145.5, { align: 'center' });
+  doc.text('CAPAIAN EVALUASI & VERIFIKASI', 77, 142, { align: 'center' });
 
   doc.setFont('courier', 'bold');
-  doc.setFontSize(10.5);
+  doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
   doc.text(
-    `Pretest ${user.progress?.pretestScore ?? 0} -> Postest ${user.progress?.postestScore ?? 0}`,
-    143,
-    154,
+    `Pretest ${user.progress?.pretestScore ?? 0}  ->  Postest ${user.progress?.postestScore ?? 0}`,
+    77,
+    150.5,
     { align: 'center' }
   );
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.6);
-  doc.setTextColor(100, 116, 139);
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
   const fasText = doc.splitTextToSize(
     `Fasilitator: ${user.progress?.verifikasiOleh || `Fasilitator ${user.kua}`}`,
-    64
+    102
   );
-  doc.text(fasText[0] || '', 143, 162, { align: 'center' });
+  doc.text(fasText[0] || '', 77, 158, { align: 'center' });
 
-  // Right: Pejabat Signature Block
-  const sigX = W - 22;
+  doc.setFontSize(7.4);
+  doc.setTextColor(100, 116, 139);
+  doc.text('Pindai QR tanda tangan elektronik pada portal resmi Kemenag Jepara.', 77, 165, {
+    align: 'center',
+  });
+
+  // Right: Pejabat Signature Block with QR centered between Jabatan and Nama Kepala
+  const downloadDate = formatIndonesianDate(new Date());
+  const sigCenterX = 225;
+
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.8);
   doc.setTextColor(51, 65, 85);
-  doc.text(
-    `Jepara, ${user.progress?.tanggalTerbitSertifikat || formatIndonesianDate()}`,
-    sigX,
-    142,
-    { align: 'right' }
-  );
+  doc.text(`Jepara, ${downloadDate}`, sigCenterX, 131.5, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  doc.setFontSize(8.8);
   doc.setTextColor(15, 104, 78);
-  const jabatanLines = doc.splitTextToSize(pejabat.jabatan, 82);
-  doc.text(jabatanLines, sigX, 147.2, { align: 'right', lineHeightFactor: 1.3 });
+  doc.text(pejabat.jabatan, sigCenterX, 136.8, { align: 'center' });
+
+  // QR placed below Kepala Kantor Kementerian Agama Kabupaten Jepara and above Nama Kepala
+  if (qrPng) {
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(sigCenterX - 11.5, 140.5, 23, 23, 1.5, 1.5, 'FD');
+    doc.addImage(qrPng, 'PNG', sigCenterX - 10.3, 141.7, 20.6, 20.6);
+  }
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
+  doc.setFontSize(9.8);
   doc.setTextColor(15, 23, 42);
-  doc.text(pejabat.nama, sigX, 174, { align: 'right' });
+  doc.text(pejabat.nama, sigCenterX, 171.8, { align: 'center' });
 
   const nameWidth = doc.getTextWidth(pejabat.nama);
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.35);
-  doc.line(sigX - nameWidth, 175.2, sigX, 175.2);
+  doc.line(sigCenterX - nameWidth / 2, 173, sigCenterX + nameWidth / 2, 173);
 
   doc.setFont('courier', 'normal');
-  doc.setFontSize(8.5);
+  doc.setFontSize(8.3);
   doc.setTextColor(71, 85, 105);
-  doc.text(pejabat.nip, sigX, 180.5, { align: 'right' });
+  doc.text(pejabat.nip, sigCenterX, 178.2, { align: 'center' });
 
   doc.save(`Sertifikat-Bimwin-${sanitizeFilenameSegment(certCode)}-A4-Horizontal.pdf`);
 }
@@ -470,9 +483,9 @@ export async function downloadPiagamKompakPdfA4(user: BimwinUser): Promise<void>
     doc.addImage(kemenagImg.dataUrl, 'PNG', W / 2 - 9, 21, 18, 18);
   }
   if (samawaImg) {
-    const sh = 6.5;
+    const sh = 4.6;
     const sw = (samawaImg.width / samawaImg.height) * sh;
-    doc.addImage(samawaImg.dataUrl, 'PNG', W - 21 - sw, 22, sw, sh);
+    doc.addImage(samawaImg.dataUrl, 'PNG', W - 21 - sw, 23, sw, sh);
   }
 
   doc.setFont('helvetica', 'bold');
@@ -597,17 +610,19 @@ export async function downloadPiagamKompakPdfA4(user: BimwinUser): Promise<void>
   const midColX = W / 2;
   const rightColX = W - 48;
 
-  // Mempelai I
+  const couple = resolveCoupleRoles(user);
+
+  // Calon Suami
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text('Calon Mempelai I', leftColX, sigTopY + 5, { align: 'center' });
+  doc.text('Calon Suami', leftColX, sigTopY + 5, { align: 'center' });
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text(user.nama, leftColX, sigTopY + 31, { align: 'center' });
-  const w1 = doc.getTextWidth(user.nama);
+  doc.text(couple.suami, leftColX, sigTopY + 31, { align: 'center' });
+  const w1 = doc.getTextWidth(couple.suami);
   doc.setDrawColor(15, 23, 42);
   doc.setLineWidth(0.35);
   doc.line(leftColX - w1 / 2, sigTopY + 32.3, leftColX + w1 / 2, sigTopY + 32.3);
@@ -623,19 +638,18 @@ export async function downloadPiagamKompakPdfA4(user: BimwinUser): Promise<void>
   doc.setTextColor(100, 116, 139);
   doc.text('Validasi QR Resmi', midColX, sigTopY + 32, { align: 'center' });
 
-  // Mempelai II
+  // Calon Istri
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(71, 85, 105);
-  doc.text(`Jepara, ${formatIndonesianDate()}`, rightColX, sigTopY, { align: 'center' });
-  doc.text('Calon Mempelai II', rightColX, sigTopY + 5, { align: 'center' });
+  doc.text(`Jepara, ${formatIndonesianDate(new Date())}`, rightColX, sigTopY, { align: 'center' });
+  doc.text('Calon Istri', rightColX, sigTopY + 5, { align: 'center' });
 
-  const partnerName = user.pasanganNama || 'Pasangan';
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text(partnerName, rightColX, sigTopY + 31, { align: 'center' });
-  const w2 = doc.getTextWidth(partnerName);
+  doc.text(couple.istri, rightColX, sigTopY + 31, { align: 'center' });
+  const w2 = doc.getTextWidth(couple.istri);
   doc.setDrawColor(15, 23, 42);
   doc.line(rightColX - w2 / 2, sigTopY + 32.3, rightColX + w2 / 2, sigTopY + 32.3);
 
@@ -677,9 +691,9 @@ export async function downloadPortfolioPdfA4(
   // Kop Surat Header
   if (kemenagImg) doc.addImage(kemenagImg.dataUrl, 'PNG', 16, 14, 15, 15);
   if (samawaImg) {
-    const sh = 5.6;
+    const sh = 4.0;
     const sw = (samawaImg.width / samawaImg.height) * sh;
-    doc.addImage(samawaImg.dataUrl, 'PNG', W - 16 - sw, 14, sw, sh);
+    doc.addImage(samawaImg.dataUrl, 'PNG', W - 16 - sw, 15, sw, sh);
   }
 
   doc.setFont('helvetica', 'bold');
@@ -954,9 +968,9 @@ export async function downloadExecutiveReportPdfA4(report: ExecutiveReportData):
   // Official Kop Surat
   if (kemenagImg) doc.addImage(kemenagImg.dataUrl, 'PNG', 16, 13, 16, 16);
   if (samawaImg) {
-    const sh = 6.2;
+    const sh = 4.4;
     const sw = (samawaImg.width / samawaImg.height) * sh;
-    doc.addImage(samawaImg.dataUrl, 'PNG', W - 16 - sw, 14, sw, sh);
+    doc.addImage(samawaImg.dataUrl, 'PNG', W - 16 - sw, 15, sw, sh);
   }
 
   doc.setFont('helvetica', 'bold');

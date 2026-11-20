@@ -5,6 +5,7 @@ import {
   CheckCheck,
   CheckCircle2,
   Eye,
+  KeyRound,
   MessageSquare,
   Plus,
   Printer,
@@ -24,6 +25,7 @@ import {
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
+import { AccountSecurityCard } from './AccountSecurityCard';
 import { AttendanceSheetModal } from './OfficialDocuments';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
@@ -144,6 +146,7 @@ export const FasilitatorDashboard: React.FC = () => {
     { id: 'konsultasi', label: 'Konsultasi & Mediasi', icon: MessageSquare, badge: pendingConsults || undefined, section: 'Layanan KUA' },
     { id: 'pengingat', label: 'Kirim Pengingat Peserta', icon: Bell, section: 'Komunikasi' },
     { id: 'profil', label: 'Profil Fasilitator', icon: UserCog, section: 'Akun' },
+    { id: 'akun', label: 'Ubah Username & Sandi', icon: KeyRound, section: 'Akun' },
   ];
 
   return (
@@ -676,6 +679,9 @@ export const FasilitatorDashboard: React.FC = () => {
           </form>
         </div>
       )}
+
+      {/* TAB 6: UBAH USERNAME & KATA SANDI FASILITATOR */}
+      {activeTab === 'akun' && <AccountSecurityCard roleDisplay="Fasilitator Bimwin" />}
 
       {/* Modal Verifikasi Kode Absensi */}
       <ModalDialog

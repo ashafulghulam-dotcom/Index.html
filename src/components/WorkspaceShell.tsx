@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, LogOut, Menu, Moon, Sun, X } from 'lucide-react';
 import { useBimwin } from '../store/useBimwinStore';
-import { KemenagLogo } from './UiPrimitives';
+import {
+  PWAInstallDrawerItem,
+  PWAInstallHeaderButton,
+  PWAInstallModal,
+} from './PWAInstallControls';
+import { SamawaBrandHeader } from './UiPrimitives';
 
 export interface NavItem {
   id: string;
@@ -30,6 +35,7 @@ export const WorkspaceShell: React.FC<{
 }) => {
   const { currentUser, logout, darkMode, toggleDarkMode } = useBimwin();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -66,23 +72,11 @@ export const WorkspaceShell: React.FC<{
             className="relative w-72 max-w-[85vw] h-full z-10 flex flex-col bg-white dark:bg-[#0D1613] border-r border-slate-200 dark:border-emerald-950 shadow-2xl"
           >
             <div className="h-16 px-4 flex items-center justify-between border-b border-slate-200 dark:border-emerald-950 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <KemenagLogo size="sm" />
-                <div className="min-w-0 flex flex-col justify-center">
-                  <img
-                    src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
-                    alt="SAMAWA"
-                    className="h-6 w-auto self-start object-contain dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
-                  />
-                  <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400 truncate">
-                    {roleLabel}
-                  </p>
-                </div>
-              </div>
+              <SamawaBrandHeader subtitle={roleLabel} subtitleTone="emerald" />
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition shrink-0"
                 aria-label="Tutup menu"
               >
                 <X className="w-4 h-4" />
@@ -147,6 +141,11 @@ export const WorkspaceShell: React.FC<{
                   {currentUser?.kua}
                 </p>
               </div>
+              <PWAInstallDrawerItem
+                variant="workspace"
+                onBeforeAction={() => setDrawerOpen(false)}
+                onOpenModal={() => setInstallModalOpen(true)}
+              />
               <button
                 type="button"
                 onClick={logout}
@@ -172,16 +171,10 @@ export const WorkspaceShell: React.FC<{
           >
             <Menu className="w-4 h-4" />
           </button>
-          <KemenagLogo size="sm" />
-          <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0">
-            <span className="text-slate-400 dark:text-slate-500 hidden sm:inline whitespace-nowrap">
-              {roleLabel}
-            </span>
-            <span className="text-slate-300 dark:text-slate-600 hidden sm:inline">/</span>
-            <h1 className="font-bold text-slate-900 dark:text-white truncate">
-              {activeItem?.label || 'Dashboard'}
-            </h1>
-          </div>
+          <SamawaBrandHeader
+            subtitle={`${roleLabel}${activeItem?.label ? ` · ${activeItem.label}` : ''}`}
+            subtitleTone="emerald"
+          />
         </div>
 
         {/* Clean 3 Core Quick Tabs on Large Screens (Other Menus Inside Garis 3) */}
@@ -209,6 +202,10 @@ export const WorkspaceShell: React.FC<{
         </nav>
 
         <div className="flex items-center gap-2 shrink-0">
+          <PWAInstallHeaderButton
+            compact
+            onOpenModal={() => setInstallModalOpen(true)}
+          />
           {onOpenNotifications && (
             <button
               type="button"
@@ -277,6 +274,11 @@ export const WorkspaceShell: React.FC<{
           <span className="text-[10px] leading-tight">Menu</span>
         </button>
       </nav>
+
+      <PWAInstallModal
+        open={installModalOpen}
+        onClose={() => setInstallModalOpen(false)}
+      />
     </div>
   );
 };

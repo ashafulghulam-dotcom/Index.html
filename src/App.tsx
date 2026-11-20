@@ -3,6 +3,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { FasilitatorDashboard } from './components/FasilitatorDashboard';
 import { PesertaDashboard } from './components/PesertaDashboard';
 import { PublicPortal } from './components/PublicPortal';
+import { OfflineIndicator } from './components/PWAInstallControls';
 import { ConfirmModal, ToastStack } from './components/UiPrimitives';
 import { BimwinProvider, useBimwin } from './store/useBimwinStore';
 
@@ -31,6 +32,7 @@ const BimwinRouter: React.FC = () => {
       {content}
       <ConfirmModal options={confirmDialog} onClose={closeConfirm} />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <OfflineIndicator />
     </>
   );
 };

@@ -26,6 +26,7 @@ import {
   getSmartFaqReply,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
+import { validateCredentialChange } from '../utils/accountCredentials';
 
 const STORAGE_KEY = 'bimwin_kemenag_jepara_store_v3';
 const SESSION_KEY = 'bimwin_kemenag_jepara_session_v3';
@@ -80,6 +81,12 @@ interface BimwinContextValue {
   logout: () => void;
   registerPeserta: (payload: RegisterPayload) => { ok: boolean; error?: string };
   resetPasswordRequest: (username: string, nikOrPhone: string, newPassword: string) => { ok: boolean; error?: string };
+  updateOwnCredentials: (payload: {
+    currentPassword: string;
+    newUsername: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }) => { ok: boolean; error?: string };
 
   // Peserta workflows
   syncPartnerByUsername: (partnerUsername: string) => { ok: boolean; error?: string };
@@ -379,6 +386,73 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       return { ok: true };
     },
     [data.users, pushToast]
+  );
+
+  const updateOwnCredentials = useCallback(
+    (payload: {
+      currentPassword: string;
+      newUsername: string;
+      newPassword?: string;
+      confirmPassword?: string;
+    }) => {
+      if (!currentUser) {
+        return { ok: false, error: 'Sesi pengguna tidak ditemukan. Silakan masuk kembali.' };
+      }
+
+      const otherUsernames = data.users
+        .filter((u) => u.id !== currentUser.id)
+        .map((u) => u.username);
+
+      const validation = validateCredentialChange({
+        currentUsername: currentUser.username,
+        currentPasswordStored: currentUser.password,
+        currentPasswordInput: payload.currentPassword,
+        newUsername: payload.newUsername,
+        newPassword: payload.newPassword,
+        confirmPassword: payload.confirmPassword,
+        existingUsernames: otherUsernames,
+      });
+
+      if (!validation.ok || !validation.normalizedUsername) {
+        return { ok: false, error: validation.error || 'Data kredensial tidak valid.' };
+      }
+
+      const nextUsername = validation.normalizedUsername;
+      const nextPassword = validation.passwordChanged
+        ? (payload.newPassword as string)
+        : currentUser.password;
+
+      const changeSummary = [
+        validation.usernameChanged ? `username (@${currentUser.username} -> @${nextUsername})` : null,
+        validation.passwordChanged ? 'kata sandi' : null,
+      ]
+        .filter(Boolean)
+        .join(' dan ');
+
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            users: prev.users.map((u) =>
+              u.id === currentUser.id
+                ? { ...u, username: nextUsername, password: nextPassword }
+                : u
+            ),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Memperbarui ${changeSummary} akun sendiri (${currentUser.role}).`
+        )
+      );
+
+      pushToast(
+        'success',
+        'Kredensial Akun Diperbarui',
+        `Perubahan ${changeSummary} berhasil disimpan.`
+      );
+      return { ok: true };
+    },
+    [appendAudit, currentUser, data.users, pushToast]
   );
 
   const syncPartnerByUsername = useCallback(
@@ -1493,6 +1567,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     logout,
     registerPeserta,
     resetPasswordRequest,
+    updateOwnCredentials,
     syncPartnerByUsername,
     createAndLinkPartner,
     unlinkPartner,

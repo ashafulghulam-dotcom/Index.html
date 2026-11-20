@@ -36,13 +36,18 @@ import { DATA_DIREKTORI_16_KUA, LIST_16_KUA } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
 import { VerificationResult } from '../types/bimwin';
 import { countUniqueSyncedCouples, verifyDocumentQuery } from '../utils/bimwinLogic';
-import { KemenagLogo } from './UiPrimitives';
+import { SamawaBrandHeader } from './UiPrimitives';
 import {
   ForgotPasswordModal,
   KritikSaranModal,
   PanduanModal,
   RegisterModal,
 } from './AuthModals';
+import {
+  PWAInstallDrawerItem,
+  PWAInstallHeaderButton,
+  PWAInstallModal,
+} from './PWAInstallControls';
 import { VerificationModal } from './VerificationModal';
 
 type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq';
@@ -57,6 +62,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
+  const [installModalOpen, setInstallModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<PortalSection>(
     initialVerifyCode ? 'verifikasi' : 'beranda'
   );
@@ -177,25 +183,30 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
       {/* Clean Minimal Institutional Top Bar */}
       <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-b border-slate-200 dark:border-emerald-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={() => navigateSection('beranda')}
-            className="flex items-center gap-2.5 sm:gap-3 h-full min-w-0 text-left"
-          >
-            <KemenagLogo size="sm" />
-            <div className="min-w-0 flex flex-col justify-center">
-              <img
-                src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
-                alt="SAMAWA — Sarana Membangun Wawasan Keluarga"
-                className="h-5 sm:h-[22px] w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+          <div className="flex items-center gap-2.5 sm:gap-3 h-full min-w-0">
+            <button
+              type="button"
+              onClick={() => setMenuDrawerOpen(true)}
+              aria-label="Buka menu navigasi"
+              aria-expanded={menuDrawerOpen}
+              className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition shrink-0"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigateSection('beranda')}
+              className="flex items-center h-full min-w-0 text-left"
+            >
+              <SamawaBrandHeader
+                subtitle="KEMENTERIAN AGAMA KABUPATEN JEPARA"
+                hideSubtitleOnMobile
               />
-              <span className="mt-[3px] font-semibold text-[9px] leading-none uppercase tracking-[0.04em] text-slate-600 dark:text-slate-300 hidden sm:block truncate">
-                KEMENTERIAN AGAMA KABUPATEN JEPARA
-              </span>
-            </div>
-          </button>
+            </button>
+          </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <PWAInstallHeaderButton onOpenModal={() => setInstallModalOpen(true)} />
             <button
               type="button"
               onClick={() => setRegisterOpen(true)}
@@ -211,44 +222,28 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
             >
               {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button
-              type="button"
-              onClick={() => setMenuDrawerOpen(true)}
-              aria-label="Buka menu navigasi"
-              aria-expanded={menuDrawerOpen}
-              className="p-2 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
-            >
-              <Menu className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </header>
 
-      {/* Slide-Over Navigation Drawer (Triggered from Garis 3 on All Devices) */}
+      {/* Slide-Over Navigation Drawer (Triggered from Garis 3 on Left) */}
       {menuDrawerOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
+        <div className="fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-slate-950/50 backdrop-blur-[1px]"
             onClick={() => setMenuDrawerOpen(false)}
           />
           <aside
             aria-label="Menu navigasi portal"
-            className="relative z-10 w-80 max-w-[88vw] h-full bg-white dark:bg-[#0D1613] border-l border-slate-200 dark:border-emerald-950 shadow-2xl flex flex-col"
+            className="relative z-10 w-80 max-w-[88vw] h-full bg-white dark:bg-[#0D1613] border-r border-slate-200 dark:border-emerald-950 shadow-2xl flex flex-col"
           >
             <div className="h-16 px-5 flex items-center justify-between border-b border-slate-200 dark:border-emerald-950 shrink-0">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <KemenagLogo size="sm" />
-                <img
-                  src="/assets/aistudio/SAMAWA_transparent_HD_ac107033.png"
-                  alt="SAMAWA"
-                  className="h-6 w-auto object-contain dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
-                />
-              </div>
+              <SamawaBrandHeader subtitle="KEMENAG KAB. JEPARA" />
               <button
                 type="button"
                 onClick={() => setMenuDrawerOpen(false)}
                 aria-label="Tutup menu navigasi"
-                className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
+                className="p-2 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -321,6 +316,11 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                   <MessageSquare className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
                   Kritik &amp; Saran
                 </button>
+                <PWAInstallDrawerItem
+                  variant="portal"
+                  onBeforeAction={() => setMenuDrawerOpen(false)}
+                  onOpenModal={() => setInstallModalOpen(true)}
+                />
               </div>
             </nav>
 
@@ -353,7 +353,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                   </h1>
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
-                    Platform resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara.
+                    SAMAWA (Sarana Membangun Wawasan Keluarga) merupakan platform resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara.
                     Dilengkapi kurikulum 5 modul keluarga sakinah, skrining kesiapan gizi pencegahan stunting,
                     Piagam Komitmen Kami Kompak, dan sertifikat terverifikasi QR Code.
                   </p>
@@ -798,6 +798,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               Copyright © Kantor Kementerian Agama Kabupaten Jepara
             </p>
             <p className="whitespace-nowrap">Seksi Bimbingan Masyarakat Islam</p>
+            <p className="whitespace-nowrap">SAMAWA (Sarana Membangun Wawasan Keluarga)</p>
           </div>
           <nav aria-label="Media sosial resmi" className="flex items-center gap-2 shrink-0">
             <a
@@ -844,6 +845,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
       <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
       <KritikSaranModal open={kritikOpen} onClose={() => setKritikOpen(false)} />
       <PanduanModal open={panduanOpen} onClose={() => setPanduanOpen(false)} />
+      <PWAInstallModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} />
       <VerificationModal result={verifyResult} onClose={() => setVerifyResult(null)} />
     </div>
   );
