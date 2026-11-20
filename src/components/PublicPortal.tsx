@@ -349,7 +349,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               {/* Editorial Institutional Pitch (7 cols) */}
               <div className="lg:col-span-7 space-y-7">
                 <div className="space-y-4">
-                  <h1 className="font-display text-3xl sm:text-4xl lg:text-[2.85rem] font-semibold tracking-tight text-slate-900 dark:text-white leading-[1.15] text-balance">
+                  <h1 className="font-display text-[20px] font-semibold tracking-tight text-slate-900 dark:text-white leading-[1.15] text-balance">
                     Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                   </h1>
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
