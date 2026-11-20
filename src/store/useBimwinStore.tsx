@@ -22,11 +22,16 @@ import {
   canFasilitatorVerify,
   formatIndonesianDate,
   formatTtlFromParts,
-  generateCertificateCode,
+  generateUniqueCertificateCode,
   getSmartFaqReply,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
-import { validateCredentialChange } from '../utils/accountCredentials';
+import {
+  cascadeUsernameReferences,
+  validateBackupSnapshot,
+  validateCredentialChange,
+} from '../utils/accountCredentials';
+import { extractVerificationCode } from '../utils/qrVerification';
 
 const STORAGE_KEY = 'bimwin_kemenag_jepara_store_v3';
 const SESSION_KEY = 'bimwin_kemenag_jepara_session_v3';
@@ -429,21 +434,25 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         .filter(Boolean)
         .join(' dan ');
 
-      setData((prev) =>
-        appendAudit(
-          {
-            ...prev,
-            users: prev.users.map((u) =>
-              u.id === currentUser.id
-                ? { ...u, username: nextUsername, password: nextPassword }
-                : u
-            ),
-          },
+      setData((prev) => {
+        const updatedBase: BimwinStoreSnapshot = {
+          ...prev,
+          users: prev.users.map((u) =>
+            u.id === currentUser.id
+              ? { ...u, username: nextUsername, password: nextPassword }
+              : u
+          ),
+        };
+        const cascaded = validation.usernameChanged
+          ? cascadeUsernameReferences(updatedBase, currentUser.username, nextUsername)
+          : updatedBase;
+        return appendAudit(
+          cascaded,
           currentUser.nama,
           currentUser.role,
           `Memperbarui ${changeSummary} akun sendiri (${currentUser.role}).`
-        )
-      );
+        );
+      });
 
       pushToast(
         'success',
@@ -907,30 +916,41 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateOwnProfile = useCallback(
     (updates: Partial<BimwinUser>) => {
       if (!currentUser) return;
-      setData((prev) => ({
-        ...prev,
-        users: prev.users.map((u) => {
-          if (u.id !== currentUser.id) return u;
-          const lockedIdentity = u.role === 'Peserta' && Boolean(u.progress?.verifikasiFasilitator);
-          const safeUpdates: Partial<BimwinUser> = { ...updates };
-          if (lockedIdentity) {
-            delete safeUpdates.nama;
-            delete safeUpdates.tempatLahir;
-            delete safeUpdates.tanggalLahir;
-            delete safeUpdates.ttl;
-          } else if (safeUpdates.tanggalLahir) {
-            safeUpdates.usia = calculateAgeFromDob(safeUpdates.tanggalLahir) ?? u.usia;
-            safeUpdates.ttl = formatTtlFromParts(
-              safeUpdates.tempatLahir ?? u.tempatLahir ?? 'Jepara',
-              safeUpdates.tanggalLahir
-            );
-          }
-          return { ...u, ...safeUpdates };
-        }),
-      }));
+      setData((prev) => {
+        const next: BimwinStoreSnapshot = {
+          ...prev,
+          users: prev.users.map((u) => {
+            if (u.id !== currentUser.id) return u;
+            const lockedIdentity = u.role === 'Peserta' && Boolean(u.progress?.verifikasiFasilitator);
+            const safeUpdates: Partial<BimwinUser> = { ...updates };
+            if (lockedIdentity) {
+              delete safeUpdates.nama;
+              delete safeUpdates.tempatLahir;
+              delete safeUpdates.tanggalLahir;
+              delete safeUpdates.ttl;
+            } else if (safeUpdates.tanggalLahir) {
+              safeUpdates.usia = calculateAgeFromDob(safeUpdates.tanggalLahir) ?? u.usia;
+              safeUpdates.ttl = formatTtlFromParts(
+                safeUpdates.tempatLahir ?? u.tempatLahir ?? 'Jepara',
+                safeUpdates.tanggalLahir
+              );
+            }
+            return { ...u, ...safeUpdates };
+          }),
+        };
+        if (currentUser.role !== 'Peserta') {
+          return appendAudit(
+            next,
+            updates.nama || currentUser.nama,
+            currentUser.role,
+            `Memperbarui profil petugas (${currentUser.kua || 'Kemenag Kab. Jepara'})`
+          );
+        }
+        return next;
+      });
       pushToast('success', 'Profil Diperbarui', 'Perubahan biodata telah disimpan.');
     },
-    [currentUser, pushToast]
+    [appendAudit, currentUser, pushToast]
   );
 
   const toggleBerkasChecklist = useCallback(
@@ -984,7 +1004,6 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return;
       }
 
-      const issuedCount = data.users.filter((u) => u.progress?.nomorSertifikat).length;
       const todayIndo = formatIndonesianDate(new Date());
 
       setData((prev) => {
@@ -992,7 +1011,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           if (u.id !== pesertaId || !u.progress) return u;
           const certCode =
             payload.verified
-              ? u.progress.nomorSertifikat || generateCertificateCode(u.kua, issuedCount + 1)
+              ? u.progress.nomorSertifikat || generateUniqueCertificateCode(u.kua, prev.users)
               : u.progress.nomorSertifikat;
           return {
             ...u,
@@ -1041,14 +1060,17 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return 0;
       }
 
-      let seq = data.users.filter((u) => u.progress?.nomorSertifikat).length;
       const todayIndo = formatIndonesianDate(new Date());
       const eligibleIds = new Set(eligible.map((e) => e.id));
 
       setData((prev) => {
+        const reservedCodes: string[] = [];
         const nextUsers = prev.users.map((u) => {
           if (!eligibleIds.has(u.id) || !u.progress) return u;
-          seq += 1;
+          const issuedCode =
+            u.progress.nomorSertifikat ||
+            generateUniqueCertificateCode(u.kua, prev.users, reservedCodes);
+          reservedCodes.push(issuedCode);
           return {
             ...u,
             progress: {
@@ -1060,7 +1082,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 u.progress.kehadiranKelas === 'Belum Hadir'
                   ? ('Hadir Kelas Offline' as const)
                   : u.progress.kehadiranKelas,
-              nomorSertifikat: u.progress.nomorSertifikat || generateCertificateCode(u.kua, seq),
+              nomorSertifikat: issuedCode,
               tanggalTerbitSertifikat: u.progress.tanggalTerbitSertifikat || todayIndo,
             },
           };
@@ -1081,11 +1103,16 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const verifyAttendanceByCode = useCallback(
     (kodeAbsen: string, username: string) => {
       if (!currentUser) return { ok: false, error: 'Sesi tidak aktif.' };
-      const cleanCode = kodeAbsen.trim().toUpperCase();
+      const cleanCode = extractVerificationCode(kodeAbsen).trim().toUpperCase();
       const cls = data.classes.find((c) => c.kodeAbsen.toUpperCase() === cleanCode);
       if (!cls) return { ok: false, error: 'Kode absensi kelas tidak ditemukan.' };
+      const cleanUser = extractVerificationCode(username).trim().toLowerCase();
       const peserta = data.users.find(
-        (u) => u.username.toLowerCase() === username.trim().toLowerCase() && u.role === 'Peserta'
+        (u) =>
+          (u.username.toLowerCase() === cleanUser ||
+            (u.progress?.nomorSertifikat &&
+              u.progress.nomorSertifikat.toLowerCase() === cleanUser)) &&
+          u.role === 'Peserta'
       );
       if (!peserta) return { ok: false, error: 'Username peserta tidak ditemukan.' };
 
@@ -1255,16 +1282,35 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updatePesertaByAdmin = useCallback(
     (pesertaId: string, updates: Partial<BimwinUser>) => {
       if (!currentUser) return;
+      const target = data.users.find((u) => u.id === pesertaId);
+      if (!target) return;
+      if (currentUser.role === 'AdminKUA' && target.kua !== currentUser.kua) {
+        pushToast(
+          'error',
+          'Akses Ditolak',
+          `Admin ${currentUser.kua} hanya berwenang memperbarui peserta di wilayahnya.`
+        );
+        return;
+      }
+
+      const safeUpdates: Partial<BimwinUser> = { ...updates };
+      if (!safeUpdates.password || !safeUpdates.password.trim()) {
+        delete safeUpdates.password;
+      }
+      if (currentUser.role === 'AdminKUA') {
+        safeUpdates.kua = currentUser.kua;
+      }
+
       setData((prev) => {
         const nextUsers = prev.users.map((u) => {
           if (u.id !== pesertaId) return u;
-          const next = { ...u, ...updates };
-          if (updates.tanggalLahir) {
-            next.usia = calculateAgeFromDob(updates.tanggalLahir) ?? next.usia;
-            next.ttl = formatTtlFromParts(next.tempatLahir || 'Jepara', updates.tanggalLahir);
+          const next = { ...u, ...safeUpdates };
+          if (safeUpdates.tanggalLahir) {
+            next.usia = calculateAgeFromDob(safeUpdates.tanggalLahir) ?? next.usia;
+            next.ttl = formatTtlFromParts(next.tempatLahir || 'Jepara', safeUpdates.tanggalLahir);
           }
-          if (updates.desaTempatNikah) {
-            next.desaTempatNikah = normalizeVillageName(updates.desaTempatNikah, next.kua);
+          if (safeUpdates.desaTempatNikah) {
+            next.desaTempatNikah = normalizeVillageName(safeUpdates.desaTempatNikah, next.kua);
           }
           return next;
         });
@@ -1272,24 +1318,37 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           { ...prev, users: nextUsers },
           currentUser.nama,
           currentUser.role,
-          `Memperbarui data peserta ${updates.nama || pesertaId}`
+          `Memperbarui data peserta ${safeUpdates.nama || target.nama}`
         );
       });
       pushToast('success', 'Data Peserta Disimpan');
     },
-    [appendAudit, currentUser, pushToast]
+    [appendAudit, currentUser, data.users, pushToast]
   );
 
   const deleteUserByAdmin = useCallback(
     (userId: string) => {
       if (!currentUser) return;
       const victim = data.users.find((u) => u.id === userId);
+      if (!victim) return;
+      if (victim.id === currentUser.id) {
+        pushToast('error', 'Tidak Dapat Menghapus Akun Sendiri');
+        return;
+      }
+      if (currentUser.role === 'AdminKUA' && (victim.role !== 'Peserta' || victim.kua !== currentUser.kua)) {
+        pushToast(
+          'error',
+          'Akses Ditolak',
+          `Admin ${currentUser.kua} hanya dapat menghapus peserta di wilayah KUA sendiri.`
+        );
+        return;
+      }
       setData((prev) =>
         appendAudit(
           { ...prev, users: prev.users.filter((u) => u.id !== userId) },
           currentUser.nama,
           currentUser.role,
-          `Menghapus akun ${victim?.nama || userId} (${victim?.role || 'User'})`
+          `Menghapus akun ${victim.nama} (${victim.role})`
         )
       );
       pushToast('info', 'Akun Berhasil Dihapus');
@@ -1309,34 +1368,60 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       nip?: string;
     }) => {
       if (!currentUser) return { ok: false, error: 'Sesi tidak aktif.' };
+      if (currentUser.role !== 'SuperAdmin') {
+        return { ok: false, error: 'Hanya SuperAdmin Kemenag yang berwenang mengelola akun petugas.' };
+      }
       const cleanUser = payload.username.trim().toLowerCase().replace(/\s+/g, '');
       const duplicate = data.users.find(
         (u) => u.username.toLowerCase() === cleanUser && u.id !== payload.id
       );
       if (duplicate) return { ok: false, error: 'Username sudah dipakai oleh akun lain.' };
 
+      const cleanPass = payload.password.trim();
+      if (!payload.id && cleanPass.length < 6) {
+        return { ok: false, error: 'Kata sandi akun baru minimal 6 karakter.' };
+      }
+      if (payload.id && cleanPass.length > 0 && cleanPass.length < 6) {
+        return { ok: false, error: 'Kata sandi reset minimal 6 karakter.' };
+      }
+
       if (payload.id) {
-        setData((prev) =>
-          appendAudit(
-            {
-              ...prev,
-              users: prev.users.map((u) =>
-                u.id === payload.id
-                  ? { ...u, ...payload, username: cleanUser }
-                  : u
-              ),
-            },
+        const existingStaff = data.users.find((u) => u.id === payload.id);
+        setData((prev) => {
+          const updatedBase: BimwinStoreSnapshot = {
+            ...prev,
+            users: prev.users.map((u) =>
+              u.id === payload.id
+                ? {
+                    ...u,
+                    username: cleanUser,
+                    password: cleanPass ? cleanPass : u.password,
+                    nama: payload.nama.trim(),
+                    role: payload.role,
+                    kua: payload.kua,
+                    jabatan: payload.jabatan?.trim(),
+                    nip: payload.nip?.trim(),
+                  }
+                : u
+            ),
+          };
+          const cascaded =
+            existingStaff && existingStaff.username.toLowerCase() !== cleanUser
+              ? cascadeUsernameReferences(updatedBase, existingStaff.username, cleanUser)
+              : updatedBase;
+          return appendAudit(
+            cascaded,
             currentUser.nama,
             currentUser.role,
-            `Memperbarui akun ${payload.role} (${cleanUser})`
-          )
-        );
+            `Memperbarui akun ${payload.role} (${cleanUser})${cleanPass ? ' + reset kata sandi' : ''}`
+          );
+        });
         pushToast('success', 'Akun Petugas Diperbarui');
       } else {
         const newAccount: BimwinUser = {
           id: `u_staff_${Date.now()}`,
           username: cleanUser,
-          password: payload.password,
+          password: cleanPass,
           nama: payload.nama.trim(),
           role: payload.role,
           kua: payload.kua,
@@ -1518,29 +1603,26 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const importBackupJson = useCallback(
     (jsonText: string) => {
-      try {
-        const parsed = JSON.parse(jsonText) as BimwinStoreSnapshot;
-        if (
-          !parsed ||
-          !Array.isArray(parsed.users) ||
-          !Array.isArray(parsed.modules) ||
-          !parsed.settings
-        ) {
-          return { ok: false, error: 'Format file JSON tidak sesuai struktur cadangan BIMWIN.' };
-        }
-        setData(
-          appendAudit(
-            parsed,
-            currentUser?.nama || 'SuperAdmin',
-            currentUser?.role || 'SuperAdmin',
-            `Memulihkan cadangan database JSON (${parsed.users.length} akun)`
-          )
-        );
-        pushToast('success', 'Cadangan Database Dipulihkan', `${parsed.users.length} akun berhasil dimuat.`);
-        return { ok: true };
-      } catch {
-        return { ok: false, error: 'File JSON rusak atau tidak dapat dibaca.' };
+      const check = validateBackupSnapshot<BimwinStoreSnapshot>(jsonText);
+      if (!check.ok) {
+        return { ok: false, error: check.error };
       }
+      const parsed = check.snapshot;
+      setData(
+        appendAudit(
+          parsed,
+          currentUser?.nama || 'SuperAdmin',
+          currentUser?.role || 'SuperAdmin',
+          `Memulihkan cadangan database JSON (${parsed.users.length} akun)`
+        )
+      );
+      // Guard against SuperAdmin lockout if restored snapshot has a different SuperAdmin ID
+      if (currentUser && !parsed.users.some((u) => u.id === currentUser.id)) {
+        const restoredSuper = parsed.users.find((u) => u.role === 'SuperAdmin');
+        if (restoredSuper) setSessionUserId(restoredSuper.id);
+      }
+      pushToast('success', 'Cadangan Database Dipulihkan', `${parsed.users.length} akun berhasil dimuat.`);
+      return { ok: true };
     },
     [appendAudit, currentUser, pushToast]
   );

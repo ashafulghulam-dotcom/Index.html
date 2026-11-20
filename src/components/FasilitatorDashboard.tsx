@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Bell,
   Calendar,
   CheckCheck,
   CheckCircle2,
   Eye,
-  KeyRound,
   MessageSquare,
   Plus,
   Printer,
   QrCode,
+  ScanLine,
   Search,
   Trash2,
   UserCog,
@@ -27,6 +27,7 @@ import {
 } from '../utils/bimwinLogic';
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { AttendanceSheetModal } from './OfficialDocuments';
+import { QRScannerModal } from './QRScannerModal';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
@@ -63,6 +64,7 @@ export const FasilitatorDashboard: React.FC = () => {
   // Class schedule creation modal & printable sheet
   const [newClassOpen, setNewClassOpen] = useState(false);
   const [sheetClass, setSheetClass] = useState<BimwinClassSchedule | null>(null);
+  const [qrScanTarget, setQrScanTarget] = useState<'absen' | 'peserta' | null>(null);
   const [classForm, setClassForm] = useState({
     tipe: 'Offline' as 'Online' | 'Offline',
     judul: '',
@@ -81,24 +83,8 @@ export const FasilitatorDashboard: React.FC = () => {
   const [remMsg, setRemMsg] = useState('');
   const [remUser, setRemUser] = useState('');
 
-  // Profile form & peserta detail inspection
+  // Peserta detail inspection
   const [detailPeserta, setDetailPeserta] = useState<BimwinUser | null>(null);
-  const [profForm, setProfForm] = useState({
-    nama: currentUser?.nama || '',
-    jabatan: currentUser?.jabatan || '',
-    nip: currentUser?.nip || '',
-    noHp: currentUser?.noHp || '',
-  });
-
-  useEffect(() => {
-    if (!currentUser) return;
-    setProfForm({
-      nama: currentUser.nama || '',
-      jabatan: currentUser.jabatan || '',
-      nip: currentUser.nip || '',
-      noHp: currentUser.noHp || '',
-    });
-  }, [currentUser?.id]);
 
   if (!currentUser) return null;
 
@@ -145,8 +131,7 @@ export const FasilitatorDashboard: React.FC = () => {
     { id: 'kelas', label: 'Jadwal Kelas & Absensi', icon: Calendar, badge: myClasses.length, section: 'Layanan KUA' },
     { id: 'konsultasi', label: 'Konsultasi & Mediasi', icon: MessageSquare, badge: pendingConsults || undefined, section: 'Layanan KUA' },
     { id: 'pengingat', label: 'Kirim Pengingat Peserta', icon: Bell, section: 'Komunikasi' },
-    { id: 'profil', label: 'Profil Fasilitator', icon: UserCog, section: 'Akun' },
-    { id: 'akun', label: 'Ubah Username & Sandi', icon: KeyRound, section: 'Akun' },
+    { id: 'akun', label: 'Profil & Keamanan Akun', icon: UserCog, section: 'Akun Saya' },
   ];
 
   return (
@@ -620,68 +605,10 @@ export const FasilitatorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 5: PROFIL FASILITATOR */}
-      {activeTab === 'profil' && (
-        <div className="max-w-xl bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
-          <h2 className="font-display text-xl font-semibold">Profil &amp; Identitas Fasilitator</h2>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              updateOwnProfile(profForm);
-            }}
-            className="space-y-3 text-xs sm:text-sm"
-          >
-            <div>
-              <label className="block font-semibold mb-1">Nama Lengkap &amp; Gelar</label>
-              <input
-                type="text"
-                required
-                value={profForm.nama}
-                onChange={(e) => setProfForm({ ...profForm, nama: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Jabatan</label>
-              <input
-                type="text"
-                value={profForm.jabatan}
-                onChange={(e) => setProfForm({ ...profForm, jabatan: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block font-semibold mb-1">NIP</label>
-                <input
-                  type="text"
-                  value={profForm.nip}
-                  onChange={(e) => setProfForm({ ...profForm, nip: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-                />
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">No. WhatsApp</label>
-                <input
-                  type="tel"
-                  value={profForm.noHp}
-                  onChange={(e) => setProfForm({ ...profForm, noHp: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
-            >
-              Simpan Profil
-            </button>
-          </form>
-        </div>
+      {/* TAB 5: PROFIL & KEAMANAN AKUN FASILITATOR */}
+      {activeTab === 'akun' && (
+        <AccountSecurityCard roleDisplay={`Fasilitator · ${currentUser.kua}`} includeProfileEditor />
       )}
-
-      {/* TAB 6: UBAH USERNAME & KATA SANDI FASILITATOR */}
-      {activeTab === 'akun' && <AccountSecurityCard roleDisplay="Fasilitator Bimwin" />}
 
       {/* Modal Verifikasi Kode Absensi */}
       <ModalDialog
@@ -707,25 +634,45 @@ export const FasilitatorDashboard: React.FC = () => {
         >
           <div>
             <label className="block font-semibold mb-1">Kode Absensi Kelas</label>
-            <input
-              type="text"
-              required
-              value={absenCode}
-              onChange={(e) => setAbsenCode(e.target.value)}
-              placeholder="Contoh: ABSEN-JEP-2026-01"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                required
+                value={absenCode}
+                onChange={(e) => setAbsenCode(e.target.value)}
+                placeholder="Contoh: ABSEN-JEP-2026-01"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
+              />
+              <button
+                type="button"
+                onClick={() => setQrScanTarget('absen')}
+                className="px-3 py-2 rounded-lg border border-[#0F684E]/40 text-[#0F684E] dark:text-emerald-300 text-xs font-semibold inline-flex items-center gap-1 shrink-0 hover:bg-[#0F684E]/5"
+              >
+                <ScanLine className="w-3.5 h-3.5" />
+                Pindai QR
+              </button>
+            </div>
           </div>
           <div>
-            <label className="block font-semibold mb-1">Username Peserta</label>
-            <input
-              type="text"
-              required
-              value={absenUser}
-              onChange={(e) => setAbsenUser(e.target.value)}
-              placeholder="Contoh: ahmad_jepara"
-              className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-            />
+            <label className="block font-semibold mb-1">Username / Kartu QR Peserta</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                required
+                value={absenUser}
+                onChange={(e) => setAbsenUser(e.target.value)}
+                placeholder="Contoh: ahmad_jepara"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+              />
+              <button
+                type="button"
+                onClick={() => setQrScanTarget('peserta')}
+                className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-slate-700 dark:text-slate-200 text-xs font-semibold inline-flex items-center gap-1 shrink-0 hover:bg-slate-50 dark:hover:bg-emerald-950/40"
+              >
+                <ScanLine className="w-3.5 h-3.5" />
+                Scan Kartu
+              </button>
+            </div>
           </div>
           {absenErr && <p className="text-xs text-red-600">{absenErr}</p>}
           <div className="flex justify-end gap-2 pt-2">
@@ -745,6 +692,30 @@ export const FasilitatorDashboard: React.FC = () => {
           </div>
         </form>
       </ModalDialog>
+
+      <QRScannerModal
+        open={Boolean(qrScanTarget)}
+        onClose={() => setQrScanTarget(null)}
+        title={
+          qrScanTarget === 'absen'
+            ? 'Pindai QR Daftar Hadir Kelas'
+            : 'Pindai QR Kartu Peserta Catin'
+        }
+        subtitle={
+          qrScanTarget === 'absen'
+            ? 'Pindai QR pada lembar Daftar Hadir Kelas (ABSEN-...) dengan kamera atau unggah gambar QR.'
+            : 'Pindai QR pada Kartu Peserta atau Sertifikat peserta untuk mengisi otomatis identitas peserta.'
+        }
+        onDetected={(code) => {
+          if (qrScanTarget === 'absen') {
+            setAbsenCode(code.toUpperCase());
+          } else {
+            setAbsenUser(code);
+          }
+          setAbsenErr('');
+          setQrScanTarget(null);
+        }}
+      />
 
       {/* Modal Tambah Jadwal Kelas */}
       <ModalDialog

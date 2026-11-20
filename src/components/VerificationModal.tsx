@@ -1,13 +1,29 @@
-import React from 'react';
-import { ShieldCheck, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, Copy, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { VerificationResult } from '../types/bimwin';
+import { buildVerificationQrUrl } from '../utils/qrVerification';
 import { KemenagLogo, ModalDialog, QRCodeBox } from './UiPrimitives';
 
 export const VerificationModal: React.FC<{
   result: VerificationResult | null;
   onClose: () => void;
 }> = ({ result, onClose }) => {
+  const [copied, setCopied] = useState(false);
+
   if (!result) return null;
+
+  const verifyUrl = result.found && result.code ? buildVerificationQrUrl(result.code) : '';
+
+  const handleCopyLink = async () => {
+    if (!verifyUrl) return;
+    try {
+      await navigator.clipboard.writeText(verifyUrl);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   return (
     <ModalDialog
@@ -17,13 +33,34 @@ export const VerificationModal: React.FC<{
       subtitle="Sistem Verifikasi Resmi Kantor Kementerian Agama Kabupaten Jepara"
       maxWidth="xl"
       footer={
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
-        >
-          Tutup Hasil Pemeriksaan
-        </button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {verifyUrl && (
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-xs font-semibold inline-flex items-center gap-1.5 transition"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#0F684E]" />
+                  Tautan Disalin
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  Salin Tautan QR
+                </>
+              )}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
+          >
+            Tutup Hasil Pemeriksaan
+          </button>
+        </div>
       }
     >
       <div className="space-y-5">
@@ -82,7 +119,7 @@ export const VerificationModal: React.FC<{
             <div className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
               Dokumen ini tercatat pada arsip digital Bimbingan Perkawinan Mandiri Kemenag Kabupaten Jepara. Data NIK ditampilkan secara tersamar demi keamanan privasi.
             </div>
-            <QRCodeBox value={result.code} size={74} className="shrink-0" />
+            <QRCodeBox value={result.code} size={76} className="shrink-0" clickable={false} />
           </div>
         )}
 

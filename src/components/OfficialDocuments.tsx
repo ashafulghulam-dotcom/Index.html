@@ -23,6 +23,7 @@ import {
   resolveCoupleRoles,
 } from '../utils/pdfDocuments';
 import { KEMENAG_LOGO_SVG } from '../data/jeparaData';
+import { buildVerificationQrUrl } from '../utils/qrVerification';
 import { KemenagLogo, ModalDialog, QRCodeBox } from './UiPrimitives';
 
 const SAMAWA_LOGO_URL = '/assets/aistudio/samawa-logo-clean.png';
@@ -172,7 +173,7 @@ export const CertificatePreviewModal: React.FC<{
                     {pejabat.jabatan}
                   </p>
                   <div className="my-2">
-                    <QRCodeBox value={certCode} size={70} />
+                    <QRCodeBox value={certCode} kind="sertifikat" size={70} />
                   </div>
                   <p className="font-bold underline text-slate-900">{pejabat.nama}</p>
                   <p className="font-mono-num text-[10px] text-slate-600">{pejabat.nip}</p>
@@ -329,7 +330,7 @@ export const PiagamKompakPreviewModal: React.FC<{
                   <p className="font-bold underline text-slate-900">{couple.suami}</p>
                 </div>
                 <div className="flex flex-col items-center">
-                  <QRCodeBox value={code} size={76} />
+                  <QRCodeBox value={code} kind="kompak" size={76} />
                   <span className="text-[10px] text-slate-500 mt-1">Validasi QR Resmi</span>
                 </div>
                 <div>
@@ -454,7 +455,7 @@ export const PortfolioPreviewModal: React.FC<{
                   </span>
                 </p>
               </div>
-              <QRCodeBox value={user.progress?.nomorSertifikat || user.username} size={76} />
+              <QRCodeBox value={user.progress?.nomorSertifikat || user.username} kind="peserta" size={76} />
             </div>
 
             {/* 3 KPI Boxes */}
@@ -786,7 +787,7 @@ export const ExecutiveReportPreviewModal: React.FC<{
           {/* QR Validation + Official Signature */}
           <div className="grid grid-cols-2 gap-6 items-end pt-4 border-t border-slate-200 text-xs">
             <div className="flex items-center gap-3">
-              <QRCodeBox value={report.reportCode} size={74} />
+              <QRCodeBox value={report.reportCode} kind="laporan" size={74} />
               <div className="text-[10px] text-slate-500 leading-snug">
                 <p className="font-bold text-slate-800">Validasi Laporan Digital</p>
                 <p className="font-mono-num font-semibold text-[#0F684E] mt-0.5">
@@ -855,9 +856,10 @@ export const StoryCardModal: React.FC<{
       const [kemenagImg, samawaImg, qrDataUrl] = await Promise.all([
         loadImg(KEMENAG_LOGO_SVG),
         loadImg(SAMAWA_LOGO_URL),
-        QRCode.toDataURL(certCode, {
-          width: 220,
-          margin: 1,
+        QRCode.toDataURL(buildVerificationQrUrl(certCode, 'sertifikat'), {
+          width: 260,
+          margin: 2,
+          errorCorrectionLevel: 'M',
           color: { dark: '#094232', light: '#FFFFFF' },
         }).catch(() => ''),
       ]);
@@ -1126,7 +1128,7 @@ export const AttendanceSheetModal: React.FC<{
                 <p className="text-xs text-slate-500">Lokasi / Tautan: {schedule.lokasiAtauLink}</p>
               </div>
             </div>
-            <QRCodeBox value={schedule.kodeAbsen} size={74} />
+            <QRCodeBox value={schedule.kodeAbsen} kind="absen" size={74} />
           </div>
 
           <table className="w-full text-xs border border-slate-200 rounded-lg overflow-hidden">

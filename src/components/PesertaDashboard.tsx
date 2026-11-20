@@ -1964,7 +1964,8 @@ export const PesertaDashboard: React.FC = () => {
                     </p>
                   </div>
                   <QRCodeBox
-                    value={currentUser.progress?.nomorSertifikat || currentUser.nik || currentUser.username}
+                    value={currentUser.progress?.nomorSertifikat || currentUser.username}
+                    kind="peserta"
                     size={64}
                     className="shrink-0"
                   />

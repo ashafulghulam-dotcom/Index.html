@@ -12,6 +12,7 @@ import {
   maskNik,
   normalizeVillageName,
 } from './bimwinLogic';
+import { buildVerificationQrUrl } from './qrVerification';
 
 export type A4Orientation = 'landscape' | 'portrait';
 
@@ -196,9 +197,11 @@ async function loadImageAsPngDataUrl(src: string, targetHeight = 220): Promise<R
 
 async function generateQrPng(value: string, sizePx = 280): Promise<string | null> {
   try {
-    return await QRCode.toDataURL(value || 'BIMWIN-KEMENAG-JEPARA', {
-      width: sizePx,
-      margin: 1,
+    const payload = buildVerificationQrUrl(value || 'BIMWIN-KEMENAG-JEPARA');
+    return await QRCode.toDataURL(payload, {
+      width: Math.max(sizePx, 300),
+      margin: 2,
+      errorCorrectionLevel: 'M',
       color: { dark: '#094232', light: '#FFFFFF' },
     });
   } catch {

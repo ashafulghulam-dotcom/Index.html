@@ -3,6 +3,7 @@ import QRCode from 'qrcode';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { ConfirmOptions, ToastMessage } from '../store/useBimwinStore';
 import { KEMENAG_LOGO_SVG } from '../data/jeparaData';
+import { buildVerificationQrUrl, QrDocumentKind } from '../utils/qrVerification';
 
 export const KemenagLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
   const dim = size === 'sm' ? 'w-9 h-9' : size === 'lg' ? 'w-16 h-16' : 'w-11 h-11';
@@ -28,7 +29,7 @@ export const SamawaBrandHeader: React.FC<{
       <img
         src="/assets/aistudio/samawa-logo-clean.png"
         alt="SAMAWA — Sarana Membangun Wawasan Keluarga"
-        className="h-[16px] sm:h-[18px] w-auto self-start object-contain block dark:bg-white/95 dark:px-1.5 dark:py-0.5 dark:rounded"
+        className="h-[16px] sm:h-[18px] w-auto self-start object-contain block"
       />
       {subtitle && (
         <span
@@ -45,18 +46,25 @@ export const SamawaBrandHeader: React.FC<{
   </div>
 );
 
-export const QRCodeBox: React.FC<{ value: string; size?: number; className?: string }> = ({
-  value,
-  size = 96,
-  className = '',
-}) => {
+export const QRCodeBox: React.FC<{
+  value: string;
+  kind?: QrDocumentKind;
+  rawValue?: boolean;
+  size?: number;
+  className?: string;
+  clickable?: boolean;
+}> = ({ value, kind, rawValue = false, size = 96, className = '', clickable = true }) => {
   const [dataUrl, setDataUrl] = useState<string>('');
+  const encodedPayload = rawValue
+    ? value || 'BIMWIN-KEMENAG-JEPARA'
+    : buildVerificationQrUrl(value || 'BIMWIN-KEMENAG-JEPARA', kind);
 
   useEffect(() => {
     let active = true;
-    QRCode.toDataURL(value || 'BIMWIN-KEMENAG-JEPARA', {
-      width: size * 2,
-      margin: 1,
+    QRCode.toDataURL(encodedPayload, {
+      width: Math.max(size * 3, 240),
+      margin: 2,
+      errorCorrectionLevel: 'M',
       color: { dark: '#094232', light: '#FFFFFF' },
     })
       .then((url) => {
@@ -68,7 +76,7 @@ export const QRCodeBox: React.FC<{ value: string; size?: number; className?: str
     return () => {
       active = false;
     };
-  }, [value, size]);
+  }, [encodedPayload, size]);
 
   if (!dataUrl) {
     return (
@@ -81,15 +89,32 @@ export const QRCodeBox: React.FC<{ value: string; size?: number; className?: str
     );
   }
 
-  return (
+  const imgEl = (
     <img
       src={dataUrl}
-      alt={`QR ${value}`}
+      alt={`QR Verifikasi ${value}`}
       width={size}
       height={size}
-      className={`rounded-lg border border-slate-200 bg-white p-1 ${className}`}
+      className={`rounded-lg border border-slate-200 bg-white p-1 block ${className}`}
     />
   );
+
+  if (clickable && /^https?:\/\//i.test(encodedPayload)) {
+    return (
+      <a
+        href={encodedPayload}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={`Pindai atau klik untuk verifikasi: ${value}`}
+        aria-label={`Verifikasi QR ${value}`}
+        className="inline-block rounded-lg hover:ring-2 hover:ring-[#0F684E]/40 transition"
+      >
+        {imgEl}
+      </a>
+    );
+  }
+
+  return imgEl;
 };
 
 export const ModalDialog: React.FC<{

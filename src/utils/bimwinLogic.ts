@@ -7,6 +7,7 @@ import {
   StuntingStatus,
   VerificationResult,
 } from '../types/bimwin';
+import { extractVerificationCode } from './qrVerification';
 
 const BULAN_INDO = [
   'Januari',
@@ -366,13 +367,51 @@ export function generateCertificateCode(kua: string, sequence: number): string {
   return `JPR-${slug}-${year}-${String(sequence).padStart(4, '0')}`;
 }
 
+/**
+ * Generates a guaranteed-unique monotonic certificate serial for a KUA/year
+ * even if previously graduated participants were deleted or transferred.
+ */
+export function generateUniqueCertificateCode(
+  kua: string,
+  existingUsers: BimwinUser[],
+  reservedCodes: Iterable<string> = []
+): string {
+  const slug = kua
+    .replace(/^KUA\s+/i, '')
+    .replace(/\s+/g, '')
+    .slice(0, 3)
+    .toUpperCase();
+  const year = new Date().getFullYear();
+  const prefix = `JPR-${slug}-${year}-`;
+
+  let maxSeq = 0;
+  const scanCode = (code?: string) => {
+    if (!code) return;
+    const upper = code.trim().toUpperCase();
+    if (!upper.startsWith(prefix)) return;
+    const tail = upper.slice(prefix.length);
+    const num = Number.parseInt(tail, 10);
+    if (Number.isFinite(num) && num > maxSeq) maxSeq = num;
+  };
+
+  for (const u of existingUsers) {
+    scanCode(u.progress?.nomorSertifikat);
+  }
+  for (const code of reservedCodes) {
+    scanCode(code);
+  }
+
+  return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+}
+
 export function verifyDocumentQuery(
   rawQuery: string,
   users: BimwinUser[],
   classes: BimwinClassSchedule[]
 ): VerificationResult {
-  const query = rawQuery.trim();
+  const query = extractVerificationCode(rawQuery);
   const upper = query.toUpperCase();
+  const lower = query.toLowerCase();
   const peserta = users.filter((u) => u.role === 'Peserta');
 
   if (!query) {
@@ -481,7 +520,7 @@ export function verifyDocumentQuery(
           value: `Pretest ${byCert.progress?.pretestScore ?? 0} → Postest ${byCert.progress?.postestScore ?? 0}`,
         },
         { label: 'Disahkan Oleh', value: byCert.progress?.verifikasiOleh || 'Fasilitator KUA' },
-        { label: 'Tanggal Terbit', value: byCert.progress?.tanggalTerbitSertifikat || '-' },
+        { label: 'Tanggal Disahkan', value: byCert.progress?.tanggalTerbitSertifikat || '-' },
       ],
     };
   }
@@ -512,6 +551,35 @@ export function verifyDocumentQuery(
     }
   }
 
+  // 6. Cek Username Peserta (QR Kartu Peserta / Rapor Portofolio)
+  const byUsername = peserta.find((u) => u.username.toLowerCase() === lower);
+  if (byUsername) {
+    const evalStep = evaluatePesertaStep(byUsername);
+    const verified = Boolean(byUsername.progress?.verifikasiFasilitator);
+    return {
+      found: true,
+      type: verified ? 'Sertifikat & Portofolio Peserta' : 'Kartu & Portofolio Peserta',
+      code: byUsername.progress?.nomorSertifikat || byUsername.username,
+      title: byUsername.nama,
+      statusLabel: verified
+        ? 'TERDAFTAR — LULUS & TERVERIFIKASI'
+        : `TERDAFTAR — PROGRES ${evalStep.progressPercent}% (LANGKAH ${evalStep.currentStep}/8)`,
+      valid: verified,
+      details: [
+        { label: 'Username Peserta', value: `@${byUsername.username}` },
+        { label: 'Nama Lengkap', value: byUsername.nama },
+        { label: 'NIK (Privasi Terjaga)', value: maskNik(byUsername.nik) },
+        { label: 'Unit KUA & Desa', value: `${byUsername.kua} · ${normalizeVillageName(byUsername.desaTempatNikah, byUsername.kua)}` },
+        { label: 'Pasangan Tersinkron', value: byUsername.pasanganNama || 'Belum Tersinkron' },
+        { label: 'No. Sertifikat', value: byUsername.progress?.nomorSertifikat || 'Belum Terbit' },
+        {
+          label: 'Capaian MOOC',
+          value: `${byUsername.progress?.modulesCompleted.length ?? 0}/5 Modul · Pretest ${byUsername.progress?.pretestScore ?? 0} → Postest ${byUsername.progress?.postestScore ?? 0}`,
+        },
+      ],
+    };
+  }
+
   return {
     found: false,
     type: 'Tidak Ditemukan',
@@ -521,9 +589,9 @@ export function verifyDocumentQuery(
     valid: false,
     details: [
       { label: 'Kata Kunci Pencarian', value: query },
-      { label: 'Format Didukung', value: 'JPR-..., KOMPAK-..., ABSEN-..., LAP-BIMWIN-..., atau NIK 16 digit' },
+      { label: 'Format Didukung', value: 'JPR-..., KOMPAK-..., ABSEN-..., LAP-BIMWIN-..., NIK 16 digit, atau Username Peserta' },
     ],
-    note: 'Pastikan penulisan kode sertifikat/piagam atau 16 digit NIK sudah sesuai dengan dokumen asli.',
+    note: 'Pastikan penulisan kode sertifikat/piagam, tautan QR, atau 16 digit NIK sudah sesuai dengan dokumen asli.',
   };
 }
 

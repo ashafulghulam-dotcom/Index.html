@@ -1,10 +1,187 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2, Eye, EyeOff, KeyRound, ShieldCheck, UserCheck } from 'lucide-react';
+import {
+  Building2,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Save,
+  ShieldCheck,
+  UserCheck,
+  UserCog,
+} from 'lucide-react';
 import { useBimwin } from '../store/useBimwinStore';
+
+export const StaffProfileCard: React.FC<{
+  roleDisplay: string;
+}> = ({ roleDisplay }) => {
+  const { currentUser, updateOwnProfile } = useBimwin();
+  const [nama, setNama] = useState(currentUser?.nama || '');
+  const [jabatan, setJabatan] = useState(currentUser?.jabatan || '');
+  const [nip, setNip] = useState(currentUser?.nip || '');
+  const [noHp, setNoHp] = useState(currentUser?.noHp || '');
+  const [alamat, setAlamat] = useState(currentUser?.alamat || '');
+  const [savedNotice, setSavedNotice] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) return;
+    setNama(currentUser.nama || '');
+    setJabatan(currentUser.jabatan || '');
+    setNip(currentUser.nip || '');
+    setNoHp(currentUser.noHp || '');
+    setAlamat(currentUser.alamat || '');
+  }, [currentUser]);
+
+  if (!currentUser) return null;
+
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanNama = nama.trim();
+    if (!cleanNama) return;
+    updateOwnProfile({
+      nama: cleanNama,
+      jabatan: jabatan.trim(),
+      nip: nip.trim(),
+      noHp: noHp.trim(),
+      alamat: alamat.trim(),
+    });
+    setSavedNotice('Identitas dan profil pejabat/operator berhasil diperbarui.');
+    window.setTimeout(() => setSavedNotice(''), 4000);
+  };
+
+  return (
+    <form
+      onSubmit={handleSaveProfile}
+      className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4 text-xs sm:text-sm"
+    >
+      <div className="flex items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-emerald-950">
+        <div className="flex items-center gap-2">
+          <UserCog className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+          <h3 className="font-bold text-slate-900 dark:text-white">
+            Edit Profil &amp; Identitas Pejabat / Operator
+          </h3>
+        </div>
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-[#0F684E] dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-900">
+          <Building2 className="w-3 h-3" />
+          {currentUser.kua}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="sm:col-span-2">
+          <label
+            htmlFor="staff-prof-nama"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
+            Nama Lengkap &amp; Gelar <span className="text-red-600">*</span>
+          </label>
+          <input
+            id="staff-prof-nama"
+            type="text"
+            required
+            value={nama}
+            onChange={(e) => setNama(e.target.value)}
+            placeholder="Contoh: Drs. H. Ahmad Munif, M.Ag."
+            className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="staff-prof-jabatan"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
+            Jabatan / Peran Tugas
+          </label>
+          <input
+            id="staff-prof-jabatan"
+            type="text"
+            value={jabatan}
+            onChange={(e) => setJabatan(e.target.value)}
+            placeholder={roleDisplay}
+            className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="staff-prof-nip"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
+            NIP (Opsional)
+          </label>
+          <input
+            id="staff-prof-nip"
+            type="text"
+            value={nip}
+            onChange={(e) => setNip(e.target.value)}
+            placeholder="18 digit NIP pegawai"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="staff-prof-hp"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
+            No. WhatsApp / Telepon
+          </label>
+          <input
+            id="staff-prof-hp"
+            type="tel"
+            value={noHp}
+            onChange={(e) => setNoHp(e.target.value)}
+            placeholder="08xxxxxxxxxx"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num outline-none focus:border-[#0F684E]"
+          />
+        </div>
+
+        <div>
+          <label
+            htmlFor="staff-prof-alamat"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
+            Alamat Kantor / Unit Kerja
+          </label>
+          <input
+            id="staff-prof-alamat"
+            type="text"
+            value={alamat}
+            onChange={(e) => setAlamat(e.target.value)}
+            placeholder="Alamat kantor KUA / Kemenag Kab. Jepara"
+            className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+          />
+        </div>
+      </div>
+
+      {savedNotice && (
+        <div
+          role="status"
+          className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900 text-xs font-medium text-[#0F684E] dark:text-emerald-300 flex items-center gap-2"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          <span>{savedNotice}</span>
+        </div>
+      )}
+
+      <div className="pt-1 flex justify-end">
+        <button
+          type="submit"
+          className="px-5 py-2.5 rounded-xl bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold inline-flex items-center gap-2 transition"
+        >
+          <Save className="w-4 h-4" />
+          Simpan Profil
+        </button>
+      </div>
+    </form>
+  );
+};
 
 export const AccountSecurityCard: React.FC<{
   roleDisplay: string;
-}> = ({ roleDisplay }) => {
+  includeProfileEditor?: boolean;
+}> = ({ roleDisplay, includeProfileEditor = false }) => {
   const { currentUser, updateOwnCredentials } = useBimwin();
   const [newUsername, setNewUsername] = useState(currentUser?.username || '');
   const [currentPassword, setCurrentPassword] = useState('');
@@ -51,13 +228,15 @@ export const AccountSecurityCard: React.FC<{
   };
 
   return (
-    <div className="max-w-2xl space-y-5">
+    <div className="max-w-3xl space-y-5">
       <div>
         <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white">
-          Ubah Username &amp; Kata Sandi
+          {includeProfileEditor ? 'Profil & Keamanan Akun' : 'Ubah Username & Kata Sandi'}
         </h2>
         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-          Perbarui username login dan kata sandi akun Anda secara mandiri dengan verifikasi keamanan.
+          {includeProfileEditor
+            ? 'Kelola identitas pejabat/operator serta perbarui username dan kata sandi login Anda secara mandiri.'
+            : 'Perbarui username login dan kata sandi akun Anda secara mandiri dengan verifikasi keamanan.'}
         </p>
       </div>
 
@@ -72,7 +251,7 @@ export const AccountSecurityCard: React.FC<{
               {currentUser.nama}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {roleDisplay} · {currentUser.kua}
+              {currentUser.jabatan || roleDisplay} · {currentUser.kua}
             </p>
           </div>
         </div>
@@ -84,6 +263,9 @@ export const AccountSecurityCard: React.FC<{
         </div>
       </div>
 
+      {/* Full Profile Editor for Admin KUA & SuperAdmin Kemenag */}
+      {includeProfileEditor && <StaffProfileCard roleDisplay={roleDisplay} />}
+
       {/* Credential Change Form */}
       <form
         onSubmit={handleSubmit}
@@ -92,7 +274,7 @@ export const AccountSecurityCard: React.FC<{
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-emerald-950">
           <KeyRound className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
           <h3 className="font-bold text-slate-900 dark:text-white">
-            Pengaturan Kredensial Login
+            Pengaturan Username &amp; Kata Sandi Login
           </h3>
         </div>
 

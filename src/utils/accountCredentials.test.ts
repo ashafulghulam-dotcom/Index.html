@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  cascadeUsernameReferences,
   normalizeAccountUsername,
+  validateBackupSnapshot,
   validateCredentialChange,
 } from './accountCredentials';
+import { generateUniqueCertificateCode } from './bimwinLogic';
+import { BimwinUser } from '../types/bimwin';
 
 test('normalizeAccountUsername trims whitespace and lowercases cleanly', () => {
   assert.equal(normalizeAccountUsername('  Admin_Jepara  '), 'admin_jepara');
@@ -104,4 +108,102 @@ test('validateCredentialChange rejects mismatched confirm password or short pass
   });
   assert.equal(mismatchRes.ok, false);
   assert.match(mismatchRes.error || '', /tidak cocok/i);
+});
+
+test('cascadeUsernameReferences updates partner link, RSVPs, consultations, journals, and notifications', () => {
+  const snapshot = {
+    users: [
+      { id: 'u1', username: 'ahmad_baru', role: 'Peserta', pasanganUsername: 'siti_jepara' },
+      { id: 'u2', username: 'siti_jepara', role: 'Peserta', pasanganUsername: 'ahmad_lama' },
+    ],
+    classes: [
+      {
+        createdBy: 'ahmad_lama',
+        rsvps: [{ username: 'ahmad_lama' }, { username: 'siti_jepara' }],
+      },
+    ],
+    consultations: [{ pesertaUsername: 'ahmad_lama' }],
+    journals: [{ pesertaUsername: 'ahmad_lama' }],
+    notifications: [
+      { targetUsername: 'ahmad_lama', readBy: ['ahmad_lama', 'siti_jepara'] },
+    ],
+    modules: [],
+    settings: { pejabat: { nama: 'Kepala' } },
+  };
+
+  const next = cascadeUsernameReferences(snapshot, 'ahmad_lama', 'ahmad_baru');
+  assert.equal(next.users[1].pasanganUsername, 'ahmad_baru');
+  assert.equal(next.classes[0].createdBy, 'ahmad_baru');
+  assert.equal(next.classes[0].rsvps[0].username, 'ahmad_baru');
+  assert.equal(next.classes[0].rsvps[1].username, 'siti_jepara');
+  assert.equal(next.consultations[0].pesertaUsername, 'ahmad_baru');
+  assert.equal(next.journals[0].pesertaUsername, 'ahmad_baru');
+  assert.equal(next.notifications[0].targetUsername, 'ahmad_baru');
+  assert.deepEqual(next.notifications[0].readBy, ['ahmad_baru', 'siti_jepara']);
+});
+
+test('validateBackupSnapshot rejects corrupted JSON, missing SuperAdmin, or invalid roles', () => {
+  assert.equal(validateBackupSnapshot('{not-json').ok, false);
+  assert.equal(validateBackupSnapshot('{}').ok, false);
+
+  const noSuperAdmin = JSON.stringify({
+    users: [{ id: 'u1', username: 'peserta1', role: 'Peserta' }],
+    modules: [],
+    classes: [],
+    consultations: [],
+    journals: [],
+    notifications: [],
+    settings: { pejabat: { nama: 'Kepala' } },
+  });
+  const resNoSuper = validateBackupSnapshot(noSuperAdmin);
+  assert.equal(resNoSuper.ok, false);
+  assert.match(resNoSuper.ok ? '' : resNoSuper.error, /SuperAdmin/i);
+
+  const validJson = JSON.stringify({
+    users: [{ id: 'u0', username: 'admin', role: 'SuperAdmin' }],
+    modules: [],
+    classes: [],
+    consultations: [],
+    journals: [],
+    notifications: [],
+    settings: { pejabat: { nama: 'Kepala' } },
+  });
+  assert.equal(validateBackupSnapshot(validJson).ok, true);
+});
+
+test('generateUniqueCertificateCode never collides even after deletions or in batch issuance', () => {
+  const year = new Date().getFullYear();
+  const makeUser = (id: string, kua: string, nomorSertifikat?: string): BimwinUser => ({
+    id,
+    username: `user_${id}`,
+    password: 'secret',
+    role: 'Peserta',
+    nama: `Peserta ${id}`,
+    kua,
+    createdAt: '2026-04-01T00:00:00.000Z',
+    progress: {
+      pretestDone: true,
+      pretestScore: 80,
+      postestDone: true,
+      postestScore: 100,
+      videosWatched: [1, 2, 3, 4, 5],
+      modulesRead: [1, 2, 3, 4, 5],
+      modulesCompleted: [1, 2, 3, 4, 5],
+      moduleScores: { 1: 100, 2: 100, 3: 100, 4: 100, 5: 100 },
+      selesaiClicked: true,
+      ikmDone: true,
+      verifikasiFasilitator: true,
+      kehadiranKelas: 'Hadir Kelas Offline',
+      nomorSertifikat,
+    },
+  });
+
+  // Imagine 0001 and 0002 were deleted, leaving only 0005! Count is 1, but next must be 0006.
+  const existing = [makeUser('a', 'KUA Jepara', `JPR-JEP-${year}-0005`)];
+  const first = generateUniqueCertificateCode('KUA Jepara', existing);
+  assert.equal(first, `JPR-JEP-${year}-0006`);
+
+  // Batch reservation should step cleanly to 0007 without collision
+  const second = generateUniqueCertificateCode('KUA Jepara', existing, [first]);
+  assert.equal(second, `JPR-JEP-${year}-0007`);
 });

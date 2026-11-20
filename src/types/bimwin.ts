@@ -257,6 +257,8 @@ export interface VerificationResult {
     | 'Daftar Hadir Kelas'
     | 'Laporan Resmi'
     | 'Data Peserta (NIK)'
+    | 'Kartu & Portofolio Peserta'
+    | 'Sertifikat & Portofolio Peserta'
     | 'Tidak Ditemukan';
   code: string;
   title: string;

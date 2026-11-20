@@ -5,12 +5,9 @@ import {
   BookMarked,
   Database,
   Edit3,
-  Eye,
-  EyeOff,
   Upload,
   FileSpreadsheet,
   History,
-  KeyRound,
   MessageSquare,
   Plus,
   Printer,
@@ -20,6 +17,7 @@ import {
   Shield,
   Star,
   Trash2,
+  UserCog,
   Users,
 } from 'lucide-react';
 import {
@@ -85,11 +83,11 @@ export const AdminDashboard: React.FC = () => {
 
   // Peserta Edit, Certificate Preview & Executive Report modals
   const [editingPeserta, setEditingPeserta] = useState<BimwinUser | null>(null);
+  const [pesertaNewPass, setPesertaNewPass] = useState('');
   const [certPreviewUser, setCertPreviewUser] = useState<BimwinUser | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
 
   // Staff manager state
-  const [revealedPassIds, setRevealedPassIds] = useState<Record<string, boolean>>({});
   const [staffModalOpen, setStaffModalOpen] = useState(false);
   const [staffForm, setStaffForm] = useState({
     id: '' as string | undefined,
@@ -312,7 +310,7 @@ export const AdminDashboard: React.FC = () => {
           { id: 'audit', label: 'Audit Trail Aktivitas', icon: History, badge: data.auditLogs.length, section: 'SuperAdmin Kemenag' },
         ]
       : []),
-    { id: 'akun', label: 'Ubah Username & Sandi', icon: KeyRound, section: 'Akun Saya' },
+    { id: 'akun', label: 'Profil & Keamanan Akun', icon: UserCog, section: 'Akun Saya' },
   ];
 
   return (
@@ -1145,9 +1143,7 @@ export const AdminDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-emerald-950">
-                  {staffList.map((st) => {
-                    const shown = Boolean(revealedPassIds[st.id]);
-                    return (
+                  {staffList.map((st) => (
                       <tr key={st.id}>
                         <td className="px-4 py-2.5 font-semibold">{st.nama}</td>
                         <td className="px-4 py-2.5">
@@ -1157,20 +1153,11 @@ export const AdminDashboard: React.FC = () => {
                           · {st.kua}
                         </td>
                         <td className="px-4 py-2.5 font-mono-num">{st.username}</td>
-                        <td className="px-4 py-2.5 font-mono-num">
-                          <div className="inline-flex items-center gap-2">
-                            <span>{shown ? st.password : '••••••••'}</span>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setRevealedPassIds((prev) => ({ ...prev, [st.id]: !shown }))
-                              }
-                              className="text-slate-400 hover:text-slate-700"
-                              aria-label="Tampilkan sandi"
-                            >
-                              {shown ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                        <td className="px-4 py-2.5">
+                          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                            <span className="font-mono-num tracking-widest">••••••••</span>
+                            <span>(Tersimpan aman)</span>
+                          </span>
                         </td>
                         <td className="px-4 py-2.5 text-right">
                           <div className="inline-flex items-center gap-1.5">
@@ -1180,7 +1167,7 @@ export const AdminDashboard: React.FC = () => {
                                 setStaffForm({
                                   id: st.id,
                                   username: st.username,
-                                  password: st.password,
+                                  password: '',
                                   nama: st.nama,
                                   role: st.role as 'AdminKUA' | 'Fasilitator',
                                   kua: st.kua,
@@ -1190,6 +1177,7 @@ export const AdminDashboard: React.FC = () => {
                                 setStaffErr('');
                                 setStaffModalOpen(true);
                               }}
+                              title="Edit Profil atau Reset Kata Sandi"
                               className="p-1.5 rounded-lg border border-slate-200 dark:border-emerald-900"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -1212,8 +1200,7 @@ export const AdminDashboard: React.FC = () => {
                           </div>
                         </td>
                       </tr>
-                    );
-                  })}
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1567,7 +1554,10 @@ export const AdminDashboard: React.FC = () => {
       {editingPeserta && (
         <ModalDialog
           open={Boolean(editingPeserta)}
-          onClose={() => setEditingPeserta(null)}
+          onClose={() => {
+            setEditingPeserta(null);
+            setPesertaNewPass('');
+          }}
           title={`Sunting Data Peserta — ${editingPeserta.nama}`}
           maxWidth="lg"
         >
@@ -1579,8 +1569,9 @@ export const AdminDashboard: React.FC = () => {
                 kua: editingPeserta.kua,
                 desaTempatNikah: editingPeserta.desaTempatNikah,
                 noHp: editingPeserta.noHp,
-                password: editingPeserta.password,
+                ...(pesertaNewPass.trim() ? { password: pesertaNewPass.trim() } : {}),
               });
+              setPesertaNewPass('');
               setEditingPeserta(null);
             }}
             className="space-y-3.5 text-xs sm:text-sm"
@@ -1646,13 +1637,15 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
               <div>
-                <label className="block font-semibold mb-1">Reset Kata Sandi</label>
+                <label className="block font-semibold mb-1">
+                  Reset Kata Sandi Baru <span className="font-normal text-slate-500">(Opsional)</span>
+                </label>
                 <input
-                  type="text"
-                  value={editingPeserta.password}
-                  onChange={(e) =>
-                    setEditingPeserta({ ...editingPeserta, password: e.target.value })
-                  }
+                  type="password"
+                  minLength={6}
+                  value={pesertaNewPass}
+                  onChange={(e) => setPesertaNewPass(e.target.value)}
+                  placeholder="Kosongkan jika sandi tetap"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
                 />
               </div>
@@ -1744,13 +1737,16 @@ export const AdminDashboard: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold mb-1">Kata Sandi *</label>
+              <label className="block font-semibold mb-1">
+                {staffForm.id ? 'Reset Kata Sandi Baru (Opsional)' : 'Kata Sandi Awal *'}
+              </label>
               <input
-                type="text"
-                required
+                type="password"
+                required={!staffForm.id}
                 minLength={6}
                 value={staffForm.password}
                 onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                placeholder={staffForm.id ? 'Kosongkan jika tidak direset' : 'Minimal 6 karakter'}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
               />
             </div>
@@ -1792,10 +1788,11 @@ export const AdminDashboard: React.FC = () => {
         />
       )}
 
-      {/* TAB AKUN SAYA: UBAH USERNAME & KATA SANDI (ADMIN KUA & SUPERADMIN) */}
+      {/* TAB AKUN SAYA: EDIT PROFIL & KEAMANAN AKUN (ADMIN KUA & SUPERADMIN) */}
       {activeTab === 'akun' && (
         <AccountSecurityCard
           roleDisplay={isSuper ? 'SuperAdmin Kemenag' : `Admin ${currentUser.kua}`}
+          includeProfileEditor
         />
       )}
 

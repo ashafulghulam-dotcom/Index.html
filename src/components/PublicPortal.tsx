@@ -17,6 +17,7 @@ import {
   Moon,
   Phone,
   QrCode,
+  ScanLine,
   Search,
   ShieldCheck,
   Sun,
@@ -48,6 +49,7 @@ import {
   PWAInstallHeaderButton,
   PWAInstallModal,
 } from './PWAInstallControls';
+import { QRScannerModal } from './QRScannerModal';
 import { VerificationModal } from './VerificationModal';
 
 type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq';
@@ -68,9 +70,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   );
 
   const [verifyInput, setVerifyInput] = useState(initialVerifyCode);
-  const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(() =>
-    initialVerifyCode ? verifyDocumentQuery(initialVerifyCode, data.users, data.classes) : null
-  );
+  const [verifyResult, setVerifyResult] = useState<VerificationResult | null>(null);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
 
   const [kuaSearch, setKuaSearch] = useState('');
   const [openFaqId, setOpenFaqId] = useState<string>(data.faqs[0]?.id || '');
@@ -353,9 +354,10 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                   </h1>
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
-                    SAMAWA (Sarana Membangun Wawasan Keluarga) merupakan platform resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara.
-                    Dilengkapi kurikulum 5 modul keluarga sakinah, skrining kesiapan gizi pencegahan stunting,
-                    Piagam Komitmen Kami Kompak, dan sertifikat terverifikasi QR Code.
+                    SAMAWA (Sarana Membangun Wawasan Keluarga) Platform Resmi Bimbingan Perkawinan
+                    Kementerian Agama Kabupaten Jepara dengan Sistem{' '}
+                    <em className="italic">Blended Learning</em> guna Mempersiapkan Keluarga
+                    Sakinah.
                   </p>
                 </div>
 
@@ -515,9 +517,17 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                   type="text"
                   value={verifyInput}
                   onChange={(e) => setVerifyInput(e.target.value)}
-                  placeholder="Contoh: JPR-JEP-2026-0001 atau KOMPAK-2026-0001"
+                  placeholder="Contoh: JPR-JEP-2026-0001, KOMPAK-2026-0001, atau tempel tautan QR"
                   className="flex-1 px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm font-mono-num outline-none focus:border-[#0F684E]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setQrScannerOpen(true)}
+                  className="px-4 py-2.5 rounded-lg border border-[#0F684E]/40 dark:border-emerald-700/60 bg-[#0F684E]/5 dark:bg-emerald-950/50 hover:bg-[#0F684E]/10 text-[#0F684E] dark:text-emerald-300 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition shrink-0"
+                >
+                  <ScanLine className="w-4 h-4" />
+                  Pindai QR
+                </button>
                 <button
                   type="submit"
                   className="px-5 py-2.5 rounded-lg bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 transition shrink-0"
@@ -526,6 +536,9 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                   Periksa Keabsahan
                 </button>
               </form>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Tip: Anda dapat memindai QR Code pada Sertifikat, Piagam Kami Kompak, Daftar Hadir, Rapor, atau Kartu Peserta langsung dengan kamera HP maupun mengunggah foto/tangkapan layar QR.
+              </p>
             </div>
           </section>
         )}
@@ -846,6 +859,22 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
       <KritikSaranModal open={kritikOpen} onClose={() => setKritikOpen(false)} />
       <PanduanModal open={panduanOpen} onClose={() => setPanduanOpen(false)} />
       <PWAInstallModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} />
+      <QRScannerModal
+        open={qrScannerOpen}
+        onClose={() => setQrScannerOpen(false)}
+        title="Pindai QR Code Dokumen Resmi"
+        subtitle="Arahkan kamera ke QR Code pada Sertifikat, Piagam Kompak, Daftar Hadir, Laporan, atau unggah gambar QR."
+        onDetected={(code) => {
+          setVerifyInput(code);
+          const res = verifyDocumentQuery(code, data.users, data.classes);
+          setVerifyResult(res);
+          pushToast(
+            res.valid ? 'success' : 'error',
+            res.valid ? 'QR Code Terverifikasi' : 'Dokumen Tidak Ditemukan',
+            `Kode terbaca: ${code}`
+          );
+        }}
+      />
       <VerificationModal result={verifyResult} onClose={() => setVerifyResult(null)} />
     </div>
   );
