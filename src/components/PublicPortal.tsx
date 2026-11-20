@@ -792,12 +792,12 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
 
       {/* Clean Institutional Footer */}
       <footer className="border-t border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0A110F]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
-          <div className="flex items-center gap-2.5">
-            <KemenagLogo size="sm" />
-            <span>
-              Kantor Kementerian Agama Kabupaten Jepara · Seksi Bimbingan Masyarakat Islam
-            </span>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-col items-center sm:items-start leading-relaxed">
+            <p className="whitespace-nowrap font-medium text-slate-600 dark:text-slate-300">
+              Copyright © Kantor Kementerian Agama Kabupaten Jepara
+            </p>
+            <p className="whitespace-nowrap">Seksi Bimbingan Masyarakat Islam</p>
           </div>
           <nav aria-label="Media sosial resmi" className="flex items-center gap-2 shrink-0">
             <a
