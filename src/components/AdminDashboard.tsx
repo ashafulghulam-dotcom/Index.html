@@ -53,6 +53,7 @@ import {
 } from '../utils/videoWatchGuard';
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
+import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
@@ -311,7 +312,7 @@ export const AdminDashboard: React.FC = () => {
     { id: 'analitik', label: 'Analitik & Peta 16 KUA', icon: BarChart3, section: 'Eksekutif' },
     { id: 'peserta', label: 'Data Peserta Catin', icon: Users, badge: scopedPeserta.length, section: 'Eksekutif' },
     { id: 'ikm', label: 'Survei IKM & Kritik Saran', icon: MessageSquare, badge: data.kritikSaran.length, section: 'Layanan Publik' },
-    { id: 'pengingat', label: 'Broadcast Pengingat', icon: Bell, section: 'Layanan Publik' },
+    { id: 'pengingat', label: 'Smart Reminder WA & Email', icon: Bell, section: 'Layanan Publik' },
     ...(isSuper
       ? [
           { id: 'lms', label: 'Manajemen Kurikulum LMS', icon: BookMarked, section: 'SuperAdmin Kemenag' },
@@ -798,64 +799,83 @@ export const AdminDashboard: React.FC = () => {
         );
       })()}
 
-      {/* TAB 4: BROADCAST PENGINGAT */}
+      {/* TAB 4: SMART REMINDER WA & EMAIL + BROADCAST PORTAL */}
       {activeTab === 'pengingat' && (
-        <div className="max-w-xl bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
-          <h2 className="font-display text-xl font-semibold">Kirim Pengingat Resmi ke Peserta</h2>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!broadcastTitle.trim() || !broadcastMsg.trim()) return;
-              sendReminderNotification(broadcastKua, broadcastTitle, broadcastMsg);
-              setBroadcastTitle('');
-              setBroadcastMsg('');
-            }}
-            className="space-y-3.5 text-xs sm:text-sm"
-          >
-            {isSuper && (
-              <div>
-                <label className="block font-semibold mb-1">Wilayah Tujuan</label>
-                <select
-                  value={broadcastKua}
-                  onChange={(e) => setBroadcastKua(e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-                >
-                  <option value="ALL">Seluruh 16 KUA Kabupaten Jepara</option>
-                  {LIST_16_KUA.map((kua) => (
-                    <option key={kua} value={kua}>
-                      {kua}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+        <div className="space-y-6">
+          <SmartReminderPanel
+            scopeMode={isSuper ? 'all' : 'kua'}
+            kuaName={isSuper ? undefined : currentUser.kua}
+            roleTitle={isSuper ? 'Admin Kemenag Kab. Jepara' : `Admin ${currentUser.kua}`}
+          />
+
+          <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="block font-semibold mb-1">Judul Pengingat *</label>
-              <input
-                type="text"
-                required
-                value={broadcastTitle}
-                onChange={(e) => setBroadcastTitle(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
+              <h3 className="font-display text-lg font-semibold">
+                Broadcast Pengumuman Portal (Massal)
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Kirim pengumuman serentak ke Kotak Masuk Pengingat seluruh peserta pada wilayah KUA terpilih.
+              </p>
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Pesan Pengingat *</label>
-              <textarea
-                rows={4}
-                required
-                value={broadcastMsg}
-                onChange={(e) => setBroadcastMsg(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!broadcastTitle.trim() || !broadcastMsg.trim()) return;
+                sendReminderNotification(broadcastKua, broadcastTitle, broadcastMsg);
+                setBroadcastTitle('');
+                setBroadcastMsg('');
+              }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 text-xs sm:text-sm"
             >
-              Kirim Pengingat
-            </button>
-          </form>
+              {isSuper && (
+                <div className="lg:col-span-4">
+                  <label className="block font-semibold mb-1">Wilayah Tujuan</label>
+                  <select
+                    value={broadcastKua}
+                    onChange={(e) => setBroadcastKua(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  >
+                    <option value="ALL">Seluruh 16 KUA Kabupaten Jepara</option>
+                    {LIST_16_KUA.map((kua) => (
+                      <option key={kua} value={kua}>
+                        {kua}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className={isSuper ? 'lg:col-span-8' : 'lg:col-span-12'}>
+                <label className="block font-semibold mb-1">Judul Pengumuman *</label>
+                <input
+                  type="text"
+                  required
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  placeholder="Contoh: Pengingat Batas Penyelesaian MOOC & Jadwal Kelas KUA"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div className="lg:col-span-12">
+                <label className="block font-semibold mb-1">Isi Pesan Broadcast *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={broadcastMsg}
+                  onChange={(e) => setBroadcastMsg(e.target.value)}
+                  placeholder="Tuliskan pengumuman resmi untuk peserta..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div className="lg:col-span-12 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                >
+                  Kirim Broadcast Portal
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -1694,6 +1714,7 @@ export const AdminDashboard: React.FC = () => {
                 kua: editingPeserta.kua,
                 desaTempatNikah: editingPeserta.desaTempatNikah,
                 noHp: editingPeserta.noHp,
+                email: editingPeserta.email,
                 ...(pesertaNewPass.trim() ? { password: pesertaNewPass.trim() } : {}),
               });
               setPesertaNewPass('');
@@ -1751,7 +1772,7 @@ export const AdminDashboard: React.FC = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block font-semibold mb-1">No. WhatsApp</label>
                 <input
@@ -1762,15 +1783,25 @@ export const AdminDashboard: React.FC = () => {
                 />
               </div>
               <div>
+                <label className="block font-semibold mb-1">Email Peserta</label>
+                <input
+                  type="email"
+                  value={editingPeserta.email || ''}
+                  onChange={(e) => setEditingPeserta({ ...editingPeserta, email: e.target.value })}
+                  placeholder="nama@email.com"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div>
                 <label className="block font-semibold mb-1">
-                  Reset Kata Sandi Baru <span className="font-normal text-slate-500">(Opsional)</span>
+                  Reset Kata Sandi <span className="font-normal text-slate-500">(Opsional)</span>
                 </label>
                 <input
                   type="password"
                   minLength={6}
                   value={pesertaNewPass}
                   onChange={(e) => setPesertaNewPass(e.target.value)}
-                  placeholder="Kosongkan jika sandi tetap"
+                  placeholder="Kosongkan jika tetap"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
                 />
               </div>

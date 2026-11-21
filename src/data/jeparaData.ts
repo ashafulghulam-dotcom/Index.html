@@ -109,6 +109,12 @@ export interface KuaDirectoryEntry {
   alamat: string;
   telp: string;
   jamLayanan: string;
+  mapsQuery?: string;
+}
+
+export function buildKuaGoogleMapsUrl(entry: Pick<KuaDirectoryEntry, 'kua' | 'alamat' | 'mapsQuery'>): string {
+  const query = entry.mapsQuery || `${entry.kua}, ${entry.alamat}, Kabupaten Jepara, Jawa Tengah`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export const DATA_DIREKTORI_16_KUA: KuaDirectoryEntry[] = [

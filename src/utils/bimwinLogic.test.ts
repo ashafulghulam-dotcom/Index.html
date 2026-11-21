@@ -7,6 +7,7 @@ import {
   calculateCompatibilityScore,
   calculateFertilityWindow,
   calculateStuntingReadiness,
+  canAccessClassSelection,
   canAccessModuleQuiz,
   canFasilitatorVerify,
   countUniqueSyncedCouples,
@@ -20,6 +21,7 @@ import {
   validatePartnerSync,
   verifyDocumentQuery,
 } from './bimwinLogic.ts';
+import { buildKuaGoogleMapsUrl, DATA_DIREKTORI_16_KUA } from '../data/jeparaData.ts';
 import type { BimwinClassSchedule, BimwinUser } from '../types/bimwin.ts';
 
 function makePeserta(overrides: Partial<BimwinUser> = {}): BimwinUser {
@@ -32,6 +34,7 @@ function makePeserta(overrides: Partial<BimwinUser> = {}): BimwinUser {
     nik: '3320061205980001',
     kua: 'KUA Jepara',
     desaTempatNikah: 'Kauman',
+    tanggalRencanaNikah: '2026-06-21',
     createdAt: '2026-03-01T08:00:00.000Z',
     progress: {
       pretestDone: false,
@@ -304,10 +307,37 @@ describe('BIMWIN Pure Domain Logic', () => {
       jenisKelamin: 'Laki-laki',
       kua: 'KUA Tahunan',
       desaTempatNikah: 'Tahunan',
+      tanggalRencanaNikah: '2026-06-21',
     });
     const genderRes = validatePartnerSync(groom, sameGender);
     assert.equal(genderRes.ok, false);
     assert.match(genderRes.error || '', /Laki-laki dan Perempuan/i);
+
+    // Same KUA, Desa, opposite gender, but DIFFERENT rencana tanggal akad rejected
+    const diffDateBride = makePeserta({
+      username: 'nadia_bedatgl',
+      nama: 'Nadia Beda Tanggal',
+      jenisKelamin: 'Perempuan',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Tahunan',
+      tanggalRencanaNikah: '2026-07-05',
+    });
+    const dateRes = validatePartnerSync(groom, diffDateBride);
+    assert.equal(dateRes.ok, false);
+    assert.match(dateRes.error || '', /Rencana tanggal akad nikah harus sama/i);
+
+    // Missing rencana tanggal akad rejected
+    const missingDateBride = makePeserta({
+      username: 'nadia_kosong',
+      nama: 'Nadia Kosong',
+      jenisKelamin: 'Perempuan',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Tahunan',
+      tanggalRencanaNikah: '',
+    });
+    const missingDateRes = validatePartnerSync(groom, missingDateBride);
+    assert.equal(missingDateRes.ok, false);
+    assert.match(missingDateRes.error || '', /belum diisi/i);
   });
 
   it('locks every module quiz until its video has been watched completely', () => {
@@ -357,5 +387,56 @@ describe('BIMWIN Pure Domain Logic', () => {
     assert.equal(m2BeforeVideo.unlocked, true);
     assert.equal(m2BeforeVideo.videoDone, false);
     assert.equal(m2BeforeVideo.canTakeQuiz, false);
+  });
+
+  it('locks Online/Offline class selection until both MOOC and Survei IKM are completed', () => {
+    const initial = makePeserta();
+    const initialGate = canAccessClassSelection(initial, 5);
+    assert.equal(initialGate.unlocked, false);
+    assert.equal(initialGate.moocFinished, false);
+    assert.equal(initialGate.ikmDone, false);
+
+    const moocOnly = makePeserta({
+      pasanganUsername: 'siti_test',
+      pasanganNama: 'Siti Aminah',
+      progress: {
+        pretestDone: true,
+        pretestScore: 70,
+        postestDone: true,
+        postestScore: 100,
+        videosWatched: [1, 2, 3, 4, 5],
+        modulesRead: [1, 2, 3, 4, 5],
+        modulesCompleted: [1, 2, 3, 4, 5],
+        moduleScores: { 1: 100, 2: 100, 3: 100, 4: 100, 5: 100 },
+        selesaiClicked: true,
+        ikmDone: false,
+        verifikasiFasilitator: false,
+        kehadiranKelas: 'Belum Hadir',
+      },
+    });
+    const moocOnlyGate = canAccessClassSelection(moocOnly, 5);
+    assert.equal(moocOnlyGate.unlocked, false);
+    assert.equal(moocOnlyGate.moocFinished, true);
+    assert.equal(moocOnlyGate.ikmDone, false);
+    assert.match(moocOnlyGate.reason || '', /Survei Kepuasan Masyarakat \(IKM\)/i);
+
+    const unlockedUser = makePeserta({
+      ...moocOnly,
+      progress: { ...moocOnly.progress!, ikmDone: true },
+    });
+    const unlockedGate = canAccessClassSelection(unlockedUser, 5);
+    assert.equal(unlockedGate.unlocked, true);
+    assert.equal(unlockedGate.moocFinished, true);
+    assert.equal(unlockedGate.ikmDone, true);
+  });
+
+  it('builds valid direct Google Maps URLs for all 16 KUA Kabupaten Jepara', () => {
+    assert.equal(DATA_DIREKTORI_16_KUA.length, 16);
+    for (const entry of DATA_DIREKTORI_16_KUA) {
+      const url = buildKuaGoogleMapsUrl(entry);
+      assert.ok(url.startsWith('https://www.google.com/maps/search/?api=1&query='));
+      assert.ok(decodeURIComponent(url).includes(entry.kua));
+      assert.ok(decodeURIComponent(url).includes('Jepara'));
+    }
   });
 });

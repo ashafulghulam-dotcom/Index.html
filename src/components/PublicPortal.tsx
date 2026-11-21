@@ -7,6 +7,7 @@ import {
   Building2,
   ChevronDown,
   Copy,
+  ExternalLink,
   Eye,
   EyeOff,
   HelpCircle,
@@ -33,7 +34,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { DATA_DIREKTORI_16_KUA, LIST_16_KUA } from '../data/jeparaData';
+import {
+  buildKuaGoogleMapsUrl,
+  DATA_DIREKTORI_16_KUA,
+  LIST_16_KUA,
+} from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
 import { VerificationResult } from '../types/bimwin';
 import { countUniqueSyncedCouples, verifyDocumentQuery } from '../utils/bimwinLogic';
@@ -663,10 +668,19 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
-                        <span>{entry.alamat}</span>
-                      </p>
+                      <a
+                        href={buildKuaGoogleMapsUrl(entry)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Buka lokasi ${entry.kua} di Google Maps`}
+                        className="group text-xs text-slate-600 dark:text-slate-300 hover:text-[#0F684E] dark:hover:text-emerald-400 leading-relaxed flex items-start gap-1.5 transition"
+                      >
+                        <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[#0F684E] dark:text-emerald-400" />
+                        <span className="underline decoration-dotted underline-offset-2 group-hover:decoration-solid">
+                          {entry.alamat}
+                        </span>
+                        <ExternalLink className="w-3 h-3 shrink-0 mt-0.5 opacity-60 group-hover:opacity-100" />
+                      </a>
                       <p className="text-xs font-mono-num text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                         <span>{entry.telp}</span>
@@ -674,18 +688,29 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
                       <p className="text-[11px] text-slate-400 truncate">{entry.jamLayanan}</p>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
-                          navigator.clipboard?.writeText(text).catch(() => {});
-                          pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
-                        }}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline shrink-0"
-                      >
-                        <Copy className="w-3 h-3" />
-                        Salin
-                      </button>
+                      <div className="flex items-center gap-2.5 shrink-0">
+                        <a
+                          href={buildKuaGoogleMapsUrl(entry)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
+                        >
+                          <MapPin className="w-3 h-3" />
+                          Maps
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
+                            navigator.clipboard?.writeText(text).catch(() => {});
+                            pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-[#0F684E] dark:text-slate-400 dark:hover:text-emerald-400 hover:underline"
+                        >
+                          <Copy className="w-3 h-3" />
+                          Salin
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

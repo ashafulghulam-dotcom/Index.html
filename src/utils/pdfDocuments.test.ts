@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   buildExecutiveReportRows,
   DOCUMENT_A4_SPECS,
+  ID_CARD_SPEC,
   resolveCoupleRoles,
   sanitizeFilenameSegment,
 } from './pdfDocuments';
@@ -48,4 +49,10 @@ test('resolveCoupleRoles maps Calon Suami and Calon Istri accurately regardless 
     resolveCoupleRoles({ nama: 'Siti Nurhaliza', pasanganNama: 'Ahmad Rifai', jenisKelamin: 'Perempuan' }),
     { suami: 'Ahmad Rifai', istri: 'Siti Nurhaliza' }
   );
+});
+
+test('Participant ID Card matches exact ISO/IEC 7810 ID-1 (CR80) dimensions 85.6 mm x 53.98 mm', () => {
+  assert.equal(ID_CARD_SPEC.widthMm, 85.6);
+  assert.equal(ID_CARD_SPEC.heightMm, 53.98);
+  assert.equal(ID_CARD_SPEC.orientation, 'landscape');
 });

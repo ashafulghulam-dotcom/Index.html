@@ -29,6 +29,7 @@ import {
   NotificationItem,
   PostMarriageJournal,
   QuizQuestion,
+  ReminderLogItem,
   SystemSettings,
 } from '../types/bimwin';
 
@@ -43,6 +44,7 @@ export interface BimwinStoreSnapshot {
   journals: PostMarriageJournal[];
   ikmSurveys: IkmSurveyRecord[];
   notifications: NotificationItem[];
+  reminderLogs?: ReminderLogItem[];
   kritikSaran: KritikSaranItem[];
   faqs: FaqItem[];
   documents: DocumentDownloadItem[];
@@ -118,6 +120,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       pendidikan: 'S1 / D4',
       pekerjaan: 'Desainer Mebel Ekspor',
       noHp: '085727112201',
+      email: 'ahmad.rifai@catinjepara.id',
       kua: 'KUA Jepara',
       desaTempatNikah: 'Kauman',
       alamat: 'Jl. Kartini RT 02/RW 03, Kauman, Jepara',
@@ -179,6 +182,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       pendidikan: 'S1 / D4',
       pekerjaan: 'Guru Madrasah',
       noHp: '085727112202',
+      email: 'siti.nurhaliza@catinjepara.id',
       kua: 'KUA Jepara',
       desaTempatNikah: 'Kauman',
       alamat: 'Jl. Pemuda RT 01/RW 02, Potroyudan, Jepara',
@@ -241,6 +245,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       pendidikan: 'SMA / MA / SMK',
       pekerjaan: 'Wirausaha Ukiran',
       noHp: '082136778801',
+      email: 'rizky.pratama@catinjepara.id',
       kua: 'KUA Tahunan',
       desaTempatNikah: 'Tahunan',
       alamat: 'Desa Tahunan RT 04/RW 02, Kec. Tahunan',
@@ -276,6 +281,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       pendidikan: 'D1 / D2 / D3',
       pekerjaan: 'Perawat Klinik',
       noHp: '082136778802',
+      email: 'nadia.putri@catinjepara.id',
       kua: 'KUA Tahunan',
       desaTempatNikah: 'Tahunan',
       alamat: 'Desa Kecapi RT 02/RW 05, Kec. Tahunan',
@@ -383,6 +389,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         pendidikan: index % 2 === 0 ? 'S1 / D4' : 'SMA / MA / SMK',
         pekerjaan: 'Karyawan Swasta',
         noHp: `08522500${String(1000 + index * 2)}`,
+        email: `${maleUser}@catinjepara.id`,
         kua: item.kua,
         desaTempatNikah: desa,
         alamat: `Desa ${desa}, Kec. ${item.kua.replace('KUA ', '')}`,
@@ -425,6 +432,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         pendidikan: index % 3 === 0 ? 'S1 / D4' : index % 3 === 1 ? 'D1 / D2 / D3' : 'SMA / MA / SMK',
         pekerjaan: 'Wiraswasta',
         noHp: `08522500${String(1001 + index * 2)}`,
+        email: `${femaleUser}@catinjepara.id`,
         kua: item.kua,
         desaTempatNikah: desa,
         alamat: `Desa ${desa}, Kec. ${item.kua.replace('KUA ', '')}`,
@@ -670,6 +678,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
     journals: [],
     ikmSurveys,
     notifications,
+    reminderLogs: [],
     kritikSaran,
     faqs: DEFAULT_FAQ,
     documents: DEFAULT_DOKUMEN,

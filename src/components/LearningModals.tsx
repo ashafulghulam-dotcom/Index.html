@@ -4,6 +4,8 @@ import {
   CheckCircle2,
   ExternalLink,
   Lock,
+  Maximize2,
+  Minimize2,
   Minus,
   Pause,
   Play,
@@ -362,7 +364,9 @@ export const VideoPlayerModal: React.FC<{
   const [seekWarning, setSeekWarning] = useState('');
   const [ytApiFallback, setYtApiFallback] = useState(false);
   const [ytReady, setYtReady] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
+  const playerWrapperRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const ytContainerRef = useRef<HTMLDivElement | null>(null);
   const ytPlayerRef = useRef<YouTubePlayerInstance | null>(null);
@@ -377,6 +381,33 @@ export const VideoPlayerModal: React.FC<{
     warningTimerRef.current = window.setTimeout(() => setSeekWarning(''), 4000);
   };
 
+  // Sync native fullscreen changes & allow Escape key to exit CSS full-viewport fallback
+  useEffect(() => {
+    const onFsChange = () => {
+      const activeEl =
+        document.fullscreenElement ||
+        (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement;
+      if (!activeEl) {
+        setIsFullscreen(false);
+      } else if (playerWrapperRef.current && activeEl === playerWrapperRef.current) {
+        setIsFullscreen(true);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange as EventListener);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFsChange);
+      document.removeEventListener('webkitfullscreenchange', onFsChange as EventListener);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isFullscreen]);
+
   // Reset all watch state whenever modal opens for a module
   useEffect(() => {
     setDetectedDuration(null);
@@ -390,12 +421,16 @@ export const VideoPlayerModal: React.FC<{
     setYtApiFallback(false);
     setYtReady(false);
     setBlobError('');
+    setIsFullscreen(false);
     maxWatchedRef.current = 0;
     watchedSecondsRef.current = 0;
     lastTickTsRef.current = null;
 
     return () => {
       if (warningTimerRef.current) window.clearTimeout(warningTimerRef.current);
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
     };
   }, [module?.id, module?.videoUrl]);
 
@@ -688,6 +723,48 @@ export const VideoPlayerModal: React.FC<{
     }
   };
 
+  const handleToggleFullscreen = async () => {
+    const wrapper = playerWrapperRef.current as
+      | (HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> | void })
+      | null;
+    const docWithWebkit = document as Document & {
+      webkitFullscreenElement?: Element;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+
+    if (isFullscreen) {
+      if (document.fullscreenElement) {
+        try {
+          await document.exitFullscreen();
+        } catch {
+          // ignore
+        }
+      } else if (docWithWebkit.webkitFullscreenElement && docWithWebkit.webkitExitFullscreen) {
+        try {
+          await docWithWebkit.webkitExitFullscreen();
+        } catch {
+          // ignore
+        }
+      }
+      setIsFullscreen(false);
+      return;
+    }
+
+    // Activate full-viewport mode immediately and also attempt native browser Fullscreen API
+    setIsFullscreen(true);
+    if (wrapper) {
+      try {
+        if (wrapper.requestFullscreen) {
+          await wrapper.requestFullscreen();
+        } else if (wrapper.webkitRequestFullscreen) {
+          await wrapper.webkitRequestFullscreen();
+        }
+      } catch {
+        // Iframe / browser policy fallback: CSS full-viewport mode remains active
+      }
+    }
+  };
+
   return (
     <ModalDialog
       open={Boolean(module)}
@@ -746,11 +823,45 @@ export const VideoPlayerModal: React.FC<{
           </span>
         </div>
 
-        {/* Video Viewport */}
+        {/* Fullscreen-Capable Video + Custom Locked Control Container */}
         <div
-          className="relative w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-emerald-950 aspect-video select-none"
-          onContextMenu={(e) => e.preventDefault()}
+          ref={playerWrapperRef}
+          className={
+            isFullscreen
+              ? 'fixed inset-0 z-[100] bg-slate-950 flex flex-col justify-between p-3 sm:p-5 gap-3'
+              : 'space-y-3.5'
+          }
         >
+          {isFullscreen && (
+            <div className="flex items-center justify-between gap-3 text-white text-xs shrink-0">
+              <div className="min-w-0">
+                <p className="font-bold truncate">
+                  Modul {module.id} — {module.shortTitle}
+                </p>
+                <p className="text-[11px] text-emerald-300 font-mono-num">
+                  Progres: {formatDurationClock(watchedSeconds)} / {formatDurationClock(requiredSeconds)} ({completion.progressPercent}%)
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white font-semibold shrink-0"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+                Keluar Layar Penuh
+              </button>
+            </div>
+          )}
+
+          {/* Video Viewport */}
+          <div
+            className={
+              isFullscreen
+                ? 'relative flex-1 w-full rounded-xl overflow-hidden bg-black select-none min-h-0'
+                : 'relative w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-emerald-950 aspect-video select-none'
+            }
+            onContextMenu={(e) => e.preventDefault()}
+          >
           {blobError ? (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-xs text-red-200 gap-2">
               <AlertTriangle className="w-6 h-6 text-amber-400" />
@@ -893,8 +1004,14 @@ export const VideoPlayerModal: React.FC<{
           )}
         </div>
 
-        {/* Custom Locked Control Bar (No Fast-Forward, No Speed Selector) */}
-        <div className="p-3 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950 space-y-2.5">
+        {/* Custom Locked Control Bar (No Fast-Forward, No Speed Selector, With Fullscreen) */}
+        <div
+          className={`p-3 rounded-xl border space-y-2.5 shrink-0 ${
+            isFullscreen
+              ? 'bg-slate-900/95 border-emerald-900/70 text-white'
+              : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950'
+          }`}
+        >
           {/* Read-only watch progress bar */}
           <div className="space-y-1">
             <div
@@ -910,14 +1027,18 @@ export const VideoPlayerModal: React.FC<{
                 style={{ width: `${completion.progressPercent}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono-num">
+            <div
+              className={`flex items-center justify-between text-[11px] font-mono-num ${
+                isFullscreen ? 'text-slate-300' : 'text-slate-500'
+              }`}
+            >
               <span>Posisi: {formatDurationClock(currentTime)}</span>
               <span>Minimal Tonton: {formatDurationClock(requiredSeconds)}</span>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={isHtml5Video ? handleHtml5TogglePlay : handleYtTogglePlay}
@@ -931,7 +1052,11 @@ export const VideoPlayerModal: React.FC<{
                 <button
                   type="button"
                   onClick={isHtml5Video ? handleHtml5Rewind : handleYtRewind}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
+                    isFullscreen
+                      ? 'border-white/25 text-white hover:bg-white/10'
+                      : 'border-slate-300 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950'
+                  }`}
                   title="Putar ulang 10 detik sebelumnya"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -943,20 +1068,52 @@ export const VideoPlayerModal: React.FC<{
                 <button
                   type="button"
                   onClick={isHtml5Video ? handleHtml5ToggleMute : handleYtToggleMute}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950"
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border text-xs font-semibold ${
+                    isFullscreen
+                      ? 'border-white/25 text-white hover:bg-white/10'
+                      : 'border-slate-300 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950'
+                  }`}
                   aria-label={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
                 >
                   {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
                   {isMuted ? 'Suara Mati' : 'Suara'}
                 </button>
               )}
+
+              <button
+                type="button"
+                onClick={handleToggleFullscreen}
+                aria-label={isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh (1 Layar)'}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition ${
+                  isFullscreen
+                    ? 'border-amber-400/60 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30'
+                    : 'border-[#0F684E]/40 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
+                }`}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="w-3.5 h-3.5" />
+                    Keluar Layar Penuh
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="w-3.5 h-3.5" />
+                    Layar Penuh
+                  </>
+                )}
+              </button>
             </div>
 
-            <span className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1">
-              <Lock className="w-3 h-3 text-amber-600" />
+            <span
+              className={`text-[11px] font-semibold inline-flex items-center gap-1 ${
+                isFullscreen ? 'text-slate-300' : 'text-slate-500'
+              }`}
+            >
+              <Lock className="w-3 h-3 text-amber-500" />
               Kecepatan 1x (Terkunci)
             </span>
           </div>
+        </div>
         </div>
 
         {seekWarning && (

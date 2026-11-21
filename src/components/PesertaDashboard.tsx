@@ -3,6 +3,7 @@ import {
   Award,
   Bell,
   BookOpen,
+  Building2,
   Calculator,
   Calendar,
   CheckCircle2,
@@ -11,6 +12,7 @@ import {
   Copy,
   CreditCard,
   Download,
+  Edit3,
   FileCheck2,
   FileText,
   GraduationCap,
@@ -23,8 +25,9 @@ import {
   Printer,
   Share2,
   Sparkles,
-  UserCheck,
+  Trash2,
   UserPlus,
+  Video,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -36,6 +39,7 @@ import {
   calculateCompatibilityScore,
   calculateFertilityWindow,
   calculateStuntingReadiness,
+  canAccessClassSelection,
   canAccessModuleQuiz,
   evaluatePesertaStep,
   formatIndonesianDate,
@@ -43,7 +47,12 @@ import {
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
-import { formatDurationClock, resolveRequiredWatchSeconds } from '../utils/videoWatchGuard';
+import {
+  downloadParticipantCardPdf,
+  ID_CARD_SPEC,
+  printParticipantCard,
+} from '../utils/pdfDocuments';
+import { AchievementBadges } from './AchievementBadges';
 import { CreatePartnerModal } from './AuthModals';
 import {
   IkmSurveyModal,
@@ -75,9 +84,12 @@ export const PesertaDashboard: React.FC = () => {
     submitIkmSurvey,
     saveStuntingCheck,
     saveKompakData,
+    selectClassMode,
     rsvpClass,
     submitConsultation,
     submitPostMarriageJournal,
+    updatePostMarriageJournal,
+    deletePostMarriageJournal,
     updateOwnProfile,
     toggleBerkasChecklist,
     markNotificationRead,
@@ -139,18 +151,27 @@ export const PesertaDashboard: React.FC = () => {
 
   // Konsultasi & Pasca Nikah state
   const [konsulTopik, setKonsulTopik] = useState('Berkas Nikah & SIMKAH');
+  const [konsulTopikLainnya, setKonsulTopikLainnya] = useState('');
   const [konsulTanya, setKonsulTanya] = useState('');
+  const [konsulError, setKonsulError] = useState('');
+
   const [jurnalForm, setJurnalForm] = useState({
-    bulanKe: 1,
+    bulanKe: '1',
     skorHarmoni: 5,
+    aspekUtama: 'Komunikasi & Kesalingan',
     catatan: '',
     butuhMediasi: false,
   });
+  const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
+  const [jurnalError, setJurnalError] = useState('');
+  const [cardDownloading, setCardDownloading] = useState(false);
+  const [showAllClassSchedules, setShowAllClassSchedules] = useState(false);
 
   // Profile edit state
   const [profileForm, setProfileForm] = useState({
     nama: currentUser?.nama || '',
     noHp: currentUser?.noHp || '',
+    email: currentUser?.email || '',
     pekerjaan: currentUser?.pekerjaan || '',
     alamat: currentUser?.alamat || '',
     tanggalRencanaNikah: currentUser?.tanggalRencanaNikah || '',
@@ -165,6 +186,7 @@ export const PesertaDashboard: React.FC = () => {
     setProfileForm({
       nama: currentUser.nama || '',
       noHp: currentUser.noHp || '',
+      email: currentUser.email || '',
       pekerjaan: currentUser.pekerjaan || '',
       alamat: currentUser.alamat || '',
       tanggalRencanaNikah: currentUser.tanggalRencanaNikah || '',
@@ -184,6 +206,10 @@ export const PesertaDashboard: React.FC = () => {
         currentUser.kompak?.disiplinPositif || DEFAULT_KOMPAK_COMMITMENTS.disiplinPositif,
       jawabanKuis: currentUser.kompak?.jawabanKuis || {},
     });
+    setEditingJournalId(null);
+    setJurnalError('');
+    setKonsulError('');
+    setShowAllClassSchedules(false);
   }, [currentUser?.id]);
 
   // Stop speech synthesis on unmount
@@ -198,6 +224,7 @@ export const PesertaDashboard: React.FC = () => {
   if (!currentUser) return null;
 
   const evalStep = evaluatePesertaStep(currentUser, data.modules.length);
+  const classAccess = canAccessClassSelection(currentUser, data.modules.length);
   const partnerUser = data.users.find(
     (u) => u.role === 'Peserta' && u.username === currentUser.pasanganUsername
   );
@@ -205,7 +232,7 @@ export const PesertaDashboard: React.FC = () => {
     ? evaluatePesertaStep(partnerUser, data.modules.length)
     : null;
 
-  const myNotifications = data.notifications.filter(
+  const myNotifications = (data.notifications || []).filter(
     (n) =>
       (n.targetKua === 'ALL' || n.targetKua === currentUser.kua) &&
       (!n.targetUsername || n.targetUsername === currentUser.username)
@@ -214,13 +241,20 @@ export const PesertaDashboard: React.FC = () => {
     (n) => !n.readBy.includes(currentUser.username)
   ).length;
 
-  const myClasses = data.classes.filter((c) => c.kua === currentUser.kua);
-  const myConsultations = data.consultations.filter(
+  const myClasses = (data.classes || []).filter((c) => c.kua === currentUser.kua);
+  const myConsultations = (data.consultations || []).filter(
     (c) => c.pesertaUsername === currentUser.username
   );
-  const myJournals = data.journals.filter(
+  const myJournals = (data.journals || []).filter(
     (j) => j.pesertaUsername === currentUser.username
   );
+  const avgHarmonyScore =
+    myJournals.length > 0
+      ? (
+          myJournals.reduce((sum, item) => sum + (Number(item.skorHarmoni) || 0), 0) /
+          myJournals.length
+        ).toFixed(1)
+      : '—';
 
   const budgetResult = useMemo(
     () => calculateBudgetAllocation(monthlyIncome),
@@ -328,7 +362,15 @@ export const PesertaDashboard: React.FC = () => {
     { id: 'belajar', label: 'Ruang Belajar', icon: GraduationCap, badge: `${evalStep.progressPercent}%`, section: 'Pembelajaran MOOC' },
     { id: 'selesai', label: 'Selesai & Dokumen', icon: FileCheck2, badge: evalStep.canDownloadDocuments ? 'Siap' : undefined, section: 'Pembelajaran MOOC' },
     { id: 'kompak', label: 'Piagam Kami Kompak', icon: HeartHandshake, section: 'Pembelajaran MOOC' },
-    { id: 'kelas', label: 'Kelas Online & Offline', icon: Calendar, badge: myClasses.length, section: 'Pembelajaran MOOC' },
+    {
+      id: 'kelas',
+      label: 'Kelas Online & Offline',
+      icon: Calendar,
+      badge: classAccess.unlocked
+        ? currentUser.progress?.preferredClassMode || myClasses.length
+        : 'Terkunci',
+      section: 'Pembelajaran MOOC',
+    },
     { id: 'berkas', label: 'Checklist Berkas SIMKAH', icon: ClipboardCheck, badge: `${berkasDoneCount}/${berkasItems.length}`, section: 'Perangkat Catin' },
     { id: 'kalkulator', label: 'Kalkulator Keluarga', icon: Calculator, section: 'Perangkat Catin' },
     { id: 'doa', label: 'Doa Pengantin (4 Bahasa)', icon: Sparkles, section: 'Perangkat Catin' },
@@ -472,7 +514,7 @@ export const PesertaDashboard: React.FC = () => {
           </section>
 
           {/* STEP 1: SINKRONISASI PASANGAN */}
-          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4">
+          <section className="space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -490,131 +532,144 @@ export const PesertaDashboard: React.FC = () => {
               )}
             </div>
 
-            {currentUser.pasanganUsername ? (
-              <div className="p-4 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-slate-900 dark:text-white">
-                    {currentUser.pasanganNama}{' '}
-                    <span className="font-mono-num text-xs font-normal text-slate-500">
-                      (@{currentUser.pasanganUsername})
-                    </span>
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4">
+              {currentUser.pasanganUsername ? (
+                <div className="p-4 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {currentUser.pasanganNama}{' '}
+                      <span className="font-mono-num text-xs font-normal text-slate-500">
+                        (@{currentUser.pasanganUsername})
+                      </span>
+                    </p>
+                    {partnerEval && (
+                      <p className="text-xs text-slate-600 dark:text-slate-300">
+                        Progres Pasangan:{' '}
+                        <strong className="font-mono-num text-[#0F684E] dark:text-emerald-400">
+                          {partnerEval.progressPercent}%
+                        </strong>{' '}
+                        · Modul Tuntas: {partnerUser?.progress?.modulesCompleted.length || 0}/
+                        {data.modules.length} ·{' '}
+                        {partnerUser?.progress?.verifikasiFasilitator
+                          ? 'Terverifikasi Lulus'
+                          : 'Dalam Proses'}
+                      </p>
+                    )}
+                  </div>
+                  {!currentUser.progress?.verifikasiFasilitator && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        requestConfirm({
+                          title: 'Lepas Tautan Pasangan?',
+                          message:
+                            'Tautan akun pasangan akan dilepas sementara. Anda dapat menyinkronkan ulang kapan saja sebelum verifikasi Fasilitator.',
+                          confirmLabel: 'Lepas Tautan',
+                          danger: true,
+                          onConfirm: unlinkPartner,
+                        })
+                      }
+                      className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 shrink-0"
+                    >
+                      Ubah Pasangan
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setPartnerError('');
+                      const res = syncPartnerByUsername(partnerInput);
+                      if (!res.ok) setPartnerError(res.error || 'Gagal menyinkronkan.');
+                      else setPartnerInput('');
+                    }}
+                    className="flex flex-col sm:flex-row gap-2"
+                  >
+                    <input
+                      type="text"
+                      required
+                      value={partnerInput}
+                      onChange={(e) => setPartnerInput(e.target.value.replace(/\s+/g, ''))}
+                      placeholder="Masukkan username pasangan (contoh: nadia_tahunan)"
+                      className="flex-1 px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm outline-none focus:border-[#0F684E]"
+                    />
+                    <button
+                      type="submit"
+                      className="px-4 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold shrink-0"
+                    >
+                      Hubungkan Pasangan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCreatePartnerOpen(true)}
+                      className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-slate-50 dark:hover:bg-emerald-950/60 shrink-0"
+                    >
+                      <UserPlus className="w-4 h-4 text-[#0F684E]" />
+                      Buat Akun Pasangan
+                    </button>
+                  </form>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Syarat sinkronisasi: pilihan <strong>KUA sama ({currentUser.kua})</strong>,{' '}
+                    <strong>
+                      Desa Tempat Nikah sama ({normalizeVillageName(currentUser.desaTempatNikah, currentUser.kua)})
+                    </strong>
+                    ,{' '}
+                    <strong>
+                      Rencana Tanggal Akad sama (
+                      {currentUser.tanggalRencanaNikah
+                        ? formatIndonesianDate(`${currentUser.tanggalRencanaNikah}T00:00:00`)
+                        : 'belum diisi'}
+                      )
+                    </strong>
+                    , serta pasangan <strong>Laki-laki &amp; Perempuan</strong>.
                   </p>
-                  {partnerEval && (
-                    <p className="text-xs text-slate-600 dark:text-slate-300">
-                      Progres Pasangan:{' '}
-                      <strong className="font-mono-num text-[#0F684E] dark:text-emerald-400">
-                        {partnerEval.progressPercent}%
-                      </strong>{' '}
-                      · Modul Tuntas: {partnerUser?.progress?.modulesCompleted.length || 0}/
-                      {data.modules.length} ·{' '}
-                      {partnerUser?.progress?.verifikasiFasilitator
-                        ? 'Terverifikasi Lulus'
-                        : 'Dalam Proses'}
+                  {partnerError && (
+                    <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+                      {partnerError}
                     </p>
                   )}
                 </div>
-                {!currentUser.progress?.verifikasiFasilitator && (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      requestConfirm({
-                        title: 'Lepas Tautan Pasangan?',
-                        message:
-                          'Tautan akun pasangan akan dilepas sementara. Anda dapat menyinkronkan ulang kapan saja sebelum verifikasi Fasilitator.',
-                        confirmLabel: 'Lepas Tautan',
-                        danger: true,
-                        onConfirm: unlinkPartner,
-                      })
-                    }
-                    className="px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950 shrink-0"
-                  >
-                    Ubah Pasangan
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    setPartnerError('');
-                    const res = syncPartnerByUsername(partnerInput);
-                    if (!res.ok) setPartnerError(res.error || 'Gagal menyinkronkan.');
-                    else setPartnerInput('');
-                  }}
-                  className="flex flex-col sm:flex-row gap-2"
-                >
-                  <input
-                    type="text"
-                    required
-                    value={partnerInput}
-                    onChange={(e) => setPartnerInput(e.target.value.replace(/\s+/g, ''))}
-                    placeholder="Masukkan username pasangan (contoh: nadia_tahunan)"
-                    className="flex-1 px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm outline-none focus:border-[#0F684E]"
-                  />
-                  <button
-                    type="submit"
-                    className="px-4 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs sm:text-sm font-semibold shrink-0"
-                  >
-                    Hubungkan Pasangan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCreatePartnerOpen(true)}
-                    className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-1.5 hover:bg-slate-50 dark:hover:bg-emerald-950/60 shrink-0"
-                  >
-                    <UserPlus className="w-4 h-4 text-[#0F684E]" />
-                    Buat Akun Pasangan
-                  </button>
-                </form>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Syarat sinkronisasi: pilihan <strong>KUA sama ({currentUser.kua})</strong>,{' '}
-                  <strong>
-                    Desa Tempat Nikah sama ({normalizeVillageName(currentUser.desaTempatNikah, currentUser.kua)})
-                  </strong>
-                  , serta pasangan <strong>Laki-laki &amp; Perempuan</strong>.
-                </p>
-                {partnerError && (
-                  <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
-                    {partnerError}
-                  </p>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </section>
 
           {/* STEP 2: PRETEST */}
-          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
+          <section className="space-y-3">
+            <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Langkah 2 · Evaluasi Awal
               </p>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Pretest Bimwin (5 Soal)
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+            </div>
+
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                 Mengukur pemahaman awal calon pengantin sebelum membuka 5 modul utama.
               </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
-                {currentUser.progress?.pretestDone
-                  ? `Skor: ${currentUser.progress.pretestScore}/100`
-                  : 'Belum dikerjakan'}
-              </span>
-              <button
-                type="button"
-                disabled={!evalStep.canTakePretest}
-                onClick={() => setQuizTarget({ kind: 'pretest' })}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                  evalStep.canTakePretest
-                    ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                    : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
-                {currentUser.progress?.pretestDone ? 'Ulangi Pretest' : 'Mulai Pretest'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
+                  {currentUser.progress?.pretestDone
+                    ? `Skor: ${currentUser.progress.pretestScore}/100`
+                    : 'Belum dikerjakan'}
+                </span>
+                <button
+                  type="button"
+                  disabled={!evalStep.canTakePretest}
+                  onClick={() => setQuizTarget({ kind: 'pretest' })}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
+                    evalStep.canTakePretest
+                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
+                  {currentUser.progress?.pretestDone ? 'Ulangi Pretest' : 'Mulai Pretest'}
+                </button>
+              </div>
             </div>
           </section>
 
@@ -643,7 +698,6 @@ export const PesertaDashboard: React.FC = () => {
                 const canTakeQuiz = access.canTakeQuiz;
                 const passed = Boolean(currentUser.progress?.modulesCompleted.includes(mod.id));
                 const score = currentUser.progress?.moduleScores[mod.id];
-                const minWatchLabel = formatDurationClock(resolveRequiredWatchSeconds(mod));
 
                 return (
                   <div
@@ -658,10 +712,6 @@ export const PesertaDashboard: React.FC = () => {
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="font-mono-num font-bold text-[#0F684E] dark:text-emerald-400">
                           MODUL 0{mod.id}
-                        </span>
-                        <span className="text-slate-300 dark:text-slate-600">·</span>
-                        <span className="text-slate-500 font-mono-num">
-                          Video {minWatchLabel}
                         </span>
                         {passed && (
                           <>
@@ -678,7 +728,7 @@ export const PesertaDashboard: React.FC = () => {
                       <p className="text-xs text-slate-500 dark:text-slate-400">{mod.desc}</p>
                       {unlocked && !videoDone && (
                         <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 pt-0.5">
-                          Tonton video pembelajaran hingga selesai ({minWatchLabel}) untuk membuka tombol Kuis Modul 0{mod.id}.
+                          Tonton video pembelajaran hingga selesai untuk membuka tombol Kuis Modul 0{mod.id}.
                         </p>
                       )}
                     </div>
@@ -746,46 +796,49 @@ export const PesertaDashboard: React.FC = () => {
           </section>
 
           {/* STEP 4: POSTEST (BERURUTAN DI BAWAH 5 MODUL) */}
-          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="space-y-1">
+          <section className="space-y-3">
+            <div>
               <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 Langkah 4 · Evaluasi Akhir
               </p>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
                 Postest Bimwin (5 Soal)
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+            </div>
+
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
                 Terbuka setelah seluruh 5 modul lulus kuis (≥80%). Mengukur peningkatan pemahaman (Before-After Gain).
               </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 shrink-0">
-              <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
-                {currentUser.progress?.postestDone
-                  ? `Skor: ${currentUser.progress.postestScore}/100 (Gain ${
-                      (currentUser.progress.postestScore || 0) -
-                      (currentUser.progress.pretestScore || 0) >=
-                      0
-                        ? '+'
-                        : ''
-                    }${
-                      (currentUser.progress.postestScore || 0) -
-                      (currentUser.progress.pretestScore || 0)
-                    })`
-                  : 'Terkunci hingga 5 modul tuntas'}
-              </span>
-              <button
-                type="button"
-                disabled={!evalStep.canTakePostest}
-                onClick={() => setQuizTarget({ kind: 'postest' })}
-                className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                  evalStep.canTakePostest
-                    ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                    : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
-                }`}
-              >
-                {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
-                {currentUser.progress?.postestDone ? 'Ulangi Postest' : 'Mulai Postest'}
-              </button>
+              <div className="flex flex-wrap items-center gap-3 shrink-0">
+                <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
+                  {currentUser.progress?.postestDone
+                    ? `Skor: ${currentUser.progress.postestScore}/100 (Gain ${
+                        (currentUser.progress.postestScore || 0) -
+                        (currentUser.progress.pretestScore || 0) >=
+                        0
+                          ? '+'
+                          : ''
+                      }${
+                        (currentUser.progress.postestScore || 0) -
+                        (currentUser.progress.pretestScore || 0)
+                      })`
+                    : 'Terkunci hingga 5 modul tuntas'}
+                </span>
+                <button
+                  type="button"
+                  disabled={!evalStep.canTakePostest}
+                  onClick={() => setQuizTarget({ kind: 'postest' })}
+                  className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
+                    evalStep.canTakePostest
+                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
+                  {currentUser.progress?.postestDone ? 'Ulangi Postest' : 'Mulai Postest'}
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -1070,90 +1123,330 @@ export const PesertaDashboard: React.FC = () => {
 
       {/* TAB 4: KELAS ONLINE & OFFLINE */}
       {activeTab === 'kelas' && (
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
               <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white">
-                Jadwal Kelas Bimwin — {currentUser.kua}
+                Pemilihan Kelas Online &amp; Offline — {currentUser.kua}
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Status Kehadiran Anda saat ini:{' '}
                 <strong className="text-[#0F684E] dark:text-emerald-400">
                   {currentUser.progress?.kehadiranKelas || 'Belum Hadir'}
                 </strong>
+                {currentUser.progress?.preferredClassMode && (
+                  <>
+                    {' '}· Pilihan Kelas:{' '}
+                    <strong className="text-slate-900 dark:text-white">
+                      Kelas {currentUser.progress.preferredClassMode}
+                    </strong>
+                  </>
+                )}
               </p>
             </div>
           </div>
 
-          {myClasses.length === 0 ? (
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-8 text-center text-sm text-slate-500">
-              Belum ada jadwal kelas aktif di {currentUser.kua}. Silakan hubungi Fasilitator melalui Pojok Konsultasi.
+          {!classAccess.unlocked ? (
+            <div className="bg-white dark:bg-[#111C18] border border-amber-300 dark:border-amber-800/70 rounded-2xl p-6 space-y-5">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                    Menu Kelas Terkunci
+                  </p>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                    Selesaikan MOOC &amp; Survei IKM untuk Memilih Kelas Online atau Offline
+                  </h3>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {classAccess.reason}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div
+                  className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+                    classAccess.moocFinished
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      1. Tuntaskan Pembelajaran MOOC
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Sinkron Pasangan, Pretest, 5 Modul (Video + Kuis ≥80%), dan Postest.
+                    </p>
+                    <p
+                      className={`text-xs font-semibold pt-1 ${
+                        classAccess.moocFinished
+                          ? 'text-[#0F684E] dark:text-emerald-400'
+                          : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                    >
+                      {classAccess.moocFinished ? 'Sudah Tuntas' : 'Belum Selesai'}
+                    </p>
+                  </div>
+                  {classAccess.moocFinished ? (
+                    <CheckCircle2 className="w-5 h-5 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('belajar')}
+                      className="px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold shrink-0"
+                    >
+                      Ke Ruang Belajar
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+                    classAccess.ikmDone
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      2. Isi Survei Kepuasan Masyarakat (IKM)
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Survei evaluasi layanan BIMWIN Kemenag Kab. Jepara sebelum memilih kelas.
+                    </p>
+                    <p
+                      className={`text-xs font-semibold pt-1 ${
+                        classAccess.ikmDone
+                          ? 'text-[#0F684E] dark:text-emerald-400'
+                          : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                    >
+                      {classAccess.ikmDone ? 'Sudah Diisi' : 'Wajib Diisi'}
+                    </p>
+                  </div>
+                  {classAccess.ikmDone ? (
+                    <CheckCircle2 className="w-5 h-5 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!classAccess.moocFinished}
+                      onClick={() => setIkmOpen(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                        classAccess.moocFinished
+                          ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                          : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Isi Survei IKM
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {myClasses.map((cls) => {
-                const myRsvp = cls.rsvps.find((r) => r.username === currentUser.username);
-                return (
-                  <div
-                    key={cls.id}
-                    className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 flex flex-col justify-between gap-4"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
-                          Kelas {cls.tipe}
-                        </span>
-                        <span className="font-mono-num text-slate-500">{cls.kodeAbsen}</span>
-                      </div>
-                      <h3 className="font-bold text-base text-slate-900 dark:text-white">
-                        {cls.judul}
-                      </h3>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-mono-num">
-                        {formatIndonesianDate(cls.tanggal)} · {cls.waktu}
-                      </p>
-                      <p className="text-xs text-slate-500">
-                        Lokasi / Tautan: <span className="font-medium text-slate-700 dark:text-slate-200">{cls.lokasiAtauLink}</span>
-                      </p>
-                      <p className="text-xs text-slate-500">Narasumber: {cls.narasumber}</p>
-                    </div>
+            <>
+              {/* Pilihan Mode Kelas Online vs Offline */}
+              <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
+                      Tahap Pemilihan Kelas Terbuka
+                    </p>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Pilih Jenis Kelas Bimbingan Perkawinan Anda
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      MOOC dan Survei IKM telah tuntas. Pilih mode kelas yang paling sesuai, lalu konfirmasi jadwal di bawah ini.
+                    </p>
+                  </div>
+                </div>
 
-                    <div className="pt-3 border-t border-slate-100 dark:border-emerald-950 space-y-2.5">
-                      {myRsvp && (
-                        <p className="text-xs font-semibold text-[#0F684E] dark:text-emerald-400">
-                          Konfirmasi Anda: {myRsvp.status}
-                          {myRsvp.verifiedHadir ? ' · Terverifikasi Hadir oleh Fasilitator' : ''}
-                        </p>
-                      )}
-                      <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  {(
+                    [
+                      {
+                        mode: 'Online' as const,
+                        title: 'Kelas Online (Daring / Zoom)',
+                        desc: 'Sesi pendampingan interaktif jarak jauh melalui Zoom / Google Meet bersama Fasilitator KUA bagi catin yang bekerja atau berada di luar daerah.',
+                        icon: Video,
+                        count: myClasses.filter((c) => c.tipe === 'Online').length,
+                      },
+                      {
+                        mode: 'Offline' as const,
+                        title: 'Kelas Offline (Tatap Muka KUA)',
+                        desc: 'Sesi bimbingan langsung di Balai Nikah / Aula KUA Kecamatan bersama Penyuluh Agama, Puskesmas, dan diskusi kelompok calon pengantin.',
+                        icon: Building2,
+                        count: myClasses.filter((c) => c.tipe === 'Offline').length,
+                      },
+                    ] as const
+                  ).map((opt) => {
+                    const Icon = opt.icon;
+                    const isSelected = currentUser.progress?.preferredClassMode === opt.mode;
+                    return (
+                      <button
+                        key={opt.mode}
+                        type="button"
+                        onClick={() => {
+                          selectClassMode(opt.mode);
+                          setShowAllClassSchedules(false);
+                        }}
+                        className={`text-left p-4 rounded-xl border-2 transition flex flex-col justify-between gap-3 ${
+                          isSelected
+                            ? 'border-[#0F684E] bg-emerald-50/60 dark:bg-emerald-950/40'
+                            : 'border-slate-200 dark:border-emerald-950 hover:border-emerald-400 bg-[#F8FAF9] dark:bg-[#0D1613]'
+                        }`}
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
+                              <Icon className="w-4 h-4 text-[#0F684E] dark:text-emerald-400" />
+                              {opt.title}
+                            </span>
+                            {isSelected && (
+                              <span className="text-[11px] font-bold text-[#0F684E] dark:text-emerald-400 inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-4 h-4" />
+                                Dipilih
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                            {opt.desc}
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-200/70 dark:border-emerald-950">
+                          <span className="font-mono-num text-slate-500">
+                            {opt.count} jadwal tersedia di {currentUser.kua}
+                          </span>
+                          <span className="font-semibold text-[#0F684E] dark:text-emerald-400">
+                            {isSelected ? 'Pilihan Aktif' : `Pilih Kelas ${opt.mode} →`}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+
+              {(() => {
+                const preferred = currentUser.progress?.preferredClassMode;
+                const filteredClasses =
+                  preferred && !showAllClassSchedules
+                    ? myClasses.filter((c) => c.tipe === preferred)
+                    : myClasses;
+
+                return (
+                  <div className="space-y-3">
+                    {preferred && myClasses.length > filteredClasses.length && (
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span>
+                          Menampilkan jadwal <strong>Kelas {preferred}</strong> ({filteredClasses.length} sesi).
+                        </span>
                         <button
                           type="button"
-                          onClick={() => rsvpClass(cls.id, 'InsyaAllah Hadir')}
-                          className="px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                          onClick={() => setShowAllClassSchedules((prev) => !prev)}
+                          className="font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline"
                         >
-                          InsyaAllah Hadir
-                        </button>
-                        <input
-                          type="text"
-                          value={izinReasons[cls.id] || ''}
-                          onChange={(e) =>
-                            setIzinReasons((prev) => ({ ...prev, [cls.id]: e.target.value }))
-                          }
-                          placeholder="Alasan izin (opsional)"
-                          className="flex-1 min-w-[140px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => rsvpClass(cls.id, 'Izin', izinReasons[cls.id])}
-                          className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
-                        >
-                          Izin
+                          {showAllClassSchedules
+                            ? `Filter Khusus Kelas ${preferred}`
+                            : `Tampilkan Semua Jadwal (${myClasses.length})`}
                         </button>
                       </div>
-                    </div>
+                    )}
+
+                    {filteredClasses.length === 0 ? (
+                      <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-8 text-center space-y-2">
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                          Belum ada jadwal {preferred ? `Kelas ${preferred}` : 'kelas aktif'} di {currentUser.kua}.
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          Pilihan Anda sudah tercatat untuk Fasilitator KUA. Anda juga dapat melihat jadwal mode lainnya atau menghubungi Fasilitator melalui Pojok Konsultasi.
+                        </p>
+                        {preferred && myClasses.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAllClassSchedules(true)}
+                            className="mt-2 px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
+                          >
+                            Lihat Semua Jadwal Tersedia ({myClasses.length})
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {filteredClasses.map((cls) => {
+                          const myRsvp = cls.rsvps.find((r) => r.username === currentUser.username);
+                          return (
+                            <div
+                              key={cls.id}
+                              className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 flex flex-col justify-between gap-4"
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
+                                    Kelas {cls.tipe}
+                                  </span>
+                                  <span className="font-mono-num text-slate-500">{cls.kodeAbsen}</span>
+                                </div>
+                                <h3 className="font-bold text-base text-slate-900 dark:text-white">
+                                  {cls.judul}
+                                </h3>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 font-mono-num">
+                                  {formatIndonesianDate(cls.tanggal)} · {cls.waktu}
+                                </p>
+                                <p className="text-xs text-slate-500">
+                                  Lokasi / Tautan:{' '}
+                                  <span className="font-medium text-slate-700 dark:text-slate-200">
+                                    {cls.lokasiAtauLink}
+                                  </span>
+                                </p>
+                                <p className="text-xs text-slate-500">Narasumber: {cls.narasumber}</p>
+                              </div>
+
+                              <div className="pt-3 border-t border-slate-100 dark:border-emerald-950 space-y-2.5">
+                                {myRsvp && (
+                                  <p className="text-xs font-semibold text-[#0F684E] dark:text-emerald-400">
+                                    Konfirmasi Anda: {myRsvp.status}
+                                    {myRsvp.verifiedHadir ? ' · Terverifikasi Hadir oleh Fasilitator' : ''}
+                                  </p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => rsvpClass(cls.id, 'InsyaAllah Hadir')}
+                                    className="px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                                  >
+                                    InsyaAllah Hadir
+                                  </button>
+                                  <input
+                                    type="text"
+                                    value={izinReasons[cls.id] || ''}
+                                    onChange={(e) =>
+                                      setIzinReasons((prev) => ({ ...prev, [cls.id]: e.target.value }))
+                                    }
+                                    placeholder="Alasan izin (opsional)"
+                                    className="flex-1 min-w-[140px] px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => rsvpClass(cls.id, 'Izin', izinReasons[cls.id])}
+                                    className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
+                                  >
+                                    Izin
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
-              })}
-            </div>
+              })()}
+            </>
           )}
         </div>
       )}
@@ -1634,36 +1927,85 @@ export const PesertaDashboard: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!konsulTanya.trim()) return;
-                submitConsultation(konsulTopik, konsulTanya);
+                setKonsulError('');
+                const resolvedTopik =
+                  konsulTopik === '__LAINNYA__' ? konsulTopikLainnya.trim() : konsulTopik;
+                if (konsulTopik === '__LAINNYA__' && resolvedTopik.length < 3) {
+                  setKonsulError('Tuliskan topik konsultasi Anda minimal 3 karakter.');
+                  return;
+                }
+                if (!konsulTanya.trim()) {
+                  setKonsulError('Uraian pertanyaan tidak boleh kosong.');
+                  return;
+                }
+                submitConsultation(resolvedTopik, konsulTanya);
                 setKonsulTanya('');
+                if (konsulTopik === '__LAINNYA__') setKonsulTopikLainnya('');
               }}
               className="space-y-3"
             >
               <div>
-                <label className="block text-xs font-semibold mb-1">Topik Konsultasi</label>
+                <label htmlFor="konsul-topik-select" className="block text-xs font-semibold mb-1">
+                  Topik Konsultasi
+                </label>
                 <select
+                  id="konsul-topik-select"
                   value={konsulTopik}
-                  onChange={(e) => setKonsulTopik(e.target.value)}
+                  onChange={(e) => {
+                    setKonsulTopik(e.target.value);
+                    setKonsulError('');
+                  }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
                 >
-                  <option>Berkas Nikah &amp; SIMKAH</option>
-                  <option>Sertifikat &amp; Progres MOOC</option>
-                  <option>Kesiapan Gizi &amp; Stunting</option>
-                  <option>Komunikasi &amp; Hukum Keluarga</option>
+                  <option value="Berkas Nikah & SIMKAH">Berkas Nikah &amp; SIMKAH</option>
+                  <option value="Sertifikat & Progres MOOC">Sertifikat &amp; Progres MOOC</option>
+                  <option value="Kesiapan Gizi & Stunting">Kesiapan Gizi &amp; Stunting</option>
+                  <option value="Komunikasi & Hukum Keluarga">Komunikasi &amp; Hukum Keluarga</option>
+                  <option value="__LAINNYA__">Topik Lainnya (Tulis Sendiri)</option>
                 </select>
               </div>
+              {konsulTopik === '__LAINNYA__' && (
+                <div>
+                  <label htmlFor="konsul-topik-lainnya" className="block text-xs font-semibold mb-1">
+                    Tulis Topik Konsultasi Anda *
+                  </label>
+                  <input
+                    id="konsul-topik-lainnya"
+                    type="text"
+                    required
+                    maxLength={100}
+                    value={konsulTopikLainnya}
+                    onChange={(e) => {
+                      setKonsulTopikLainnya(e.target.value);
+                      setKonsulError('');
+                    }}
+                    placeholder="Contoh: Wali Nikah di Luar Negeri / Dispensasi Jadwal"
+                    className="w-full px-3 py-2 rounded-lg border border-[#0F684E] dark:border-emerald-700 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm outline-none"
+                  />
+                </div>
+              )}
               <div>
-                <label className="block text-xs font-semibold mb-1">Uraian Pertanyaan *</label>
+                <label htmlFor="konsul-uraian" className="block text-xs font-semibold mb-1">
+                  Uraian Pertanyaan *
+                </label>
                 <textarea
+                  id="konsul-uraian"
                   rows={4}
                   required
                   value={konsulTanya}
-                  onChange={(e) => setKonsulTanya(e.target.value)}
+                  onChange={(e) => {
+                    setKonsulTanya(e.target.value);
+                    setKonsulError('');
+                  }}
                   placeholder="Tulis pertanyaan Anda secara jelas..."
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
                 />
               </div>
+              {konsulError && (
+                <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+                  {konsulError}
+                </p>
+              )}
               <button
                 type="submit"
                 className="w-full py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
@@ -1715,60 +2057,168 @@ export const PesertaDashboard: React.FC = () => {
       {activeTab === 'pascanikah' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           <div className="lg:col-span-5 bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-4 h-fit">
-            <div>
-              <h2 className="font-bold text-base">Jurnal Evaluasi Pasca Nikah</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Refleksi keharmonisan bulanan. Centang mediasi jika membutuhkan pendampingan Penyuluh KUA.
-              </p>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="font-bold text-base">
+                  {editingJournalId ? 'Edit Jurnal Evaluasi Pasca Nikah' : 'Jurnal Evaluasi Pasca Nikah'}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Refleksi keharmonisan bulanan. Centang mediasi jika membutuhkan pendampingan Penyuluh KUA.
+                </p>
+              </div>
+              {editingJournalId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingJournalId(null);
+                    setJurnalError('');
+                    setJurnalForm({
+                      bulanKe: String(myJournals.length + 1),
+                      skorHarmoni: 5,
+                      aspekUtama: 'Komunikasi & Kesalingan',
+                      catatan: '',
+                      butuhMediasi: false,
+                    });
+                  }}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 shrink-0"
+                >
+                  Batal Edit
+                </button>
+              )}
             </div>
+
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (!jurnalForm.catatan.trim()) return;
-                submitPostMarriageJournal(jurnalForm);
-                setJurnalForm({ bulanKe: jurnalForm.bulanKe + 1, skorHarmoni: 5, catatan: '', butuhMediasi: false });
+                setJurnalError('');
+                const parsedMonth = parseInt(jurnalForm.bulanKe, 10);
+                if (!Number.isFinite(parsedMonth) || parsedMonth < 1 || parsedMonth > 600) {
+                  setJurnalError('Masukkan usia nikah dalam bulan (angka minimal 1).');
+                  return;
+                }
+                if (jurnalForm.catatan.trim().length < 5) {
+                  setJurnalError('Catatan refleksi minimal 5 karakter agar evaluasi bermakna.');
+                  return;
+                }
+
+                const payload = {
+                  bulanKe: parsedMonth,
+                  skorHarmoni: jurnalForm.skorHarmoni,
+                  aspekUtama: jurnalForm.aspekUtama,
+                  catatan: jurnalForm.catatan.trim(),
+                  butuhMediasi: jurnalForm.butuhMediasi,
+                };
+
+                const res = editingJournalId
+                  ? updatePostMarriageJournal(editingJournalId, payload)
+                  : submitPostMarriageJournal(payload);
+
+                if (!res.ok) {
+                  setJurnalError(res.error || 'Gagal menyimpan jurnal evaluasi.');
+                  return;
+                }
+
+                setEditingJournalId(null);
+                setJurnalForm({
+                  bulanKe: String(parsedMonth + 1),
+                  skorHarmoni: 5,
+                  aspekUtama: 'Komunikasi & Kesalingan',
+                  catatan: '',
+                  butuhMediasi: false,
+                });
               }}
-              className="space-y-3"
+              className="space-y-3.5"
             >
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Usia Nikah (Bulan ke-)</label>
+                  <label htmlFor="jurnal-bulan" className="block text-xs font-semibold mb-1">
+                    Usia Nikah (Bulan ke-) *
+                  </label>
                   <input
-                    type="number"
-                    min={1}
+                    id="jurnal-bulan"
+                    type="text"
+                    inputMode="numeric"
                     value={jurnalForm.bulanKe}
-                    onChange={(e) => setJurnalForm({ ...jurnalForm, bulanKe: Number(e.target.value) || 1 })}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/\D/g, '').slice(0, 3);
+                      setJurnalForm({ ...jurnalForm, bulanKe: digitsOnly });
+                      setJurnalError('');
+                    }}
+                    placeholder="Contoh: 1"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold mb-1">Skor Harmoni (1–5)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={jurnalForm.skorHarmoni}
+                  <label htmlFor="jurnal-aspek" className="block text-xs font-semibold mb-1">
+                    Aspek Evaluasi Utama
+                  </label>
+                  <select
+                    id="jurnal-aspek"
+                    value={jurnalForm.aspekUtama}
                     onChange={(e) =>
-                      setJurnalForm({
-                        ...jurnalForm,
-                        skorHarmoni: Math.min(5, Math.max(1, Number(e.target.value) || 1)),
-                      })
+                      setJurnalForm({ ...jurnalForm, aspekUtama: e.target.value })
                     }
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num text-sm"
-                  />
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
+                  >
+                    <option>Komunikasi &amp; Kesalingan</option>
+                    <option>Keuangan Rumah Tangga</option>
+                    <option>Adaptasi Keluarga Besar</option>
+                    <option>Kesehatan &amp; Pengasuhan</option>
+                    <option>Ibadah &amp; Spiritualitas</option>
+                  </select>
                 </div>
               </div>
+
               <div>
-                <label className="block text-xs font-semibold mb-1">Catatan Refleksi *</label>
+                <span className="block text-xs font-semibold mb-1.5">
+                  Skor Keharmonisan Bulan Ini ({jurnalForm.skorHarmoni}/5)
+                </span>
+                <div className="grid grid-cols-5 gap-1.5" role="group" aria-label="Pilih skor harmoni 1 sampai 5">
+                  {[
+                    { score: 1, label: 'Sulit' },
+                    { score: 2, label: 'Kurang' },
+                    { score: 3, label: 'Cukup' },
+                    { score: 4, label: 'Baik' },
+                    { score: 5, label: 'Harmonis' },
+                  ].map((opt) => {
+                    const active = jurnalForm.skorHarmoni === opt.score;
+                    return (
+                      <button
+                        key={opt.score}
+                        type="button"
+                        onClick={() => setJurnalForm({ ...jurnalForm, skorHarmoni: opt.score })}
+                        className={`py-2 px-1 rounded-lg border text-center transition ${
+                          active
+                            ? 'bg-[#0F684E] border-[#0F684E] text-white'
+                            : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-900 text-slate-700 dark:text-slate-300 hover:border-[#0F684E]'
+                        }`}
+                      >
+                        <div className="font-mono-num text-sm font-bold leading-none">{opt.score}</div>
+                        <div className="text-[10px] mt-1 leading-none">{opt.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="jurnal-catatan" className="block text-xs font-semibold mb-1">
+                  Catatan Refleksi *
+                </label>
                 <textarea
+                  id="jurnal-catatan"
                   rows={3}
                   required
                   value={jurnalForm.catatan}
-                  onChange={(e) => setJurnalForm({ ...jurnalForm, catatan: e.target.value })}
+                  onChange={(e) => {
+                    setJurnalForm({ ...jurnalForm, catatan: e.target.value });
+                    setJurnalError('');
+                  }}
                   placeholder="Bagaimana komunikasi, keuangan, dan adaptasi rumah tangga bulan ini?"
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
                 />
               </div>
+
               <label className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer">
                 <input
                   type="checkbox"
@@ -1780,41 +2230,141 @@ export const PesertaDashboard: React.FC = () => {
                   Ajukan pendampingan mediasi privat bersama Fasilitator {currentUser.kua} (otomatis tereskalasi).
                 </span>
               </label>
+
+              {jurnalError && (
+                <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
+                  {jurnalError}
+                </p>
+              )}
+
               <button
                 type="submit"
                 className="w-full py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
               >
-                Simpan Jurnal Evaluasi
+                {editingJournalId ? 'Simpan Perubahan Jurnal' : 'Simpan Jurnal Evaluasi'}
               </button>
             </form>
           </div>
 
-          <div className="lg:col-span-7 space-y-3">
+          <div className="lg:col-span-7 space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-3.5">
+                <p className="text-[11px] text-slate-500">Total Catatan</p>
+                <p className="font-mono-num text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                  {myJournals.length}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-3.5">
+                <p className="text-[11px] text-slate-500">Rata-rata Harmoni</p>
+                <p className="font-mono-num text-xl font-bold text-[#0F684E] dark:text-emerald-400 mt-0.5">
+                  {avgHarmonyScore}
+                  <span className="text-xs font-normal text-slate-400">/5</span>
+                </p>
+              </div>
+              <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-xl p-3.5">
+                <p className="text-[11px] text-slate-500">Permintaan Mediasi</p>
+                <p className="font-mono-num text-xl font-bold text-amber-700 dark:text-amber-400 mt-0.5">
+                  {myJournals.filter((j) => j.butuhMediasi).length}
+                </p>
+              </div>
+            </div>
+
             <h3 className="font-bold text-sm">Catatan Evaluasi Tersimpan ({myJournals.length})</h3>
             {myJournals.length === 0 ? (
               <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 text-center text-xs text-slate-500">
-                Belum ada jurnal evaluasi pasca nikah.
+                Belum ada jurnal evaluasi pasca nikah. Mulai catat refleksi bulan pertama Anda di formulir sebelah kiri.
               </div>
             ) : (
-              myJournals.map((j) => (
-                <div
-                  key={j.id}
-                  className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 space-y-1.5"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold font-mono-num text-[#0F684E] dark:text-emerald-400">
-                      Bulan ke-{j.bulanKe} · Harmoni {j.skorHarmoni}/5
-                    </span>
-                    <span className="text-slate-500 font-mono-num">{formatIndonesianDate(j.createdAt)}</span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200">{j.catatan}</p>
-                  {j.butuhMediasi && (
-                    <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                      Tereskalasi ke Fasilitator KUA untuk pendampingan mediasi.
+              myJournals.map((j) => {
+                const linkedConsult = j.linkedConsultationId
+                  ? myConsultations.find((c) => c.id === j.linkedConsultationId)
+                  : undefined;
+                return (
+                  <div
+                    key={j.id}
+                    className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-bold font-mono-num text-[#0F684E] dark:text-emerald-400">
+                          Bulan ke-{j.bulanKe} · Harmoni {j.skorHarmoni}/5
+                        </span>
+                        {j.aspekUtama && (
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                            · {j.aspekUtama}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-500 font-mono-num">
+                          {formatIndonesianDate(j.updatedAt || j.createdAt)}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Edit Jurnal Bulan ke-${j.bulanKe}`}
+                          onClick={() => {
+                            setEditingJournalId(j.id);
+                            setJurnalError('');
+                            setJurnalForm({
+                              bulanKe: String(j.bulanKe),
+                              skorHarmoni: j.skorHarmoni,
+                              aspekUtama: j.aspekUtama || 'Komunikasi & Kesalingan',
+                              catatan: j.catatan,
+                              butuhMediasi: j.butuhMediasi,
+                            });
+                          }}
+                          className="p-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-emerald-950"
+                          title="Edit Jurnal"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Hapus Jurnal Bulan ke-${j.bulanKe}`}
+                          onClick={() =>
+                            requestConfirm({
+                              title: 'Hapus Jurnal Evaluasi?',
+                              message: `Catatan evaluasi Bulan ke-${j.bulanKe} akan dihapus secara permanen dari riwayat Anda.`,
+                              confirmLabel: 'Hapus Jurnal',
+                              danger: true,
+                              onConfirm: () => {
+                                deletePostMarriageJournal(j.id);
+                                if (editingJournalId === j.id) setEditingJournalId(null);
+                              },
+                            })
+                          }
+                          className="p-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40"
+                          title="Hapus Jurnal"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+                      {j.catatan}
                     </p>
-                  )}
-                </div>
-              ))
+
+                    {j.butuhMediasi && (
+                      <div className="p-3 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1">
+                        <p className="text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                          Tereskalasi ke Fasilitator {currentUser.kua} untuk pendampingan mediasi.
+                        </p>
+                        {linkedConsult?.balasanFasilitator ? (
+                          <p className="text-xs text-slate-800 dark:text-emerald-100">
+                            <strong>Tanggapan {linkedConsult.dibalasOleh}:</strong>{' '}
+                            {linkedConsult.balasanFasilitator}
+                          </p>
+                        ) : (
+                          <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                            Menunggu tanggapan Fasilitator KUA (cek juga di tab Pojok Konsultasi).
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -1907,6 +2457,18 @@ export const PesertaDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block font-semibold mb-1">Email Aktif</label>
+                  <input
+                    type="email"
+                    value={profileForm.email}
+                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                    placeholder="nama@email.com"
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
                   <label className="block font-semibold mb-1">Pekerjaan</label>
                   <input
                     type="text"
@@ -1915,17 +2477,17 @@ export const PesertaDashboard: React.FC = () => {
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
                   />
                 </div>
-              </div>
-              <div>
-                <label className="block font-semibold mb-1">Rencana Tanggal Akad Nikah</label>
-                <input
-                  type="date"
-                  value={profileForm.tanggalRencanaNikah}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-                />
+                <div>
+                  <label className="block font-semibold mb-1">Rencana Tanggal Akad Nikah</label>
+                  <input
+                    type="date"
+                    value={profileForm.tanggalRencanaNikah}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block font-semibold mb-1">Alamat Domisili</label>
@@ -1946,99 +2508,103 @@ export const PesertaDashboard: React.FC = () => {
           </div>
 
           <div className="lg:col-span-5 space-y-5">
-            {/* Digital ID Card (8.56 x 5.4 cm aspect ratio) */}
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm">Kartu Peserta Digital (ID Card)</h3>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="text-xs font-semibold text-[#0F684E] dark:text-emerald-400 inline-flex items-center gap-1 hover:underline"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  Cetak
-                </button>
+            {/* Digital ID Card — Exact ISO/IEC 7810 ID-1 (CR80): 85.6 mm × 53.98 mm */}
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-3.5">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-sm">Kartu Peserta Digital (ID Card)</h3>
+                  <p className="text-[11px] text-slate-500 font-mono-num">
+                    Ukuran standar CR80: {ID_CARD_SPEC.widthMm.toString().replace('.', ',')} mm ×{' '}
+                    {ID_CARD_SPEC.heightMm.toString().replace('.', ',')} mm
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={cardDownloading}
+                    onClick={async () => {
+                      setCardDownloading(true);
+                      try {
+                        await downloadParticipantCardPdf(currentUser);
+                        pushToast(
+                          'success',
+                          'Kartu Peserta Digital PDF (85,6 × 53,98 mm) berhasil diunduh.'
+                        );
+                      } catch {
+                        pushToast('error', 'Gagal membuat file PDF Kartu Peserta.');
+                      } finally {
+                        setCardDownloading(false);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold inline-flex items-center gap-1.5 disabled:opacity-60"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    {cardDownloading ? 'Menyiapkan...' : 'Download Kartu'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => printParticipantCard()}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 inline-flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-emerald-950/60"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Cetak Kartu
+                  </button>
+                </div>
               </div>
-              <div className="print-only-sheet rounded-xl bg-gradient-to-br from-[#07382A] to-[#0F684E] text-white p-4 border border-amber-500/60 space-y-3">
-                <div className="flex items-center justify-between border-b border-white/15 pb-2.5">
-                  <div className="flex items-center gap-2">
+
+              <div
+                data-testid="participant-id-card"
+                className="print-id-card relative aspect-[85.6/53.98] w-full rounded-xl bg-gradient-to-br from-[#07382A] via-[#0B4F3B] to-[#0F684E] text-white p-4 border-2 border-[#C89B3C]/80 flex flex-col justify-between overflow-hidden shadow-md"
+              >
+                <div className="flex items-center justify-between border-b border-white/15 pb-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <KemenagLogo size="sm" />
-                    <div className="leading-tight">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                        Kemenag Kab. Jepara
+                    <div className="leading-tight min-w-0">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-amber-300 truncate">
+                        Kemenag Kab. Jepara · SAMAWA
                       </p>
-                      <p className="text-xs font-bold">Kartu Peserta BIMWIN</p>
+                      <p className="text-xs font-bold truncate">Kartu Peserta BIMWIN</p>
                     </div>
                   </div>
-                  <span className="font-mono-num text-[10px] text-emerald-200">
+                  <span className="font-mono-num text-[10px] text-emerald-100 shrink-0">
                     @{currentUser.username}
                   </span>
                 </div>
-                <div className="flex items-center justify-between gap-3">
+
+                <div className="flex items-center justify-between gap-3 py-1">
                   <div className="space-y-0.5 text-xs min-w-0">
-                    <p className="font-bold text-sm truncate">{currentUser.nama}</p>
-                    <p className="font-mono-num text-[11px] text-emerald-100">
+                    <p className="font-bold text-sm leading-tight truncate">{currentUser.nama}</p>
+                    <p className="font-mono-num text-[10px] text-emerald-100">
                       NIK: {maskNik(currentUser.nik)}
                     </p>
-                    <p className="text-[11px] text-emerald-100">
+                    <p className="text-[10px] text-emerald-100 truncate">
                       {currentUser.kua} · {normalizeVillageName(currentUser.desaTempatNikah, currentUser.kua)}
                     </p>
-                    <p className="text-[11px] text-amber-200">
+                    <p className="text-[10px] text-amber-200 truncate">
                       Pasangan: {currentUser.pasanganNama || 'Belum Tersinkron'}
                     </p>
                   </div>
                   <QRCodeBox
                     value={currentUser.progress?.nomorSertifikat || currentUser.username}
                     kind="peserta"
-                    size={64}
+                    size={58}
                     className="shrink-0"
                   />
+                </div>
+
+                <div className="flex items-center justify-between text-[9px] text-emerald-100/90 border-t border-white/15 pt-1.5">
+                  <span className="font-semibold uppercase tracking-wide text-amber-200">
+                    {currentUser.progress?.verifikasiFasilitator
+                      ? 'Terverifikasi Lulus BIMWIN'
+                      : 'Peserta Aktif BIMWIN'}
+                  </span>
+                  <span className="font-mono-num">85,6 × 53,98 mm</span>
                 </div>
               </div>
             </div>
 
-            {/* 3 Achievement Badges */}
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 space-y-3">
-              <h3 className="font-bold text-sm">Lencana Prestasi Catin</h3>
-              <div className="space-y-2">
-                {[
-                  {
-                    title: 'Pasangan Harmonis',
-                    desc: 'Berhasil menyinkronkan akun pasangan',
-                    earned: Boolean(currentUser.pasanganUsername),
-                  },
-                  {
-                    title: 'Pembelajar Sakinah',
-                    desc: 'Menuntaskan seluruh 5 Modul & Postest',
-                    earned: evalStep.moocFinished,
-                  },
-                  {
-                    title: 'Siap Keluarga Berkualitas',
-                    desc: 'Lulus terverifikasi Fasilitator & skrining gizi',
-                    earned: Boolean(currentUser.progress?.verifikasiFasilitator && currentUser.stunting),
-                  },
-                ].map((badge) => (
-                  <div
-                    key={badge.title}
-                    className={`p-3 rounded-xl border flex items-center justify-between gap-3 ${
-                      badge.earned
-                        ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/30'
-                        : 'border-slate-200 dark:border-emerald-950 opacity-60'
-                    }`}
-                  >
-                    <div>
-                      <p className="text-xs font-bold">{badge.title}</p>
-                      <p className="text-[11px] text-slate-500">{badge.desc}</p>
-                    </div>
-                    <UserCheck
-                      className={`w-4 h-4 shrink-0 ${
-                        badge.earned ? 'text-[#0F684E] dark:text-emerald-400' : 'text-slate-400'
-                      }`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Professional SVG Achievement Badges */}
+            <AchievementBadges user={currentUser} moocFinished={evalStep.moocFinished} />
           </div>
         </div>
       )}

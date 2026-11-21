@@ -28,6 +28,7 @@ import {
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { AttendanceSheetModal } from './OfficialDocuments';
 import { QRScannerModal } from './QRScannerModal';
+import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
@@ -130,7 +131,7 @@ export const FasilitatorDashboard: React.FC = () => {
     { id: 'binaan', label: 'Peserta Binaan', icon: Users, badge: readyToVerifyCount || undefined, section: 'Layanan KUA' },
     { id: 'kelas', label: 'Jadwal Kelas & Absensi', icon: Calendar, badge: myClasses.length, section: 'Layanan KUA' },
     { id: 'konsultasi', label: 'Konsultasi & Mediasi', icon: MessageSquare, badge: pendingConsults || undefined, section: 'Layanan KUA' },
-    { id: 'pengingat', label: 'Kirim Pengingat Peserta', icon: Bell, section: 'Komunikasi' },
+    { id: 'pengingat', label: 'Smart Reminder WA & Email', icon: Bell, section: 'Komunikasi' },
     { id: 'akun', label: 'Profil & Keamanan Akun', icon: UserCog, section: 'Akun Saya' },
   ];
 
@@ -263,7 +264,7 @@ export const FasilitatorDashboard: React.FC = () => {
                               {u.progress?.ikmDone ? 'Sudah' : 'Belum'}
                             </p>
                           </td>
-                          <td className="px-4 py-3 align-top">
+                          <td className="px-4 py-3 align-top space-y-1">
                             <select
                               value={currentAttend}
                               onChange={(e) =>
@@ -278,6 +279,11 @@ export const FasilitatorDashboard: React.FC = () => {
                               <option value="Hadir Kelas Online">Hadir Kelas Online</option>
                               <option value="Hadir Kelas Offline">Hadir Kelas Offline</option>
                             </select>
+                            {u.progress?.preferredClassMode && (
+                              <p className="text-[10px] font-semibold text-[#0F684E] dark:text-emerald-400">
+                                Pilihan Catin: Kelas {u.progress.preferredClassMode}
+                              </p>
+                            )}
                           </td>
                           <td className="px-4 py-3 align-top space-y-1.5 min-w-[220px]">
                             <input
@@ -538,70 +544,82 @@ export const FasilitatorDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: KIRIM PENGINGAT */}
+      {/* TAB 4: SMART REMINDER WA & EMAIL + PENGINGAT PORTAL */}
       {activeTab === 'pengingat' && (
-        <div className="max-w-xl bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
-          <div>
-            <h2 className="font-display text-xl font-semibold">Kirim Pengingat Peserta Binaan</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Pesan akan muncul di Kotak Masuk Pengingat peserta {currentUser.kua}.
-            </p>
-          </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!remTitle.trim() || !remMsg.trim()) return;
-              sendReminderNotification(currentUser.kua, remTitle, remMsg, remUser || undefined);
-              setRemTitle('');
-              setRemMsg('');
-              setRemUser('');
-            }}
-            className="space-y-3.5 text-xs sm:text-sm"
-          >
+        <div className="space-y-6">
+          <SmartReminderPanel
+            scopeMode="kua"
+            kuaName={currentUser.kua}
+            roleTitle={`Fasilitator ${currentUser.kua}`}
+          />
+
+          <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
             <div>
-              <label className="block font-semibold mb-1">Sasaran Penerima</label>
-              <select
-                value={remUser}
-                onChange={(e) => setRemUser(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              >
-                <option value="">Seluruh Peserta {currentUser.kua}</option>
-                {myPeserta.map((p) => (
-                  <option key={p.id} value={p.username}>
-                    {p.nama} (@{p.username})
-                  </option>
-                ))}
-              </select>
+              <h3 className="font-display text-lg font-semibold">
+                Pengumuman Portal Cepat — {currentUser.kua}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Pesan akan muncul di Kotak Masuk Pengingat peserta {currentUser.kua}.
+              </p>
             </div>
-            <div>
-              <label className="block font-semibold mb-1">Judul Pengingat *</label>
-              <input
-                type="text"
-                required
-                value={remTitle}
-                onChange={(e) => setRemTitle(e.target.value)}
-                placeholder="Contoh: Jadwal Verifikasi & Kelas Tatap Muka"
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <div>
-              <label className="block font-semibold mb-1">Isi Pesan *</label>
-              <textarea
-                rows={4}
-                required
-                value={remMsg}
-                onChange={(e) => setRemMsg(e.target.value)}
-                placeholder="Tuliskan arahan jadwal, berkas, atau pengingat penyelesaian modul..."
-                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!remTitle.trim() || !remMsg.trim()) return;
+                sendReminderNotification(currentUser.kua, remTitle, remMsg, remUser || undefined);
+                setRemTitle('');
+                setRemMsg('');
+                setRemUser('');
+              }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 text-xs sm:text-sm"
             >
-              Kirim Pengingat Sekarang
-            </button>
-          </form>
+              <div className="lg:col-span-4">
+                <label className="block font-semibold mb-1">Sasaran Penerima</label>
+                <select
+                  value={remUser}
+                  onChange={(e) => setRemUser(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                >
+                  <option value="">Seluruh Peserta {currentUser.kua}</option>
+                  {myPeserta.map((p) => (
+                    <option key={p.id} value={p.username}>
+                      {p.nama} (@{p.username})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="lg:col-span-8">
+                <label className="block font-semibold mb-1">Judul Pengingat *</label>
+                <input
+                  type="text"
+                  required
+                  value={remTitle}
+                  onChange={(e) => setRemTitle(e.target.value)}
+                  placeholder="Contoh: Jadwal Verifikasi & Kelas Tatap Muka"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div className="lg:col-span-12">
+                <label className="block font-semibold mb-1">Isi Pesan *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={remMsg}
+                  onChange={(e) => setRemMsg(e.target.value)}
+                  placeholder="Tuliskan arahan jadwal, berkas, atau pengingat penyelesaian modul..."
+                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                />
+              </div>
+              <div className="lg:col-span-12 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                >
+                  Kirim Pengumuman Portal
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

@@ -13,12 +13,14 @@ import {
   Gender,
   ModuleDefinition,
   QuizQuestion,
+  ReminderLogItem,
   StuntingCheckRecord,
   SystemSettings,
   UserRole,
 } from '../types/bimwin';
 import {
   calculateAgeFromDob,
+  canAccessClassSelection,
   canFasilitatorVerify,
   formatIndonesianDate,
   formatTtlFromParts,
@@ -64,6 +66,7 @@ export interface RegisterPayload {
   pendidikan: EducationLevel;
   pekerjaan: string;
   noHp: string;
+  email?: string;
   kua: string;
   desaTempatNikah: string;
   alamat: string;
@@ -112,14 +115,31 @@ interface BimwinContextValue {
     disiplinPositif: string;
     jawabanKuis: Record<number, number>;
   }) => void;
-  rsvpClass: (classId: string, status: 'InsyaAllah Hadir' | 'Izin', alasanIzin?: string) => void;
+  selectClassMode: (mode: 'Online' | 'Offline') => { ok: boolean; error?: string };
+  rsvpClass: (
+    classId: string,
+    status: 'InsyaAllah Hadir' | 'Izin',
+    alasanIzin?: string
+  ) => { ok: boolean; error?: string };
   submitConsultation: (topik: string, pertanyaan: string) => void;
   submitPostMarriageJournal: (payload: {
     bulanKe: number;
     skorHarmoni: number;
+    aspekUtama?: string;
     catatan: string;
     butuhMediasi: boolean;
-  }) => void;
+  }) => { ok: boolean; error?: string };
+  updatePostMarriageJournal: (
+    journalId: string,
+    updates: {
+      bulanKe: number;
+      skorHarmoni: number;
+      aspekUtama?: string;
+      catatan: string;
+      butuhMediasi: boolean;
+    }
+  ) => { ok: boolean; error?: string };
+  deletePostMarriageJournal: (journalId: string) => void;
   updateOwnProfile: (updates: Partial<BimwinUser>) => void;
   toggleBerkasChecklist: (itemKey: string) => void;
   markNotificationRead: (notifId: string) => void;
@@ -140,6 +160,15 @@ interface BimwinContextValue {
   verifyClassAttendee: (classId: string, username: string) => void;
   replyConsultation: (consultationId: string, reply: string) => void;
   sendReminderNotification: (targetKua: string, judul: string, pesan: string, targetUsername?: string) => void;
+  logSmartReminder: (payload: {
+    pesertaUsername: string;
+    pesertaNama: string;
+    kua: string;
+    channel: ReminderLogItem['channel'];
+    subject: string;
+    message: string;
+    alsoSendInApp?: boolean;
+  }) => void;
 
   // Admin & SuperAdmin workflows
   updatePesertaByAdmin: (pesertaId: string, updates: Partial<BimwinUser>) => void;
@@ -172,13 +201,51 @@ interface BimwinContextValue {
 
 const BimwinContext = createContext<BimwinContextValue | null>(null);
 
+function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinStoreSnapshot {
+  const seed = createInitialSeedData();
+  const seedEmailByUsername = new Map(
+    seed.users.filter((u) => u.email).map((u) => [u.username.toLowerCase(), u.email])
+  );
+  const users = Array.isArray(parsed.users) && parsed.users.length > 0
+    ? parsed.users.map((u) => ({
+        ...u,
+        email: u.email || seedEmailByUsername.get(u.username.toLowerCase()),
+      }))
+    : seed.users;
+
+  return {
+    ...seed,
+    ...parsed,
+    users,
+    modules: Array.isArray(parsed.modules) && parsed.modules.length > 0 ? parsed.modules : seed.modules,
+    pretest: Array.isArray(parsed.pretest) && parsed.pretest.length > 0 ? parsed.pretest : seed.pretest,
+    postest: Array.isArray(parsed.postest) && parsed.postest.length > 0 ? parsed.postest : seed.postest,
+    compatibilityQuiz:
+      Array.isArray(parsed.compatibilityQuiz) && parsed.compatibilityQuiz.length > 0
+        ? parsed.compatibilityQuiz
+        : seed.compatibilityQuiz,
+    classes: Array.isArray(parsed.classes) ? parsed.classes : seed.classes,
+    consultations: Array.isArray(parsed.consultations) ? parsed.consultations : seed.consultations,
+    journals: Array.isArray(parsed.journals) ? parsed.journals : seed.journals,
+    ikmSurveys: Array.isArray(parsed.ikmSurveys) ? parsed.ikmSurveys : seed.ikmSurveys,
+    notifications: Array.isArray(parsed.notifications) ? parsed.notifications : seed.notifications,
+    faqs: Array.isArray(parsed.faqs) ? parsed.faqs : seed.faqs,
+    documents: Array.isArray(parsed.documents) ? parsed.documents : seed.documents,
+    gallery: Array.isArray(parsed.gallery) ? parsed.gallery : seed.gallery,
+    kritikSaran: Array.isArray(parsed.kritikSaran) ? parsed.kritikSaran : seed.kritikSaran,
+    auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : seed.auditLogs,
+    reminderLogs: Array.isArray(parsed.reminderLogs) ? parsed.reminderLogs : [],
+    settings: parsed.settings || seed.settings,
+  };
+}
+
 function loadInitialStore(): BimwinStoreSnapshot {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as BimwinStoreSnapshot;
+      const parsed = JSON.parse(raw) as Partial<BimwinStoreSnapshot>;
       if (parsed && Array.isArray(parsed.users) && Array.isArray(parsed.modules) && parsed.users.length > 0) {
-        return parsed;
+        return normalizeStoreSnapshot(parsed);
       }
     }
   } catch {
@@ -336,6 +403,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         pendidikan: payload.pendidikan,
         pekerjaan: payload.pekerjaan.trim(),
         noHp: payload.noHp.trim(),
+        email: payload.email?.trim() || undefined,
         kua: payload.kua,
         desaTempatNikah: normalizeVillageName(payload.desaTempatNikah, payload.kua),
         alamat: payload.alamat.trim(),
@@ -531,6 +599,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         payload.desaTempatNikah || currentUser.desaTempatNikah,
         targetKua
       );
+      const targetTanggalNikah = payload.tanggalRencanaNikah || currentUser.tanggalRencanaNikah;
 
       const syncCheck = validatePartnerSync(currentUser, {
         username: cleanUsername,
@@ -539,6 +608,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         kua: targetKua,
         desaTempatNikah: targetDesa,
         jenisKelamin: payload.jenisKelamin,
+        tanggalRencanaNikah: targetTanggalNikah,
       });
       if (!syncCheck.ok) {
         return syncCheck;
@@ -560,6 +630,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         pendidikan: payload.pendidikan,
         pekerjaan: payload.pekerjaan.trim(),
         noHp: payload.noHp.trim(),
+        email: payload.email?.trim() || undefined,
         kua: targetKua,
         desaTempatNikah: targetDesa,
         alamat: payload.alamat.trim(),
@@ -827,9 +898,41 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [currentUser, data.users, pushToast]
   );
 
+  const selectClassMode = useCallback(
+    (mode: 'Online' | 'Offline') => {
+      if (!currentUser || currentUser.role !== 'Peserta') {
+        return { ok: false, error: 'Hanya peserta yang dapat memilih moda kelas.' };
+      }
+      const access = canAccessClassSelection(currentUser, data.modules.length);
+      if (!access.unlocked) {
+        pushToast('error', 'Pemilihan Kelas Masih Terkunci', access.reason);
+        return { ok: false, error: access.reason };
+      }
+      updateCurrentPesertaProgress((p) => ({
+        ...p,
+        preferredClassMode: mode,
+      }));
+      pushToast(
+        'success',
+        `Pilihan Kelas ${mode} Tersimpan`,
+        mode === 'Online'
+          ? 'Anda memilih Kelas Online. Silakan konfirmasi kehadiran pada jadwal daring KUA.'
+          : 'Anda memilih Kelas Offline (Tatap Muka). Silakan konfirmasi kehadiran di Balai Nikah KUA.'
+      );
+      return { ok: true };
+    },
+    [currentUser, data.modules.length, pushToast, updateCurrentPesertaProgress]
+  );
+
   const rsvpClass = useCallback(
     (classId: string, status: 'InsyaAllah Hadir' | 'Izin', alasanIzin?: string) => {
-      if (!currentUser) return;
+      if (!currentUser) return { ok: false, error: 'Sesi tidak aktif.' };
+      const access = canAccessClassSelection(currentUser, data.modules.length);
+      if (!access.unlocked) {
+        pushToast('error', 'Kelas Masih Terkunci', access.reason);
+        return { ok: false, error: access.reason };
+      }
+      const targetClass = data.classes.find((c) => c.id === classId);
       setData((prev) => ({
         ...prev,
         classes: prev.classes.map((cls) => {
@@ -850,10 +953,22 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             ],
           };
         }),
+        users: prev.users.map((u) =>
+          u.id === currentUser.id && u.progress && targetClass
+            ? {
+                ...u,
+                progress: {
+                  ...u.progress,
+                  preferredClassMode: targetClass.tipe,
+                },
+              }
+            : u
+        ),
       }));
       pushToast('success', 'Konfirmasi Kelas Tercatat', `Status kehadiran: ${status}`);
+      return { ok: true };
     },
-    [currentUser, pushToast]
+    [currentUser, data.classes, data.modules.length, pushToast]
   );
 
   const submitConsultation = useCallback(
@@ -868,13 +983,13 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             pesertaUsername: currentUser.username,
             pesertaNama: currentUser.nama,
             kua: currentUser.kua,
-            topik,
+            topik: topik.trim(),
             pertanyaan: pertanyaan.trim(),
             smartFaqReply,
             status: 'Menunggu',
             createdAt: new Date().toISOString(),
           },
-          ...prev.consultations,
+          ...(prev.consultations || []),
         ],
       }));
       pushToast(
@@ -887,39 +1002,72 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   );
 
   const submitPostMarriageJournal = useCallback(
-    (payload: { bulanKe: number; skorHarmoni: number; catatan: string; butuhMediasi: boolean }) => {
-      if (!currentUser) return;
+    (payload: {
+      bulanKe: number;
+      skorHarmoni: number;
+      aspekUtama?: string;
+      catatan: string;
+      butuhMediasi: boolean;
+    }) => {
+      if (!currentUser) {
+        return { ok: false, error: 'Sesi peserta tidak aktif.' };
+      }
+      const bulanKe = Math.max(1, Math.min(600, Math.round(Number(payload.bulanKe) || 0)));
+      const skorHarmoni = Math.max(1, Math.min(5, Math.round(Number(payload.skorHarmoni) || 0)));
+      const cleanNote = payload.catatan.trim();
+      if (!bulanKe || bulanKe < 1) {
+        return { ok: false, error: 'Masukkan usia pernikahan (minimal bulan ke-1).' };
+      }
+      if (cleanNote.length < 5) {
+        return { ok: false, error: 'Catatan refleksi minimal 5 karakter agar dapat dievaluasi.' };
+      }
+
+      const nowIso = new Date().toISOString();
+      const consultId = payload.butuhMediasi
+        ? `kon_med_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
+        : undefined;
+      const journalId = `jur_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+
       setData((prev) => {
-        const nextConsults = payload.butuhMediasi
-          ? [
-              {
-                id: `kon_med_${Date.now()}`,
-                pesertaUsername: currentUser.username,
-                pesertaNama: currentUser.nama,
-                kua: currentUser.kua,
-                topik: 'Permohonan Mediasi Keluarga (Pasca Nikah)',
-                pertanyaan: `[Eskalasi Evaluasi Bulan ke-${payload.bulanKe} · Skor Harmoni ${payload.skorHarmoni}/5] ${payload.catatan.trim()}`,
-                status: 'Menunggu' as const,
-                isEscalatedMediasi: true,
-                createdAt: new Date().toISOString(),
-              },
-              ...prev.consultations,
-            ]
-          : prev.consultations;
+        const existingConsults = Array.isArray(prev.consultations) ? prev.consultations : [];
+        const existingJournals = Array.isArray(prev.journals) ? prev.journals : [];
+        const nextConsults =
+          payload.butuhMediasi && consultId
+            ? [
+                {
+                  id: consultId,
+                  pesertaUsername: currentUser.username,
+                  pesertaNama: currentUser.nama,
+                  kua: currentUser.kua,
+                  topik: 'Permohonan Mediasi Keluarga (Pasca Nikah)',
+                  pertanyaan: `[Eskalasi Evaluasi Bulan ke-${bulanKe} · Skor Harmoni ${skorHarmoni}/5${
+                    payload.aspekUtama ? ` · Aspek: ${payload.aspekUtama}` : ''
+                  }] ${cleanNote}`,
+                  status: 'Menunggu' as const,
+                  isEscalatedMediasi: true,
+                  createdAt: nowIso,
+                },
+                ...existingConsults,
+              ]
+            : existingConsults;
 
         return {
           ...prev,
           journals: [
             {
-              id: `jur_${Date.now()}`,
+              id: journalId,
               pesertaUsername: currentUser.username,
               pesertaNama: currentUser.nama,
               kua: currentUser.kua,
-              ...payload,
-              catatan: payload.catatan.trim(),
-              createdAt: new Date().toISOString(),
+              bulanKe,
+              skorHarmoni,
+              aspekUtama: payload.aspekUtama?.trim() || 'Komunikasi & Kesalingan',
+              catatan: cleanNote,
+              butuhMediasi: payload.butuhMediasi,
+              linkedConsultationId: consultId,
+              createdAt: nowIso,
             },
-            ...prev.journals,
+            ...existingJournals,
           ],
           consultations: nextConsults,
         };
@@ -931,6 +1079,96 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ? 'Permohonan pendampingan mediasi telah diteruskan ke Fasilitator KUA Anda.'
           : 'Tetap jaga komunikasi positif dan rasio interaksi 5:1.'
       );
+      return { ok: true };
+    },
+    [currentUser, pushToast]
+  );
+
+  const updatePostMarriageJournal = useCallback(
+    (
+      journalId: string,
+      updates: {
+        bulanKe: number;
+        skorHarmoni: number;
+        aspekUtama?: string;
+        catatan: string;
+        butuhMediasi: boolean;
+      }
+    ) => {
+      if (!currentUser) return { ok: false, error: 'Sesi tidak aktif.' };
+      const cleanNote = updates.catatan.trim();
+      if (cleanNote.length < 5) {
+        return { ok: false, error: 'Catatan refleksi minimal 5 karakter.' };
+      }
+      const bulanKe = Math.max(1, Math.min(600, Math.round(Number(updates.bulanKe) || 1)));
+      const skorHarmoni = Math.max(1, Math.min(5, Math.round(Number(updates.skorHarmoni) || 5)));
+      const nowIso = new Date().toISOString();
+
+      setData((prev) => {
+        const existingJournals = Array.isArray(prev.journals) ? prev.journals : [];
+        const existingConsults = Array.isArray(prev.consultations) ? prev.consultations : [];
+        const target = existingJournals.find(
+          (j) => j.id === journalId && j.pesertaUsername === currentUser.username
+        );
+        if (!target) return prev;
+
+        let consultId = target.linkedConsultationId;
+        let nextConsults = existingConsults;
+        if (updates.butuhMediasi && !consultId) {
+          consultId = `kon_med_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+          nextConsults = [
+            {
+              id: consultId,
+              pesertaUsername: currentUser.username,
+              pesertaNama: currentUser.nama,
+              kua: currentUser.kua,
+              topik: 'Permohonan Mediasi Keluarga (Pasca Nikah)',
+              pertanyaan: `[Eskalasi Evaluasi Bulan ke-${bulanKe} · Skor Harmoni ${skorHarmoni}/5${
+                updates.aspekUtama ? ` · Aspek: ${updates.aspekUtama}` : ''
+              }] ${cleanNote}`,
+              status: 'Menunggu' as const,
+              isEscalatedMediasi: true,
+              createdAt: nowIso,
+            },
+            ...existingConsults,
+          ];
+        }
+
+        return {
+          ...prev,
+          journals: existingJournals.map((j) =>
+            j.id === journalId
+              ? {
+                  ...j,
+                  bulanKe,
+                  skorHarmoni,
+                  aspekUtama: updates.aspekUtama?.trim() || j.aspekUtama || 'Komunikasi & Kesalingan',
+                  catatan: cleanNote,
+                  butuhMediasi: updates.butuhMediasi,
+                  linkedConsultationId: consultId,
+                  updatedAt: nowIso,
+                }
+              : j
+          ),
+          consultations: nextConsults,
+        };
+      });
+      pushToast('success', 'Jurnal Evaluasi Diperbarui', 'Perubahan refleksi pasca nikah telah disimpan.');
+      return { ok: true };
+    },
+    [currentUser, pushToast]
+  );
+
+  const deletePostMarriageJournal = useCallback(
+    (journalId: string) => {
+      if (!currentUser) return;
+      setData((prev) => ({
+        ...prev,
+        journals: (prev.journals || []).filter(
+          (j) => !(j.id === journalId && j.pesertaUsername === currentUser.username)
+        ),
+      }));
+      pushToast('info', 'Catatan Jurnal Dihapus');
     },
     [currentUser, pushToast]
   );
@@ -1301,6 +1539,63 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [appendAudit, currentUser, pushToast]
   );
 
+  const logSmartReminder = useCallback(
+    (payload: {
+      pesertaUsername: string;
+      pesertaNama: string;
+      kua: string;
+      channel: ReminderLogItem['channel'];
+      subject: string;
+      message: string;
+      alsoSendInApp?: boolean;
+    }) => {
+      if (!currentUser) return;
+      const nowIso = new Date().toISOString();
+      const logEntry: ReminderLogItem = {
+        id: `rem_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        pesertaUsername: payload.pesertaUsername,
+        pesertaNama: payload.pesertaNama,
+        kua: payload.kua,
+        channel: payload.channel,
+        subject: payload.subject.trim(),
+        message: payload.message.trim(),
+        sentBy: currentUser.nama,
+        sentByRole: currentUser.role,
+        sentAt: nowIso,
+      };
+      setData((prev) => {
+        const nextNotifs =
+          payload.channel === 'InApp' || payload.alsoSendInApp
+            ? [
+                {
+                  id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+                  targetKua: payload.kua,
+                  targetUsername: payload.pesertaUsername,
+                  judul: payload.subject.trim(),
+                  pesan: payload.message.trim(),
+                  pengirim: `${currentUser.nama} (${payload.channel})`,
+                  readBy: [],
+                  createdAt: nowIso,
+                },
+                ...(prev.notifications || []),
+              ]
+            : prev.notifications || [];
+
+        return appendAudit(
+          {
+            ...prev,
+            notifications: nextNotifs,
+            reminderLogs: [logEntry, ...(prev.reminderLogs || [])].slice(0, 200),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Mengirim Smart Reminder ${payload.channel} ke ${payload.pesertaNama} (${payload.kua})`
+        );
+      });
+    },
+    [appendAudit, currentUser]
+  );
+
   const updatePesertaByAdmin = useCallback(
     (pesertaId: string, updates: Partial<BimwinUser>) => {
       if (!currentUser) return;
@@ -1629,7 +1924,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!check.ok) {
         return { ok: false, error: check.error };
       }
-      const parsed = check.snapshot;
+      const parsed = normalizeStoreSnapshot(check.snapshot);
       setData(
         appendAudit(
           parsed,
@@ -1684,9 +1979,12 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     submitIkmSurvey,
     saveStuntingCheck,
     saveKompakData,
+    selectClassMode,
     rsvpClass,
     submitConsultation,
     submitPostMarriageJournal,
+    updatePostMarriageJournal,
+    deletePostMarriageJournal,
     updateOwnProfile,
     toggleBerkasChecklist,
     markNotificationRead,
@@ -1698,6 +1996,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     verifyClassAttendee,
     replyConsultation,
     sendReminderNotification,
+    logSmartReminder,
     updatePesertaByAdmin,
     deleteUserByAdmin,
     saveStaffAccount,

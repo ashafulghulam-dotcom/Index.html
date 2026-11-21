@@ -206,6 +206,7 @@ export interface PesertaStepEvaluation {
   canAccessModules: boolean;
   canTakePostest: boolean;
   canOpenSelesai: boolean;
+  canChooseClass: boolean;
   canDownloadDocuments: boolean;
   nextActionLabel: string;
   progressPercent: number;
@@ -224,6 +225,7 @@ export function evaluatePesertaStep(
   const moocFinished = hasPartner && pretestDone && allModulesDone && postestDone;
   const selesaiClicked = Boolean(p?.selesaiClicked) || moocFinished;
   const ikmDone = Boolean(p?.ikmDone);
+  const canChooseClass = moocFinished && ikmDone;
   const verified = Boolean(p?.verifikasiFasilitator);
   const canDownloadDocuments = moocFinished && ikmDone && verified;
 
@@ -274,9 +276,50 @@ export function evaluatePesertaStep(
     canAccessModules: hasPartner && pretestDone,
     canTakePostest: hasPartner && pretestDone && allModulesDone,
     canOpenSelesai: moocFinished,
+    canChooseClass,
     canDownloadDocuments,
     nextActionLabel,
     progressPercent,
+  };
+}
+
+export interface ClassSelectionAccessState {
+  unlocked: boolean;
+  moocFinished: boolean;
+  ikmDone: boolean;
+  missingRequirements: string[];
+  reason?: string;
+}
+
+/**
+ * Participants may choose Online/Offline class sessions ONLY after completing the full MOOC
+ * (partner sync, pretest, 5 modules, postest) AND submitting the IKM satisfaction survey.
+ */
+export function canAccessClassSelection(
+  user: BimwinUser,
+  totalModules: number = 5
+): ClassSelectionAccessState {
+  const evalStep = evaluatePesertaStep(user, totalModules);
+  const moocFinished = evalStep.moocFinished;
+  const ikmDone = Boolean(user.progress?.ikmDone);
+  const missingRequirements: string[] = [];
+
+  if (!moocFinished) {
+    missingRequirements.push('Menuntaskan MOOC (Sinkron Pasangan, Pretest, 5 Modul & Postest)');
+  }
+  if (!ikmDone) {
+    missingRequirements.push('Mengisi Survei Kepuasan Masyarakat (IKM)');
+  }
+
+  const unlocked = moocFinished && ikmDone;
+  return {
+    unlocked,
+    moocFinished,
+    ikmDone,
+    missingRequirements,
+    reason: unlocked
+      ? undefined
+      : `Pilihan Kelas Online & Offline masih terkunci. Silakan lengkapi: ${missingRequirements.join(' dan ')}.`,
   };
 }
 
@@ -292,6 +335,7 @@ export interface PartnerSyncCandidate {
   kua?: string;
   desaTempatNikah?: string;
   jenisKelamin?: BimwinUser['jenisKelamin'];
+  tanggalRencanaNikah?: string;
   pasanganUsername?: string;
 }
 
@@ -301,6 +345,7 @@ export interface PartnerSyncCandidate {
  * 2. Both accounts must select the exact same KUA Kecamatan.
  * 3. Both accounts must select the exact same Desa/Kelurahan Tempat Nikah.
  * 4. Pair must consist of opposite genders (Laki-laki & Perempuan).
+ * 5. Both accounts must have the exact same Rencana Tanggal Akad Nikah.
  */
 export function validatePartnerSync(
   currentUser: BimwinUser,
@@ -364,6 +409,20 @@ export function validatePartnerSync(
       ok: false,
       error:
         'Sinkronisasi ditolak: Pasangan calon pengantin wajib terdiri dari Laki-laki dan Perempuan (tidak dapat menyinkronkan sesama jenis kelamin).',
+    };
+  }
+
+  // 4. Same Rencana Tanggal Akad Nikah
+  const myDate = String(currentUser.tanggalRencanaNikah || '').trim();
+  const partnerDate = String(partner.tanggalRencanaNikah || '').trim();
+  if (!myDate || !partnerDate || myDate !== partnerDate) {
+    const myDateLabel = myDate ? formatIndonesianDate(`${myDate}T00:00:00`) : 'belum diisi';
+    const partnerDateLabel = partnerDate
+      ? formatIndonesianDate(`${partnerDate}T00:00:00`)
+      : 'belum diisi';
+    return {
+      ok: false,
+      error: `Sinkronisasi ditolak: Rencana tanggal akad nikah harus sama. Akun Anda memilih ${myDateLabel}, sedangkan pasangan memilih ${partnerDateLabel}.`,
     };
   }
 

@@ -62,6 +62,14 @@ export const DOCUMENT_A4_SPECS: Record<DocumentA4Spec['id'], DocumentA4Spec> = {
   },
 };
 
+export const ID_CARD_SPEC = {
+  id: 'kartu_peserta' as const,
+  label: 'Kartu Peserta Digital BIMWIN (85,6 × 53,98 mm)',
+  orientation: 'landscape' as const,
+  widthMm: 85.6,
+  heightMm: 53.98,
+};
+
 export interface ExecutiveReportRow {
   unit: string;
   peserta: number;
@@ -144,6 +152,33 @@ export function printA4Document(orientation: A4Orientation): void {
 
   const cleanup = () => {
     document.body.classList.remove('bimwin-printing-sheet');
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+
+  window.setTimeout(() => {
+    window.print();
+    window.setTimeout(cleanup, 1200);
+  }, 60);
+}
+
+/**
+ * Triggers browser print dialog sized exactly to ISO/IEC 7810 ID-1 (CR80: 85.6mm × 53.98mm)
+ * so only the participant ID card is printed at true card size.
+ */
+export function printParticipantCard(): void {
+  const styleId = 'bimwin-dynamic-page-style';
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = `@media print { @page { size: ${ID_CARD_SPEC.widthMm}mm ${ID_CARD_SPEC.heightMm}mm; margin: 0; } }`;
+  document.body.classList.add('bimwin-printing-card');
+
+  const cleanup = () => {
+    document.body.classList.remove('bimwin-printing-card');
     window.removeEventListener('afterprint', cleanup);
   };
   window.addEventListener('afterprint', cleanup);
@@ -1295,4 +1330,146 @@ export async function downloadAttendancePdfA4(schedule: BimwinClassSchedule): Pr
   }
 
   doc.save(`Daftar-Hadir-${sanitizeFilenameSegment(schedule.kodeAbsen)}-A4.pdf`);
+}
+
+/**
+ * 6. KARTU PESERTA DIGITAL (ID CARD) — EXACT CR80 / ISO ID-1 (85.6mm × 53.98mm)
+ */
+export async function downloadParticipantCardPdf(user: BimwinUser): Promise<void> {
+  const W = ID_CARD_SPEC.widthMm; // 85.6 mm
+  const H = ID_CARD_SPEC.heightMm; // 53.98 mm
+  const qrValue = user.progress?.nomorSertifikat || user.username;
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: [W, H],
+    compress: true,
+  });
+
+  const [kemenagImg, samawaImg, qrPng] = await Promise.all([
+    loadImageAsPngDataUrl(KEMENAG_LOGO_SVG, 220),
+    loadImageAsPngDataUrl(SAMAWA_LOGO_PATH, 140),
+    generateQrPng(qrValue, 320),
+  ]);
+
+  // Rich institutional deep-emerald background
+  doc.setFillColor(7, 56, 42);
+  doc.rect(0, 0, W, H, 'F');
+
+  // Subtle decorative lighter emerald diagonal accent block on right
+  doc.setFillColor(15, 104, 78);
+  doc.triangle(W * 0.56, 0, W, 0, W, H, 'F');
+  doc.setFillColor(11, 82, 61);
+  doc.triangle(W * 0.56, 0, W, H, W * 0.44, H, 'F');
+
+  // Gold top accent stripe & subtle inner border frame
+  doc.setFillColor(198, 146, 20);
+  doc.rect(0, 0, W, 1.5, 'F');
+
+  doc.setDrawColor(212, 166, 46);
+  doc.setLineWidth(0.32);
+  doc.roundedRect(2.2, 2.8, W - 4.4, H - 5.0, 2.0, 2.0);
+
+  // Header band
+  if (kemenagImg) {
+    doc.addImage(kemenagImg.dataUrl, 'PNG', 4.6, 4.6, 8.2, 8.2);
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.4);
+  doc.setTextColor(246, 211, 101);
+  doc.text('KEMENTERIAN AGAMA KABUPATEN JEPARA', 14.2, 7.6);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.6);
+  doc.setTextColor(255, 255, 255);
+  doc.text('KARTU PESERTA BIMWIN', 14.2, 11.4);
+
+  if (samawaImg) {
+    const sh = 3.2;
+    const sw = (samawaImg.width / samawaImg.height) * sh;
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(W - 4.8 - sw - 2.2, 5.2, sw + 2.2, sh + 1.8, 1.0, 1.0, 'F');
+    doc.addImage(samawaImg.dataUrl, 'PNG', W - 4.8 - sw - 1.1, 6.1, sw, sh);
+  }
+
+  // Header divider line
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.18);
+  doc.line(4.6, 14.4, W - 4.6, 14.4);
+
+  // Participant identity block (left)
+  const leftX = 4.8;
+  const maxTextW = 54.5;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.2);
+  doc.setTextColor(255, 255, 255);
+  const nameLines = doc.splitTextToSize(user.nama, maxTextW);
+  doc.text(nameLines[0] || user.nama, leftX, 20.0);
+
+  doc.setFont('courier', 'bold');
+  doc.setFontSize(6.2);
+  doc.setTextColor(209, 250, 229);
+  doc.text(`@${user.username}  |  NIK: ${maskNik(user.nik)}`, leftX, 24.4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.3);
+  doc.setTextColor(236, 253, 245);
+  const kuaLine = `${user.kua} · Desa ${normalizeVillageName(user.desaTempatNikah, user.kua)}`;
+  doc.text(doc.splitTextToSize(kuaLine, maxTextW)[0] || kuaLine, leftX, 29.0);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.1);
+  doc.setTextColor(253, 230, 138);
+  const partnerLine = `Pasangan: ${user.pasanganNama || 'Belum Tersinkron'}`;
+  doc.text(doc.splitTextToSize(partnerLine, maxTextW)[0] || partnerLine, leftX, 33.4);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(5.9);
+  doc.setTextColor(209, 250, 229);
+  const akadText = user.tanggalRencanaNikah
+    ? `Rencana Akad: ${formatIndonesianDate(`${user.tanggalRencanaNikah}T00:00:00`)}`
+    : 'Rencana Akad: Belum diisi';
+  doc.text(akadText, leftX, 37.6);
+
+  // Verification status pill
+  const isVerified = Boolean(user.progress?.verifikasiFasilitator);
+  doc.setFillColor(isVerified ? 198 : 15, isVerified ? 146 : 82, isVerified ? 20 : 61);
+  doc.roundedRect(leftX, 40.4, 46, 5.2, 1.2, 1.2, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(5.6);
+  doc.setTextColor(isVerified ? 15 : 236, isVerified ? 23 : 253, isVerified ? 42 : 245);
+  doc.text(
+    isVerified
+      ? `TERVERIFIKASI · ${user.progress?.nomorSertifikat || 'LULUS'}`
+      : 'STATUS: PESERTA AKTIF MOOC',
+    leftX + 2.2,
+    43.8
+  );
+
+  // Crisp QR Code container (right)
+  const qrBoxSize = 21.5;
+  const qrX = W - 4.8 - qrBoxSize;
+  const qrY = 17.2;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(212, 166, 46);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1.6, 1.6, 'FD');
+  if (qrPng) {
+    doc.addImage(qrPng, 'PNG', qrX + 1.1, qrY + 1.1, qrBoxSize - 2.2, qrBoxSize - 2.2);
+  }
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(4.9);
+  doc.setTextColor(253, 230, 138);
+  doc.text('PINDAI QR ABSENSI', qrX + qrBoxSize / 2, qrY + qrBoxSize + 3.2, { align: 'center' });
+
+  // Footer strip
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(4.8);
+  doc.setTextColor(167, 243, 208);
+  doc.text('SAMAWA · Seksi Bimas Islam Kemenag Kab. Jepara', 4.8, H - 3.3);
+  doc.text('85,6 × 53,98 mm (ID-1)', W - 4.8, H - 3.3, { align: 'right' });
+
+  doc.save(`Kartu-Peserta-BIMWIN-${sanitizeFilenameSegment(user.username)}-85.6x53.98mm.pdf`);
 }

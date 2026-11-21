@@ -58,6 +58,7 @@ export interface PesertaProgress {
   moduleScores: Record<number, number>; // moduleId -> best score 0-100
   selesaiClicked: boolean;
   ikmDone: boolean;
+  preferredClassMode?: 'Online' | 'Offline';
   verifikasiFasilitator: boolean;
   verifikasiOleh?: string;
   verifikasiTanggal?: string;
@@ -82,6 +83,7 @@ export interface BimwinUser {
   pendidikan?: EducationLevel;
   pekerjaan?: string;
   noHp?: string;
+  email?: string;
   kua: string;
   desaTempatNikah?: string;
   alamat?: string;
@@ -184,9 +186,25 @@ export interface PostMarriageJournal {
   kua: string;
   bulanKe: number;
   skorHarmoni: number; // 1-5
+  aspekUtama?: string;
   catatan: string;
   butuhMediasi: boolean;
+  linkedConsultationId?: string;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ReminderLogItem {
+  id: string;
+  pesertaUsername: string;
+  pesertaNama: string;
+  kua: string;
+  channel: 'WhatsApp' | 'Email' | 'InApp';
+  subject: string;
+  message: string;
+  sentBy: string;
+  sentByRole: UserRole;
+  sentAt: string;
 }
 
 export interface NotificationItem {
