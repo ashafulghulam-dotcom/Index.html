@@ -36,12 +36,14 @@ import {
   calculateCompatibilityScore,
   calculateFertilityWindow,
   calculateStuntingReadiness,
+  canAccessModuleQuiz,
   evaluatePesertaStep,
   formatIndonesianDate,
   isUnderageMarriage,
   maskNik,
   normalizeVillageName,
 } from '../utils/bimwinLogic';
+import { formatDurationClock, resolveRequiredWatchSeconds } from '../utils/videoWatchGuard';
 import { CreatePartnerModal } from './AuthModals';
 import {
   IkmSurveyModal,
@@ -565,6 +567,13 @@ export const PesertaDashboard: React.FC = () => {
                     Buat Akun Pasangan
                   </button>
                 </form>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Syarat sinkronisasi: pilihan <strong>KUA sama ({currentUser.kua})</strong>,{' '}
+                  <strong>
+                    Desa Tempat Nikah sama ({normalizeVillageName(currentUser.desaTempatNikah, currentUser.kua)})
+                  </strong>
+                  , serta pasangan <strong>Laki-laki &amp; Perempuan</strong>.
+                </p>
                 {partnerError && (
                   <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 rounded-lg px-3 py-2">
                     {partnerError}
@@ -574,85 +583,40 @@ export const PesertaDashboard: React.FC = () => {
             )}
           </section>
 
-          {/* STEP 2 & 4: PRETEST & POSTEST */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 flex flex-col justify-between gap-4">
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Langkah 2 · Evaluasi Awal
-                </p>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Pretest Bimwin (5 Soal)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Mengukur pemahaman awal calon pengantin sebelum membuka 5 modul utama.
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-emerald-950">
-                <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
-                  {currentUser.progress?.pretestDone
-                    ? `Skor: ${currentUser.progress.pretestScore}/100`
-                    : 'Belum dikerjakan'}
-                </span>
-                <button
-                  type="button"
-                  disabled={!evalStep.canTakePretest}
-                  onClick={() => setQuizTarget({ kind: 'pretest' })}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                    evalStep.canTakePretest
-                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
-                  {currentUser.progress?.pretestDone ? 'Ulangi Pretest' : 'Mulai Pretest'}
-                </button>
-              </div>
+          {/* STEP 2: PRETEST */}
+          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Langkah 2 · Evaluasi Awal
+              </p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Pretest Bimwin (5 Soal)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Mengukur pemahaman awal calon pengantin sebelum membuka 5 modul utama.
+              </p>
             </div>
-
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 flex flex-col justify-between gap-4">
-              <div className="space-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  Langkah 4 · Evaluasi Akhir
-                </p>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Postest Bimwin (5 Soal)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Terbuka setelah seluruh 5 modul lulus kuis (≥80%). Mengukur Before-After Gain.
-                </p>
-              </div>
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-emerald-950">
-                <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
-                  {currentUser.progress?.postestDone
-                    ? `Skor: ${currentUser.progress.postestScore}/100 (Gain ${
-                        (currentUser.progress.postestScore || 0) -
-                        (currentUser.progress.pretestScore || 0) >=
-                        0
-                          ? '+'
-                          : ''
-                      }${
-                        (currentUser.progress.postestScore || 0) -
-                        (currentUser.progress.pretestScore || 0)
-                      })`
-                    : 'Terkunci hingga 5 modul tuntas'}
-                </span>
-                <button
-                  type="button"
-                  disabled={!evalStep.canTakePostest}
-                  onClick={() => setQuizTarget({ kind: 'postest' })}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                    evalStep.canTakePostest
-                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
-                  }`}
-                >
-                  {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
-                  {currentUser.progress?.postestDone ? 'Ulangi Postest' : 'Mulai Postest'}
-                </button>
-              </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
+                {currentUser.progress?.pretestDone
+                  ? `Skor: ${currentUser.progress.pretestScore}/100`
+                  : 'Belum dikerjakan'}
+              </span>
+              <button
+                type="button"
+                disabled={!evalStep.canTakePretest}
+                onClick={() => setQuizTarget({ kind: 'pretest' })}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
+                  evalStep.canTakePretest
+                    ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                    : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
+                {currentUser.progress?.pretestDone ? 'Ulangi Pretest' : 'Mulai Pretest'}
+              </button>
             </div>
-          </div>
+          </section>
 
           {/* STEP 3: 5 MODUL KURIKULUM */}
           <section className="space-y-3">
@@ -671,14 +635,15 @@ export const PesertaDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-              {data.modules.map((mod, idx) => {
-                const prevDone =
-                  idx === 0 ||
-                  Boolean(currentUser.progress?.modulesCompleted.includes(data.modules[idx - 1].id));
-                const unlocked = evalStep.canAccessModules && prevDone;
+              {data.modules.map((mod) => {
+                const orderedIds = data.modules.map((m) => m.id);
+                const access = canAccessModuleQuiz(currentUser, mod.id, orderedIds);
+                const unlocked = access.unlocked;
+                const videoDone = access.videoDone;
+                const canTakeQuiz = access.canTakeQuiz;
                 const passed = Boolean(currentUser.progress?.modulesCompleted.includes(mod.id));
                 const score = currentUser.progress?.moduleScores[mod.id];
-                const videoDone = Boolean(currentUser.progress?.videosWatched.includes(mod.id));
+                const minWatchLabel = formatDurationClock(resolveRequiredWatchSeconds(mod));
 
                 return (
                   <div
@@ -690,12 +655,14 @@ export const PesertaDashboard: React.FC = () => {
                     }`}
                   >
                     <div className="space-y-1 min-w-0">
-                      <div className="flex items-center gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className="font-mono-num font-bold text-[#0F684E] dark:text-emerald-400">
                           MODUL 0{mod.id}
                         </span>
                         <span className="text-slate-300 dark:text-slate-600">·</span>
-                        <span className="text-slate-500 font-mono-num">{mod.durationMinutes} mnt</span>
+                        <span className="text-slate-500 font-mono-num">
+                          Video {minWatchLabel}
+                        </span>
                         {passed && (
                           <>
                             <span className="text-slate-300 dark:text-slate-600">·</span>
@@ -709,6 +676,11 @@ export const PesertaDashboard: React.FC = () => {
                         {mod.judul}
                       </h4>
                       <p className="text-xs text-slate-500 dark:text-slate-400">{mod.desc}</p>
+                      {unlocked && !videoDone && (
+                        <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 pt-0.5">
+                          Tonton video pembelajaran hingga selesai ({minWatchLabel}) untuk membuka tombol Kuis Modul 0{mod.id}.
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -737,31 +709,83 @@ export const PesertaDashboard: React.FC = () => {
                           unlocked
                             ? videoDone
                               ? 'border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/30'
-                              : 'border-slate-300 dark:border-emerald-900 hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200'
+                              : 'border-[#0F684E] text-[#0F684E] dark:border-emerald-600 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/60'
                             : 'border-slate-200 dark:border-emerald-950 text-slate-400 cursor-not-allowed'
                         }`}
                       >
                         <PlayCircle className="w-3.5 h-3.5" />
-                        {videoDone ? 'Video Tuntas' : 'Video'}
+                        {videoDone ? 'Video Tuntas' : 'Tonton Video'}
                       </button>
 
                       <button
                         type="button"
-                        disabled={!unlocked}
-                        onClick={() => setQuizTarget({ kind: 'module', module: mod })}
+                        disabled={!canTakeQuiz}
+                        title={
+                          canTakeQuiz
+                            ? `Kerjakan Kuis Modul 0${mod.id}`
+                            : access.reason
+                        }
+                        onClick={() => {
+                          if (!canTakeQuiz) return;
+                          setQuizTarget({ kind: 'module', module: mod });
+                        }}
                         className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                          unlocked
+                          canTakeQuiz
                             ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
                             : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
                         }`}
                       >
-                        {!unlocked && <Lock className="w-3.5 h-3.5" />}
+                        {!canTakeQuiz && <Lock className="w-3.5 h-3.5" />}
                         {passed ? 'Ulangi Kuis' : 'Kerjakan Kuis'}
                       </button>
                     </div>
                   </div>
                 );
               })}
+            </div>
+          </section>
+
+          {/* STEP 4: POSTEST (BERURUTAN DI BAWAH 5 MODUL) */}
+          <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Langkah 4 · Evaluasi Akhir
+              </p>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                Postest Bimwin (5 Soal)
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Terbuka setelah seluruh 5 modul lulus kuis (≥80%). Mengukur peningkatan pemahaman (Before-After Gain).
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
+                {currentUser.progress?.postestDone
+                  ? `Skor: ${currentUser.progress.postestScore}/100 (Gain ${
+                      (currentUser.progress.postestScore || 0) -
+                      (currentUser.progress.pretestScore || 0) >=
+                      0
+                        ? '+'
+                        : ''
+                    }${
+                      (currentUser.progress.postestScore || 0) -
+                      (currentUser.progress.pretestScore || 0)
+                    })`
+                  : 'Terkunci hingga 5 modul tuntas'}
+              </span>
+              <button
+                type="button"
+                disabled={!evalStep.canTakePostest}
+                onClick={() => setQuizTarget({ kind: 'postest' })}
+                className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
+                  evalStep.canTakePostest
+                    ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                    : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
+                {currentUser.progress?.postestDone ? 'Ulangi Postest' : 'Mulai Postest'}
+              </button>
             </div>
           </section>
         </div>
@@ -2074,11 +2098,27 @@ export const PesertaDashboard: React.FC = () => {
       {/* Modals */}
       <ModuleReaderModal
         module={readingModule}
+        videoWatched={Boolean(
+          readingModule && currentUser.progress?.videosWatched.includes(readingModule.id)
+        )}
         onClose={() => setReadingModule(null)}
+        onOpenVideo={(id) => {
+          const mod = data.modules.find((m) => m.id === id);
+          setReadingModule(null);
+          if (mod) setVideoModule(mod);
+        }}
         onOpenQuiz={(id) => {
           const mod = data.modules.find((m) => m.id === id);
           setReadingModule(null);
-          if (mod) setQuizTarget({ kind: 'module', module: mod });
+          if (mod && currentUser.progress?.videosWatched.includes(mod.id)) {
+            setQuizTarget({ kind: 'module', module: mod });
+          } else {
+            pushToast(
+              'info',
+              'Tonton Video Terlebih Dahulu',
+              `Kuis Modul ${id} baru terbuka setelah video ditonton hingga selesai.`
+            );
+          }
         }}
       />
       <VideoPlayerModal

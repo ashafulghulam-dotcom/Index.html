@@ -45,6 +45,12 @@ import {
   normalizeVillageName,
 } from '../utils/bimwinLogic';
 import { buildExecutiveReportRows, ExecutiveReportData } from '../utils/pdfDocuments';
+import {
+  detectVideoFileDurationSeconds,
+  formatDurationClock,
+  resolveRequiredWatchSeconds,
+  saveModuleVideoBlob,
+} from '../utils/videoWatchGuard';
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
 import { ModalDialog } from './UiPrimitives';
@@ -107,6 +113,9 @@ export const AdminDashboard: React.FC = () => {
   const selectedModule = data.modules.find((m) => m.id === selectedModuleId) || data.modules[0];
   const [lmsDraft, setLmsDraft] = useState<ModuleDefinition>(selectedModule);
   const [assessmentDraft, setAssessmentDraft] = useState<QuizQuestion[]>(data.pretest);
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoUploadNotice, setVideoUploadNotice] = useState('');
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Settings & CMS state
   const [settingsDraft, setSettingsDraft] = useState(data.settings);
@@ -131,6 +140,7 @@ export const AdminDashboard: React.FC = () => {
   useEffect(() => {
     const found = data.modules.find((m) => m.id === selectedModuleId) || data.modules[0];
     if (found) setLmsDraft(found);
+    setVideoUploadNotice('');
   }, [data.modules, selectedModuleId]);
 
   useEffect(() => {
@@ -931,15 +941,130 @@ export const AdminDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">URL Video Embed YouTube</label>
+                  <label className="block font-semibold mb-1">
+                    URL Video (YouTube / Link MP4)
+                  </label>
                   <input
-                    type="url"
+                    type="text"
                     value={lmsDraft.videoUrl}
-                    onChange={(e) => setLmsDraft({ ...lmsDraft, videoUrl: e.target.value })}
+                    onChange={(e) =>
+                      setLmsDraft({
+                        ...lmsDraft,
+                        videoUrl: e.target.value,
+                        videoFileName: e.target.value.startsWith('idb://')
+                          ? lmsDraft.videoFileName
+                          : undefined,
+                      })
+                    }
+                    placeholder="https://www.youtube.com/embed/... atau https://.../video.mp4"
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
                   />
                 </div>
               </div>
+
+              {/* Upload Video File & Auto Duration */}
+              <div className="p-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                      Unggah Video Modul &amp; Waktu Minimal Menonton
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Unggah file video (MP4/WebM) agar sistem mendeteksi panjang video otomatis sebagai waktu minimal tonton terkunci.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      ref={videoFileInputRef}
+                      type="file"
+                      accept="video/mp4,video/webm,video/ogg,video/quicktime"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = '';
+                        if (!file) return;
+                        setVideoUploading(true);
+                        setVideoUploadNotice('');
+                        try {
+                          const detectedSec = await detectVideoFileDurationSeconds(file);
+                          const blobKey = `module_${lmsDraft.id}_${Date.now()}`;
+                          await saveModuleVideoBlob(blobKey, file);
+                          setLmsDraft((prev) => ({
+                            ...prev,
+                            videoUrl: `idb://${blobKey}`,
+                            videoDurationSeconds: detectedSec,
+                            videoFileName: file.name,
+                            durationMinutes: Math.max(1, Math.ceil(detectedSec / 60)),
+                          }));
+                          setVideoUploadNotice(
+                            `Video "${file.name}" berhasil diunggah. Panjang video terdeteksi: ${formatDurationClock(detectedSec)} (${detectedSec} detik). Klik "Simpan Perubahan Modul" untuk menerapkan.`
+                          );
+                        } catch (err) {
+                          setVideoUploadNotice(
+                            err instanceof Error
+                              ? err.message
+                              : 'Gagal memproses file video. Gunakan format MP4 atau WebM.'
+                          );
+                        } finally {
+                          setVideoUploading(false);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={videoUploading}
+                      onClick={() => videoFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold disabled:opacity-60"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {videoUploading ? 'Memproses Video...' : 'Unggah File Video'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-xs mb-1">
+                      Durasi Video / Minimal Tonton (Detik)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={lmsDraft.videoDurationSeconds ?? resolveRequiredWatchSeconds(lmsDraft)}
+                      onChange={(e) => {
+                        const val = Number.parseInt(e.target.value, 10);
+                        setLmsDraft({
+                          ...lmsDraft,
+                          videoDurationSeconds: Number.isFinite(val) && val > 0 ? val : undefined,
+                        });
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] font-mono-num text-xs"
+                    />
+                  </div>
+                  <div className="flex flex-col justify-end">
+                    <div className="px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs">
+                      <span className="text-slate-500">Status Sumber Video: </span>
+                      <strong className="text-slate-900 dark:text-white font-mono-num">
+                        {lmsDraft.videoFileName
+                          ? `${lmsDraft.videoFileName} (${formatDurationClock(
+                              resolveRequiredWatchSeconds(lmsDraft)
+                            )})`
+                          : `Tautan Video (${formatDurationClock(
+                              resolveRequiredWatchSeconds(lmsDraft)
+                            )})`}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {videoUploadNotice && (
+                  <p className="text-xs text-[#0F684E] dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg px-3 py-2">
+                    {videoUploadNotice}
+                  </p>
+                )}
+              </div>
+
               <div>
                 <label className="block font-semibold mb-1">Intisari Kunci Evaluasi</label>
                 <textarea

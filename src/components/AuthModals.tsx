@@ -60,6 +60,7 @@ interface PesertaRegistrationFormProps {
   error: string;
   submitLabel: string;
   namePlaceholder?: string;
+  lockPartnerConstraints?: boolean;
   onCancel: () => void;
   onSubmit: (e: React.FormEvent) => void;
 }
@@ -70,6 +71,7 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
   error,
   submitLabel,
   namePlaceholder = 'Contoh: Muhammad Arfan',
+  lockPartnerConstraints = false,
   onCancel,
   onSubmit,
 }) => {
@@ -160,12 +162,22 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
 
         <div>
           <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-            Jenis Kelamin *
+            Jenis Kelamin *{' '}
+            {lockPartnerConstraints && (
+              <span className="font-normal text-[11px] text-[#0F684E] dark:text-emerald-400">
+                (Terkunci lawan jenis)
+              </span>
+            )}
           </label>
           <select
             value={form.jenisKelamin}
+            disabled={lockPartnerConstraints}
             onChange={(e) => setForm({ ...form, jenisKelamin: e.target.value as Gender })}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+            className={`w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 outline-none focus:border-[#0F684E] ${
+              lockPartnerConstraints
+                ? 'bg-slate-100 dark:bg-emerald-950/60 text-slate-600 dark:text-slate-300 cursor-not-allowed'
+                : 'bg-white dark:bg-[#0D1613]'
+            }`}
           >
             <option value="Laki-laki">Laki-laki (Calon Suami)</option>
             <option value="Perempuan">Perempuan (Calon Istri)</option>
@@ -228,12 +240,22 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
         <div>
           <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-            KUA Kecamatan Tujuan Nikah *
+            KUA Kecamatan Tujuan Nikah *{' '}
+            {lockPartnerConstraints && (
+              <span className="font-normal text-[11px] text-[#0F684E] dark:text-emerald-400">
+                (Harus sama)
+              </span>
+            )}
           </label>
           <select
             value={form.kua}
+            disabled={lockPartnerConstraints}
             onChange={(e) => handleKuaChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+            className={`w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 outline-none focus:border-[#0F684E] ${
+              lockPartnerConstraints
+                ? 'bg-slate-100 dark:bg-emerald-950/60 text-slate-600 dark:text-slate-300 cursor-not-allowed'
+                : 'bg-white dark:bg-[#0D1613]'
+            }`}
           >
             {LIST_16_KUA.map((kua) => (
               <option key={kua} value={kua}>
@@ -244,12 +266,22 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
         </div>
         <div>
           <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
-            Desa / Kelurahan Tempat Nikah *
+            Desa / Kelurahan Tempat Nikah *{' '}
+            {lockPartnerConstraints && (
+              <span className="font-normal text-[11px] text-[#0F684E] dark:text-emerald-400">
+                (Harus sama)
+              </span>
+            )}
           </label>
           <select
             value={form.desaTempatNikah}
+            disabled={lockPartnerConstraints}
             onChange={(e) => setForm({ ...form, desaTempatNikah: e.target.value })}
-            className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
+            className={`w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 outline-none focus:border-[#0F684E] ${
+              lockPartnerConstraints
+                ? 'bg-slate-100 dark:bg-emerald-950/60 text-slate-600 dark:text-slate-300 cursor-not-allowed'
+                : 'bg-white dark:bg-[#0D1613]'
+            }`}
           >
             {desaOptions.map((d) => (
               <option key={d} value={d}>
@@ -419,7 +451,7 @@ export const CreatePartnerModal: React.FC<{
       open={open}
       onClose={onClose}
       title="Buat & Hubungkan Akun Pasangan"
-      subtitle={`Lengkapi identitas pasangan sesuai KTP agar langsung terdaftar di ${form.kua} dan tersinkron dengan akun Anda.`}
+      subtitle={`Pasangan otomatis didaftarkan pada ${form.kua}, Desa ${form.desaTempatNikah}, dengan jenis kelamin ${form.jenisKelamin} agar langsung tersinkron.`}
       maxWidth="2xl"
     >
       <PesertaRegistrationForm
@@ -427,6 +459,7 @@ export const CreatePartnerModal: React.FC<{
         setForm={setForm}
         error={error}
         submitLabel="Buat & Sinkronkan"
+        lockPartnerConstraints
         namePlaceholder={
           form.jenisKelamin === 'Perempuan'
             ? 'Contoh: Siti Rahmawati'

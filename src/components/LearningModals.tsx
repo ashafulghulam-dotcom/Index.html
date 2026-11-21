@@ -1,16 +1,119 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   CheckCircle2,
   ExternalLink,
+  Lock,
   Minus,
+  Pause,
+  Play,
+  PlayCircle,
   Plus,
+  RotateCcw,
+  ShieldCheck,
   Star,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { ModuleDefinition, QuizQuestion } from '../types/bimwin';
 import { shuffleQuizQuestions } from '../utils/bimwinLogic';
+import {
+  clampVideoSeekPosition,
+  evaluateVideoCompletion,
+  formatDurationClock,
+  loadModuleVideoBlob,
+  parseVideoSource,
+  resolveRequiredWatchSeconds,
+} from '../utils/videoWatchGuard';
 import { ModalDialog } from './UiPrimitives';
+
+interface YouTubePlayerInstance {
+  playVideo: () => void;
+  pauseVideo: () => void;
+  seekTo: (seconds: number, allowSeekAhead?: boolean) => void;
+  getCurrentTime: () => number;
+  getDuration: () => number;
+  getPlayerState: () => number;
+  getPlaybackRate: () => number;
+  setPlaybackRate: (rate: number) => void;
+  mute: () => void;
+  unMute: () => void;
+  isMuted: () => boolean;
+  destroy: () => void;
+}
+
+interface YouTubeNamespace {
+  Player: new (
+    element: HTMLElement | string,
+    config: {
+      videoId: string;
+      width?: string | number;
+      height?: string | number;
+      playerVars?: Record<string, string | number>;
+      events?: {
+        onReady?: (event: { target: YouTubePlayerInstance }) => void;
+        onStateChange?: (event: { data: number; target: YouTubePlayerInstance }) => void;
+        onPlaybackRateChange?: (event: { data: number; target: YouTubePlayerInstance }) => void;
+        onError?: () => void;
+      };
+    }
+  ) => YouTubePlayerInstance;
+  PlayerState?: {
+    ENDED: number;
+    PLAYING: number;
+    PAUSED: number;
+  };
+}
+
+declare global {
+  interface Window {
+    YT?: YouTubeNamespace;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+let ytApiPromise: Promise<YouTubeNamespace> | null = null;
+
+function loadYouTubeIframeApi(): Promise<YouTubeNamespace> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('Window unavailable'));
+  }
+  if (window.YT && window.YT.Player) {
+    return Promise.resolve(window.YT);
+  }
+  if (ytApiPromise) return ytApiPromise;
+
+  ytApiPromise = new Promise<YouTubeNamespace>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('YouTube IFrame API timeout'));
+    }, 8000);
+
+    const prevReady = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      window.clearTimeout(timeoutId);
+      if (typeof prevReady === 'function') prevReady();
+      if (window.YT && window.YT.Player) resolve(window.YT);
+      else reject(new Error('YouTube API failed to initialize'));
+    };
+
+    const existing = document.querySelector('script[src*="youtube.com/iframe_api"]');
+    if (!existing) {
+      const script = document.createElement('script');
+      script.src = 'https://www.youtube.com/iframe_api';
+      script.async = true;
+      script.onerror = () => {
+        window.clearTimeout(timeoutId);
+        reject(new Error('Failed to load YouTube IFrame API'));
+      };
+      document.head.appendChild(script);
+    }
+  }).catch((err) => {
+    ytApiPromise = null;
+    throw err;
+  });
+
+  return ytApiPromise;
+}
 
 function speakText(text: string, lang: string, onEnd: () => void) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -28,9 +131,11 @@ function speakText(text: string, lang: string, onEnd: () => void) {
 
 export const ModuleReaderModal: React.FC<{
   module: ModuleDefinition | null;
+  videoWatched?: boolean;
   onClose: () => void;
+  onOpenVideo?: (moduleId: number) => void;
   onOpenQuiz: (moduleId: number) => void;
-}> = ({ module, onClose, onOpenQuiz }) => {
+}> = ({ module, videoWatched = false, onClose, onOpenVideo, onOpenQuiz }) => {
   const [fontSize, setFontSize] = useState(15);
   const [lang, setLang] = useState<'id' | 'jv' | 'en' | 'ar'>('id');
   const [speaking, setSpeaking] = useState(false);
@@ -82,16 +187,44 @@ export const ModuleReaderModal: React.FC<{
             <ExternalLink className="w-3.5 h-3.5" />
             Buka Modul PDF Resmi
           </a>
+          {!videoWatched && onOpenVideo && (
+            <button
+              type="button"
+              onClick={() => {
+                window.speechSynthesis?.cancel();
+                setSpeaking(false);
+                onOpenVideo(module.id);
+              }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+              Tonton Video Modul {module.id}
+            </button>
+          )}
           <button
             type="button"
+            disabled={!videoWatched}
+            title={
+              videoWatched
+                ? `Kerjakan kuis evaluasi Modul ${module.id}`
+                : 'Tonton video pembelajaran hingga selesai untuk membuka kuis'
+            }
             onClick={() => {
+              if (!videoWatched) return;
               window.speechSynthesis?.cancel();
               setSpeaking(false);
               onOpenQuiz(module.id);
             }}
-            className="px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${
+              videoWatched
+                ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+            }`}
           >
-            Lanjut Kerjakan Kuis Modul {module.id}
+            {!videoWatched && <Lock className="w-3.5 h-3.5" />}
+            {videoWatched
+              ? `Lanjut Kerjakan Kuis Modul ${module.id}`
+              : 'Kuis Terkunci (Tonton Video Dulu)'}
           </button>
         </>
       }
@@ -209,27 +342,358 @@ export const VideoPlayerModal: React.FC<{
   onClose: () => void;
   onConfirmWatched: (moduleId: number) => void;
 }> = ({ module, alreadyWatched, onClose, onConfirmWatched }) => {
-  const [secondsLeft, setSecondsLeft] = useState(5);
+  const parsedSource = useMemo(
+    () => (module ? parseVideoSource(module.videoUrl) : { kind: 'unknown' as const, src: '' }),
+    [module]
+  );
 
+  // Resolved blob URL for IndexedDB uploaded videos
+  const [resolvedBlobUrl, setResolvedBlobUrl] = useState<string | null>(null);
+  const [blobError, setBlobError] = useState<string>('');
+
+  // Live playback & strict anti-fast-forward watch states
+  const [detectedDuration, setDetectedDuration] = useState<number | null>(null);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [watchedSeconds, setWatchedSeconds] = useState(0);
+  const [maxPositionSeconds, setMaxPositionSeconds] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [hasEnded, setHasEnded] = useState(false);
+  const [seekWarning, setSeekWarning] = useState('');
+  const [ytApiFallback, setYtApiFallback] = useState(false);
+  const [ytReady, setYtReady] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const ytContainerRef = useRef<HTMLDivElement | null>(null);
+  const ytPlayerRef = useRef<YouTubePlayerInstance | null>(null);
+  const maxWatchedRef = useRef(0);
+  const watchedSecondsRef = useRef(0);
+  const lastTickTsRef = useRef<number | null>(null);
+  const warningTimerRef = useRef<number | null>(null);
+
+  const showLockedWarning = (message: string) => {
+    setSeekWarning(message);
+    if (warningTimerRef.current) window.clearTimeout(warningTimerRef.current);
+    warningTimerRef.current = window.setTimeout(() => setSeekWarning(''), 4000);
+  };
+
+  // Reset all watch state whenever modal opens for a module
   useEffect(() => {
-    if (!module || alreadyWatched) return;
-    setSecondsLeft(5);
-    const timer = window.setInterval(() => {
-      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    setDetectedDuration(null);
+    setCurrentTime(0);
+    setWatchedSeconds(0);
+    setMaxPositionSeconds(0);
+    setIsPlaying(false);
+    setIsMuted(false);
+    setHasEnded(false);
+    setSeekWarning('');
+    setYtApiFallback(false);
+    setYtReady(false);
+    setBlobError('');
+    maxWatchedRef.current = 0;
+    watchedSecondsRef.current = 0;
+    lastTickTsRef.current = null;
+
+    return () => {
+      if (warningTimerRef.current) window.clearTimeout(warningTimerRef.current);
+    };
+  }, [module?.id, module?.videoUrl]);
+
+  // Load IndexedDB uploaded video Blob when source is idb://
+  useEffect(() => {
+    if (!module || parsedSource.kind !== 'idb' || !parsedSource.idbKey) {
+      setResolvedBlobUrl(null);
+      return;
+    }
+
+    let cancelled = false;
+    let createdUrl: string | null = null;
+
+    loadModuleVideoBlob(parsedSource.idbKey)
+      .then((blob) => {
+        if (cancelled) return;
+        if (!blob) {
+          setBlobError('File video yang diunggah tidak ditemukan di penyimpanan perangkat ini.');
+          return;
+        }
+        createdUrl = URL.createObjectURL(blob);
+        setResolvedBlobUrl(createdUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBlobError('Gagal memuat video yang diunggah. Silakan coba muat ulang halaman.');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
+  }, [module, parsedSource.kind, parsedSource.idbKey]);
+
+  // Initialize locked YouTube IFrame Player API when video is YouTube
+  useEffect(() => {
+    if (!module || parsedSource.kind !== 'youtube' || !parsedSource.youtubeId) return;
+
+    let cancelled = false;
+    let pollId: number | null = null;
+
+    loadYouTubeIframeApi()
+      .then((YT) => {
+        if (cancelled || !ytContainerRef.current) return;
+        ytContainerRef.current.innerHTML = '';
+        const hostEl = document.createElement('div');
+        hostEl.className = 'w-full h-full';
+        ytContainerRef.current.appendChild(hostEl);
+
+        const player = new YT.Player(hostEl, {
+          videoId: parsedSource.youtubeId!,
+          width: '100%',
+          height: '100%',
+          playerVars: {
+            controls: 0,
+            disablekb: 1,
+            rel: 0,
+            modestbranding: 1,
+            fs: 0,
+            playsinline: 1,
+            iv_load_policy: 3,
+          },
+          events: {
+            onReady: (ev) => {
+              if (cancelled) return;
+              setYtReady(true);
+              const dur = ev.target.getDuration();
+              if (Number.isFinite(dur) && dur >= 1) {
+                setDetectedDuration(Math.ceil(dur));
+              }
+              try {
+                ev.target.setPlaybackRate(1);
+              } catch {
+                // ignore if rate locked
+              }
+            },
+            onPlaybackRateChange: (ev) => {
+              if (ev.data !== 1) {
+                try {
+                  ev.target.setPlaybackRate(1);
+                } catch {
+                  // ignore
+                }
+                showLockedWarning(
+                  'Kecepatan putar video dikunci pada 1x (normal) dan tidak dapat dipercepat.'
+                );
+              }
+            },
+            onStateChange: (ev) => {
+              if (cancelled) return;
+              const playingState = YT.PlayerState?.PLAYING ?? 1;
+              const endedState = YT.PlayerState?.ENDED ?? 0;
+
+              if (ev.data === playingState) {
+                setIsPlaying(true);
+                lastTickTsRef.current = Date.now();
+                const dur = ev.target.getDuration();
+                if (Number.isFinite(dur) && dur >= 1) {
+                  setDetectedDuration(Math.ceil(dur));
+                }
+              } else if (ev.data === endedState) {
+                setIsPlaying(false);
+                lastTickTsRef.current = null;
+                setHasEnded(true);
+                const dur = ev.target.getDuration();
+                if (Number.isFinite(dur) && dur >= 1) {
+                  setDetectedDuration(Math.ceil(dur));
+                  maxWatchedRef.current = Math.max(maxWatchedRef.current, dur);
+                  setMaxPositionSeconds(maxWatchedRef.current);
+                  setCurrentTime(dur);
+                }
+              } else {
+                setIsPlaying(false);
+                lastTickTsRef.current = null;
+              }
+            },
+            onError: () => {
+              if (!cancelled) setYtApiFallback(true);
+            },
+          },
+        });
+
+        ytPlayerRef.current = player;
+
+        pollId = window.setInterval(() => {
+          const p = ytPlayerRef.current;
+          if (!p) return;
+          try {
+            const state = p.getPlayerState();
+            const playingState = YT.PlayerState?.PLAYING ?? 1;
+            const dur = p.getDuration();
+            if (Number.isFinite(dur) && dur >= 1) {
+              setDetectedDuration((prev) => (prev === Math.ceil(dur) ? prev : Math.ceil(dur)));
+            }
+
+            if (p.getPlaybackRate() !== 1) {
+              p.setPlaybackRate(1);
+              showLockedWarning(
+                'Kecepatan putar video dikunci pada 1x (normal) dan tidak dapat dipercepat.'
+              );
+            }
+
+            const pos = p.getCurrentTime();
+            if (Number.isFinite(pos)) {
+              const check = clampVideoSeekPosition(pos, maxWatchedRef.current, 1.5);
+              if (check.blocked) {
+                p.seekTo(check.clampedTime, true);
+                setCurrentTime(check.clampedTime);
+                showLockedWarning(
+                  'Video pembelajaran terkunci dan tidak dapat dipercepat atau dilompati.'
+                );
+                lastTickTsRef.current = Date.now();
+                return;
+              }
+
+              setCurrentTime(pos);
+              if (state === playingState && document.visibilityState === 'visible') {
+                const now = Date.now();
+                const deltaSec =
+                  lastTickTsRef.current !== null
+                    ? Math.min(1.0, Math.max(0, (now - lastTickTsRef.current) / 1000))
+                    : 0;
+                lastTickTsRef.current = now;
+
+                if (pos > maxWatchedRef.current) {
+                  maxWatchedRef.current = pos;
+                  setMaxPositionSeconds(pos);
+                }
+                if (deltaSec > 0) {
+                  watchedSecondsRef.current += deltaSec;
+                  setWatchedSeconds(watchedSecondsRef.current);
+                }
+              } else {
+                lastTickTsRef.current = null;
+              }
+            }
+          } catch {
+            // Player might still be initializing
+          }
+        }, 300);
+      })
+      .catch(() => {
+        if (!cancelled) setYtApiFallback(true);
+      });
+
+    return () => {
+      cancelled = true;
+      if (pollId) window.clearInterval(pollId);
+      if (ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current.destroy();
+        } catch {
+          // ignore
+        }
+        ytPlayerRef.current = null;
+      }
+    };
+  }, [module, parsedSource.kind, parsedSource.youtubeId]);
+
+  // Fallback timer ONLY if YouTube IFrame API could not load (e.g., restricted/offline network)
+  useEffect(() => {
+    if (!module || !ytApiFallback || alreadyWatched || !isPlaying) return;
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      watchedSecondsRef.current += 1;
+      maxWatchedRef.current += 1;
+      setWatchedSeconds(watchedSecondsRef.current);
+      setMaxPositionSeconds(maxWatchedRef.current);
+      setCurrentTime(maxWatchedRef.current);
     }, 1000);
-    return () => window.clearInterval(timer);
-  }, [module, alreadyWatched]);
+    return () => window.clearInterval(id);
+  }, [module, ytApiFallback, alreadyWatched, isPlaying]);
 
   if (!module) return null;
 
-  const canConfirm = alreadyWatched || secondsLeft === 0;
+  const requiredSeconds = resolveRequiredWatchSeconds(module, detectedDuration);
+  const completion = evaluateVideoCompletion({
+    alreadyWatched,
+    watchedSeconds,
+    maxPositionSeconds,
+    requiredSeconds,
+    hasEnded,
+  });
+
+  const isHtml5Video =
+    parsedSource.kind === 'direct' || (parsedSource.kind === 'idb' && Boolean(resolvedBlobUrl));
+  const html5Src = parsedSource.kind === 'idb' ? resolvedBlobUrl || '' : parsedSource.src;
+
+  const handleHtml5TogglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) {
+      v.playbackRate = 1;
+      v.play().catch(() => {});
+    } else {
+      v.pause();
+    }
+  };
+
+  const handleHtml5Rewind = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.currentTime = Math.max(0, v.currentTime - 10);
+    setCurrentTime(v.currentTime);
+  };
+
+  const handleHtml5ToggleMute = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.muted = !v.muted;
+    setIsMuted(v.muted);
+  };
+
+  const handleYtTogglePlay = () => {
+    if (ytApiFallback) {
+      setIsPlaying((prev) => !prev);
+      return;
+    }
+    const p = ytPlayerRef.current;
+    if (!p || !ytReady) return;
+    if (isPlaying) p.pauseVideo();
+    else {
+      try {
+        p.setPlaybackRate(1);
+      } catch {
+        // ignore
+      }
+      p.playVideo();
+    }
+  };
+
+  const handleYtRewind = () => {
+    const p = ytPlayerRef.current;
+    if (!p || !ytReady) return;
+    const nextPos = Math.max(0, p.getCurrentTime() - 10);
+    p.seekTo(nextPos, true);
+    setCurrentTime(nextPos);
+  };
+
+  const handleYtToggleMute = () => {
+    const p = ytPlayerRef.current;
+    if (!p || !ytReady) return;
+    if (p.isMuted()) {
+      p.unMute();
+      setIsMuted(false);
+    } else {
+      p.mute();
+      setIsMuted(true);
+    }
+  };
 
   return (
     <ModalDialog
       open={Boolean(module)}
       onClose={onClose}
       title={`Video Pembelajaran — Modul ${module.id}`}
-      subtitle={module.shortTitle}
+      subtitle={`${module.shortTitle} · Durasi minimal tonton ${formatDurationClock(requiredSeconds)}`}
       maxWidth="4xl"
       footer={
         <>
@@ -242,38 +706,272 @@ export const VideoPlayerModal: React.FC<{
           </button>
           <button
             type="button"
-            disabled={!canConfirm}
+            disabled={!completion.canComplete}
             onClick={() => {
+              if (!completion.canComplete) return;
               onConfirmWatched(module.id);
               onClose();
             }}
-            className={`px-4 py-2 rounded-lg text-xs font-semibold transition ${
-              canConfirm
+            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition ${
+              completion.canComplete
                 ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
                 : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
             }`}
           >
+            {completion.canComplete ? (
+              <CheckCircle2 className="w-3.5 h-3.5" />
+            ) : (
+              <Lock className="w-3.5 h-3.5" />
+            )}
             {alreadyWatched
               ? 'Video Sudah Dituntaskan'
-              : secondsLeft > 0
-                ? `Verifikasi Menonton (${secondsLeft} dtk)...`
-                : 'Tandai Video Selesai Ditonton'}
+              : completion.canComplete
+                ? 'Tandai Video Selesai Ditonton'
+                : `Tonton Hingga Selesai (sisa ${formatDurationClock(completion.remainingSeconds)})`}
           </button>
         </>
       }
     >
-      <div className="space-y-3">
-        <div className="relative w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-emerald-950 aspect-video">
-          <iframe
-            className="absolute inset-0 w-full h-full"
-            src={module.videoUrl}
-            title={module.judul}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
+      <div className="space-y-3.5">
+        {/* Lock Status Header */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 text-xs">
+          <div className="inline-flex items-center gap-2 font-semibold text-[#0F684E] dark:text-emerald-300">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>Video Terkunci · Kecepatan 1x Normal · Tidak Dapat Dipercepat</span>
+          </div>
+          <span className="font-mono-num font-bold text-slate-700 dark:text-slate-200">
+            {alreadyWatched
+              ? '100% Tuntas'
+              : `${formatDurationClock(watchedSeconds)} / ${formatDurationClock(requiredSeconds)} (${completion.progressPercent}%)`}
+          </span>
         </div>
+
+        {/* Video Viewport */}
+        <div
+          className="relative w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-200 dark:border-emerald-950 aspect-video select-none"
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          {blobError ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-xs text-red-200 gap-2">
+              <AlertTriangle className="w-6 h-6 text-amber-400" />
+              <p>{blobError}</p>
+            </div>
+          ) : isHtml5Video ? (
+            <>
+              <video
+                ref={videoRef}
+                src={html5Src}
+                playsInline
+                controlsList="nodownload noplaybackrate nofullscreen"
+                disablePictureInPicture
+                onLoadedMetadata={(e) => {
+                  const dur = e.currentTarget.duration;
+                  if (Number.isFinite(dur) && dur >= 1) {
+                    setDetectedDuration(Math.ceil(dur));
+                  }
+                  e.currentTarget.playbackRate = 1;
+                }}
+                onPlay={() => {
+                  setIsPlaying(true);
+                  lastTickTsRef.current = Date.now();
+                }}
+                onPause={() => {
+                  setIsPlaying(false);
+                  lastTickTsRef.current = null;
+                }}
+                onRateChange={(e) => {
+                  if (e.currentTarget.playbackRate !== 1) {
+                    e.currentTarget.playbackRate = 1;
+                    showLockedWarning(
+                      'Kecepatan putar video dikunci pada 1x (normal) dan tidak dapat dipercepat.'
+                    );
+                  }
+                }}
+                onSeeking={(e) => {
+                  const check = clampVideoSeekPosition(
+                    e.currentTarget.currentTime,
+                    maxWatchedRef.current,
+                    1.5
+                  );
+                  if (check.blocked) {
+                    e.currentTarget.currentTime = check.clampedTime;
+                    setCurrentTime(check.clampedTime);
+                    showLockedWarning(
+                      'Video pembelajaran terkunci dan tidak dapat dipercepat atau dilompati.'
+                    );
+                  }
+                }}
+                onTimeUpdate={(e) => {
+                  const v = e.currentTarget;
+                  if (v.playbackRate !== 1) v.playbackRate = 1;
+                  const pos = v.currentTime;
+                  const check = clampVideoSeekPosition(pos, maxWatchedRef.current, 1.5);
+                  if (check.blocked) {
+                    v.currentTime = check.clampedTime;
+                    setCurrentTime(check.clampedTime);
+                    showLockedWarning(
+                      'Video pembelajaran terkunci dan tidak dapat dipercepat atau dilompati.'
+                    );
+                    lastTickTsRef.current = Date.now();
+                    return;
+                  }
+                  setCurrentTime(pos);
+                  if (!v.paused && document.visibilityState === 'visible') {
+                    const now = Date.now();
+                    const deltaSec =
+                      lastTickTsRef.current !== null
+                        ? Math.min(1.0, Math.max(0, (now - lastTickTsRef.current) / 1000))
+                        : 0;
+                    lastTickTsRef.current = now;
+                    if (pos > maxWatchedRef.current) {
+                      maxWatchedRef.current = pos;
+                      setMaxPositionSeconds(pos);
+                    }
+                    if (deltaSec > 0) {
+                      watchedSecondsRef.current += deltaSec;
+                      setWatchedSeconds(watchedSecondsRef.current);
+                    }
+                  }
+                }}
+                onEnded={(e) => {
+                  setIsPlaying(false);
+                  lastTickTsRef.current = null;
+                  setHasEnded(true);
+                  const dur = e.currentTarget.duration;
+                  if (Number.isFinite(dur) && dur >= 1) {
+                    maxWatchedRef.current = Math.max(maxWatchedRef.current, dur);
+                    setMaxPositionSeconds(maxWatchedRef.current);
+                    setCurrentTime(dur);
+                  }
+                }}
+                onClick={handleHtml5TogglePlay}
+                className="absolute inset-0 w-full h-full object-contain bg-black cursor-pointer"
+              />
+              {!isPlaying && (
+                <button
+                  type="button"
+                  onClick={handleHtml5TogglePlay}
+                  aria-label="Putar video pembelajaran"
+                  className="absolute inset-0 flex items-center justify-center bg-black/35 hover:bg-black/25 transition"
+                >
+                  <span className="w-16 h-16 rounded-full bg-[#0F684E] text-white flex items-center justify-center shadow-lg">
+                    <Play className="w-7 h-7 fill-current ml-0.5" />
+                  </span>
+                </button>
+              )}
+            </>
+          ) : parsedSource.kind === 'youtube' ? (
+            <>
+              {ytApiFallback ? (
+                <iframe
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  src={parsedSource.src}
+                  title={module.judul}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
+              ) : (
+                <div ref={ytContainerRef} className="absolute inset-0 w-full h-full" />
+              )}
+              {/* Transparent anti-scrub overlay prevents direct seek/speed gestures on the iframe */}
+              <button
+                type="button"
+                onClick={handleYtTogglePlay}
+                aria-label={isPlaying ? 'Jeda video' : 'Putar video'}
+                className="absolute inset-0 z-10 w-full h-full bg-transparent cursor-pointer flex items-center justify-center"
+              >
+                {!isPlaying && (
+                  <span className="w-16 h-16 rounded-full bg-[#0F684E]/95 text-white flex items-center justify-center shadow-lg border-2 border-white/80">
+                    <Play className="w-7 h-7 fill-current ml-0.5" />
+                  </span>
+                )}
+              </button>
+            </>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center p-6 text-center text-xs text-slate-300">
+              Tautan video modul belum dikonfigurasi. Hubungi Admin Kemenag untuk mengunggah video.
+            </div>
+          )}
+        </div>
+
+        {/* Custom Locked Control Bar (No Fast-Forward, No Speed Selector) */}
+        <div className="p-3 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950 space-y-2.5">
+          {/* Read-only watch progress bar */}
+          <div className="space-y-1">
+            <div
+              className="h-2 w-full rounded-full bg-slate-200 dark:bg-emerald-950 overflow-hidden"
+              role="progressbar"
+              aria-label="Progres menonton video"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={completion.progressPercent}
+            >
+              <div
+                className="h-full bg-[#0F684E] transition-all duration-300"
+                style={{ width: `${completion.progressPercent}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono-num">
+              <span>Posisi: {formatDurationClock(currentTime)}</span>
+              <span>Minimal Tonton: {formatDurationClock(requiredSeconds)}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={isHtml5Video ? handleHtml5TogglePlay : handleYtTogglePlay}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+              >
+                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                {isPlaying ? 'Jeda' : 'Putar Video'}
+              </button>
+
+              {!ytApiFallback && (
+                <button
+                  type="button"
+                  onClick={isHtml5Video ? handleHtml5Rewind : handleYtRewind}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950"
+                  title="Putar ulang 10 detik sebelumnya"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  -10 dtk
+                </button>
+              )}
+
+              {!ytApiFallback && (
+                <button
+                  type="button"
+                  onClick={isHtml5Video ? handleHtml5ToggleMute : handleYtToggleMute}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950"
+                  aria-label={isMuted ? 'Nyalakan suara' : 'Bisukan suara'}
+                >
+                  {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                  {isMuted ? 'Suara Mati' : 'Suara'}
+                </button>
+              )}
+            </div>
+
+            <span className="text-[11px] font-semibold text-slate-500 inline-flex items-center gap-1">
+              <Lock className="w-3 h-3 text-amber-600" />
+              Kecepatan 1x (Terkunci)
+            </span>
+          </div>
+        </div>
+
+        {seekWarning && (
+          <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+            <span>{seekWarning}</span>
+          </div>
+        )}
+
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Simak paparan fasilitator di atas sebelum menandai video selesai dan mengerjakan kuis evaluasi modul.
+          Tonton video materi modul ini secara penuh (minimal{' '}
+          <strong className="font-mono-num text-slate-700 dark:text-slate-200">
+            {formatDurationClock(requiredSeconds)}
+          </strong>
+          ) tanpa mempercepat agar tombol selesai menonton aktif dan kuis Modul {module.id} terbuka.
         </p>
       </div>
     </ModalDialog>

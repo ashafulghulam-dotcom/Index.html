@@ -25,6 +25,7 @@ import {
   generateUniqueCertificateCode,
   getSmartFaqReply,
   normalizeVillageName,
+  validatePartnerSync,
 } from '../utils/bimwinLogic';
 import {
   cascadeUsernameReferences,
@@ -479,14 +480,13 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!partner) {
         return {
           ok: false,
-          error: `Akun "${partnerUsername}" tidak ditemukan. Anda dapat membuatnya melalui tombol "Buat & Hubungkan Akun Pasangan".`,
+          error: `Akun "${partnerUsername}" tidak ditemukan. Anda dapat membuatnya melalui tombol "Buat Akun Pasangan".`,
         };
       }
-      if (partner.pasanganUsername && partner.pasanganUsername !== currentUser.username) {
-        return {
-          ok: false,
-          error: `Akun "${partner.nama}" sudah tersinkron dengan pasangan lain.`,
-        };
+
+      const syncCheck = validatePartnerSync(currentUser, partner);
+      if (!syncCheck.ok) {
+        return syncCheck;
       }
 
       setData((prev) => ({
@@ -527,6 +527,23 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const targetKua = payload.kua || currentUser.kua;
+      const targetDesa = normalizeVillageName(
+        payload.desaTempatNikah || currentUser.desaTempatNikah,
+        targetKua
+      );
+
+      const syncCheck = validatePartnerSync(currentUser, {
+        username: cleanUsername,
+        role: 'Peserta',
+        nama: payload.nama.trim(),
+        kua: targetKua,
+        desaTempatNikah: targetDesa,
+        jenisKelamin: payload.jenisKelamin,
+      });
+      if (!syncCheck.ok) {
+        return syncCheck;
+      }
+
       const usia = calculateAgeFromDob(payload.tanggalLahir) ?? undefined;
       const partnerUser: BimwinUser = {
         id: `u_partner_${Date.now()}`,
@@ -544,10 +561,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         pekerjaan: payload.pekerjaan.trim(),
         noHp: payload.noHp.trim(),
         kua: targetKua,
-        desaTempatNikah: normalizeVillageName(
-          payload.desaTempatNikah || currentUser.desaTempatNikah,
-          targetKua
-        ),
+        desaTempatNikah: targetDesa,
         alamat: payload.alamat.trim(),
         tanggalRencanaNikah: payload.tanggalRencanaNikah || currentUser.tanggalRencanaNikah,
         pasanganUsername: currentUser.username,
@@ -668,6 +682,14 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const completeModuleQuiz = useCallback(
     (moduleId: number, score: number) => {
+      if (!currentUser?.progress?.videosWatched.includes(moduleId)) {
+        pushToast(
+          'error',
+          `Video Modul ${moduleId} Belum Tuntas`,
+          'Tonton video pembelajaran modul ini hingga selesai terlebih dahulu sebelum mengerjakan kuis.'
+        );
+        return false;
+      }
       const passed = score >= 80;
       updateCurrentPesertaProgress((p) => ({
         ...p,
@@ -686,7 +708,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       return passed;
     },
-    [pushToast, updateCurrentPesertaProgress]
+    [currentUser?.progress?.videosWatched, pushToast, updateCurrentPesertaProgress]
   );
 
   const completePostest = useCallback(

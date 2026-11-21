@@ -285,6 +285,141 @@ export function canFasilitatorVerify(user: BimwinUser, totalModules: number = 5)
   return evaluatePesertaStep(user, totalModules).moocFinished;
 }
 
+export interface PartnerSyncCandidate {
+  username?: string;
+  role?: BimwinUser['role'];
+  nama?: string;
+  kua?: string;
+  desaTempatNikah?: string;
+  jenisKelamin?: BimwinUser['jenisKelamin'];
+  pasanganUsername?: string;
+}
+
+/**
+ * Enforces strict SAMAWA partner synchronization rules:
+ * 1. Both accounts must be Peserta with distinct usernames and partner not linked elsewhere.
+ * 2. Both accounts must select the exact same KUA Kecamatan.
+ * 3. Both accounts must select the exact same Desa/Kelurahan Tempat Nikah.
+ * 4. Pair must consist of opposite genders (Laki-laki & Perempuan).
+ */
+export function validatePartnerSync(
+  currentUser: BimwinUser,
+  partner: PartnerSyncCandidate
+): { ok: boolean; error?: string } {
+  if (currentUser.role !== 'Peserta') {
+    return { ok: false, error: 'Hanya peserta yang dapat menyinkronkan pasangan.' };
+  }
+  if (partner.role && partner.role !== 'Peserta') {
+    return { ok: false, error: 'Akun pasangan harus berupa akun Peserta Calon Pengantin.' };
+  }
+  if (
+    partner.username &&
+    partner.username.trim().toLowerCase() === currentUser.username.trim().toLowerCase()
+  ) {
+    return { ok: false, error: 'Masukkan username akun pasangan yang berbeda dari akun Anda.' };
+  }
+  if (
+    partner.pasanganUsername &&
+    partner.pasanganUsername.trim().toLowerCase() !== currentUser.username.trim().toLowerCase()
+  ) {
+    return {
+      ok: false,
+      error: `Akun "${partner.nama || partner.username}" sudah tersinkron dengan pasangan lain.`,
+    };
+  }
+
+  // 1. Same KUA Kecamatan
+  const myKua = String(currentUser.kua || '').trim();
+  const partnerKua = String(partner.kua || '').trim();
+  if (!myKua || !partnerKua || myKua.toLowerCase() !== partnerKua.toLowerCase()) {
+    return {
+      ok: false,
+      error: `Sinkronisasi ditolak: Pilihan KUA harus sama. Akun Anda terdaftar di ${myKua || '-'}, sedangkan pasangan di ${partnerKua || '-'}.`,
+    };
+  }
+
+  // 2. Same Desa / Kelurahan Tempat Nikah
+  const myDesa = normalizeVillageName(currentUser.desaTempatNikah, myKua);
+  const partnerDesa = normalizeVillageName(partner.desaTempatNikah, partnerKua);
+  if (
+    myDesa === 'Belum Memilih Desa' ||
+    partnerDesa === 'Belum Memilih Desa' ||
+    myDesa.toLowerCase() !== partnerDesa.toLowerCase()
+  ) {
+    return {
+      ok: false,
+      error: `Sinkronisasi ditolak: Desa/Kelurahan tempat nikah harus sama. Akun Anda di Desa ${myDesa}, sedangkan pasangan di Desa ${partnerDesa}.`,
+    };
+  }
+
+  // 3. Opposite Gender (Laki-laki & Perempuan)
+  const myGender = currentUser.jenisKelamin;
+  const partnerGender = partner.jenisKelamin;
+  const validPair =
+    (myGender === 'Laki-laki' && partnerGender === 'Perempuan') ||
+    (myGender === 'Perempuan' && partnerGender === 'Laki-laki');
+
+  if (!validPair) {
+    return {
+      ok: false,
+      error:
+        'Sinkronisasi ditolak: Pasangan calon pengantin wajib terdiri dari Laki-laki dan Perempuan (tidak dapat menyinkronkan sesama jenis kelamin).',
+    };
+  }
+
+  return { ok: true };
+}
+
+export interface ModuleQuizAccessState {
+  unlocked: boolean;
+  videoDone: boolean;
+  canTakeQuiz: boolean;
+  reason?: string;
+}
+
+/**
+ * Enforces sequential module progression + mandatory full video completion before taking each module's quiz.
+ */
+export function canAccessModuleQuiz(
+  user: BimwinUser,
+  moduleId: number,
+  orderedModuleIds: number[]
+): ModuleQuizAccessState {
+  const evalStep = evaluatePesertaStep(user, orderedModuleIds.length || 5);
+  const idx = orderedModuleIds.indexOf(moduleId);
+  const prevDone =
+    idx <= 0 ||
+    Boolean(user.progress?.modulesCompleted.includes(orderedModuleIds[idx - 1]));
+  const unlocked = evalStep.canAccessModules && prevDone;
+  const videoDone = Boolean(user.progress?.videosWatched.includes(moduleId));
+
+  if (!unlocked) {
+    return {
+      unlocked: false,
+      videoDone,
+      canTakeQuiz: false,
+      reason: !evalStep.canAccessModules
+        ? 'Selesaikan Langkah 1 (Sinkron Pasangan) dan Langkah 2 (Pretest) terlebih dahulu.'
+        : 'Selesaikan kuis modul sebelumnya terlebih dahulu.',
+    };
+  }
+
+  if (!videoDone) {
+    return {
+      unlocked: true,
+      videoDone: false,
+      canTakeQuiz: false,
+      reason: 'Tonton video pembelajaran modul ini hingga selesai terlebih dahulu untuk membuka kuis.',
+    };
+  }
+
+  return {
+    unlocked: true,
+    videoDone: true,
+    canTakeQuiz: true,
+  };
+}
+
 export function countUniqueSyncedCouples(users: BimwinUser[]): number {
   const seenPairs = new Set<string>();
   const pesertaOnly = users.filter((u) => u.role === 'Peserta');

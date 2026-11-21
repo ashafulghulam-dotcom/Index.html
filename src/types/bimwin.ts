@@ -118,6 +118,8 @@ export interface ModuleDefinition {
   durationMinutes: number;
   driveUrl: string;
   videoUrl: string;
+  videoDurationSeconds?: number;
+  videoFileName?: string;
   sections: ModuleSection[];
   keyTakeaway: string;
   translations: {

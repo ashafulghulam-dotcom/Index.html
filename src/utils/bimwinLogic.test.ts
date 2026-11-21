@@ -7,6 +7,7 @@ import {
   calculateCompatibilityScore,
   calculateFertilityWindow,
   calculateStuntingReadiness,
+  canAccessModuleQuiz,
   canFasilitatorVerify,
   countUniqueSyncedCouples,
   evaluatePesertaStep,
@@ -16,6 +17,7 @@ import {
   maskNik,
   normalizeVillageName,
   shuffleQuizQuestions,
+  validatePartnerSync,
   verifyDocumentQuery,
 } from './bimwinLogic.ts';
 import type { BimwinClassSchedule, BimwinUser } from '../types/bimwin.ts';
@@ -251,5 +253,109 @@ describe('BIMWIN Pure Domain Logic', () => {
     const csv = buildPesertaCsv([makePeserta()]);
     assert.match(csv, /332006\*{6}0001/);
     assert.doesNotMatch(csv, /3320061205980001/);
+  });
+
+  it('enforces same KUA, same desa tempat nikah, and opposite gender (Laki-laki & Perempuan) on partner sync', () => {
+    const groom = makePeserta({
+      username: 'rizky_tahunan',
+      nama: 'Rizky',
+      jenisKelamin: 'Laki-laki',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Tahunan',
+    });
+
+    const validBride = makePeserta({
+      username: 'nadia_tahunan',
+      nama: 'Nadia',
+      jenisKelamin: 'Perempuan',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Tahunan',
+    });
+    assert.equal(validatePartnerSync(groom, validBride).ok, true);
+
+    // Different KUA rejected
+    const diffKuaBride = makePeserta({
+      username: 'siti_jepara',
+      nama: 'Siti',
+      jenisKelamin: 'Perempuan',
+      kua: 'KUA Jepara',
+      desaTempatNikah: 'Kauman',
+    });
+    const kuaRes = validatePartnerSync(groom, diffKuaBride);
+    assert.equal(kuaRes.ok, false);
+    assert.match(kuaRes.error || '', /KUA harus sama/i);
+
+    // Same KUA, different Desa rejected
+    const diffDesaBride = makePeserta({
+      username: 'dewi_kecapi',
+      nama: 'Dewi',
+      jenisKelamin: 'Perempuan',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Kecapi',
+    });
+    const desaRes = validatePartnerSync(groom, diffDesaBride);
+    assert.equal(desaRes.ok, false);
+    assert.match(desaRes.error || '', /Desa\/Kelurahan tempat nikah harus sama/i);
+
+    // Same KUA & Desa, same gender rejected
+    const sameGender = makePeserta({
+      username: 'budi_tahunan',
+      nama: 'Budi',
+      jenisKelamin: 'Laki-laki',
+      kua: 'KUA Tahunan',
+      desaTempatNikah: 'Tahunan',
+    });
+    const genderRes = validatePartnerSync(groom, sameGender);
+    assert.equal(genderRes.ok, false);
+    assert.match(genderRes.error || '', /Laki-laki dan Perempuan/i);
+  });
+
+  it('locks every module quiz until its video has been watched completely', () => {
+    const moduleIds = [1, 2, 3, 4, 5];
+    const afterPretest = makePeserta({
+      pasanganUsername: 'nadia_tahunan',
+      pasanganNama: 'Nadia',
+      progress: {
+        pretestDone: true,
+        pretestScore: 80,
+        postestDone: false,
+        postestScore: 0,
+        videosWatched: [],
+        modulesRead: [1],
+        modulesCompleted: [],
+        moduleScores: {},
+        selesaiClicked: false,
+        ikmDone: false,
+        verifikasiFasilitator: false,
+        kehadiranKelas: 'Belum Hadir',
+      },
+    });
+
+    // Module 1 unlocked, but video not watched -> quiz LOCKED
+    const m1BeforeVideo = canAccessModuleQuiz(afterPretest, 1, moduleIds);
+    assert.equal(m1BeforeVideo.unlocked, true);
+    assert.equal(m1BeforeVideo.videoDone, false);
+    assert.equal(m1BeforeVideo.canTakeQuiz, false);
+
+    // After watching Module 1 video -> Module 1 quiz UNLOCKED, Module 2 still locked
+    const afterM1Video = makePeserta({
+      ...afterPretest,
+      progress: { ...afterPretest.progress!, videosWatched: [1] },
+    });
+    const m1AfterVideo = canAccessModuleQuiz(afterM1Video, 1, moduleIds);
+    assert.equal(m1AfterVideo.canTakeQuiz, true);
+    const m2Locked = canAccessModuleQuiz(afterM1Video, 2, moduleIds);
+    assert.equal(m2Locked.unlocked, false);
+    assert.equal(m2Locked.canTakeQuiz, false);
+
+    // After passing Module 1 quiz, Module 2 is unlocked but Module 2 quiz stays locked until Module 2 video is watched
+    const afterM1Quiz = makePeserta({
+      ...afterM1Video,
+      progress: { ...afterM1Video.progress!, modulesCompleted: [1], moduleScores: { 1: 100 } },
+    });
+    const m2BeforeVideo = canAccessModuleQuiz(afterM1Quiz, 2, moduleIds);
+    assert.equal(m2BeforeVideo.unlocked, true);
+    assert.equal(m2BeforeVideo.videoDone, false);
+    assert.equal(m2BeforeVideo.canTakeQuiz, false);
   });
 });
