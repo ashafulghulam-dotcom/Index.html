@@ -116,7 +116,7 @@ export const PWAInstallModal: React.FC<{
             <img
               src="/pwa-192x192.png"
               alt="Ikon Aplikasi SAMAWA"
-              className="w-16 h-16 rounded-2xl border border-slate-200 dark:border-emerald-900 shadow-xs shrink-0 bg-white object-contain"
+              className="w-16 h-16 shrink-0 object-contain"
             />
             <div className="min-w-0 flex-1">
               <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">

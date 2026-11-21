@@ -26,7 +26,7 @@ export default defineConfig(() => {
           description:
             'Aplikasi resmi Bimbingan Perkawinan Mandiri (MOOC) Kementerian Agama Kabupaten Jepara untuk 16 KUA Kecamatan.',
           theme_color: '#0F684E',
-          background_color: '#F8FAF9',
+          background_color: '#FFFFFF',
           display: 'standalone',
           orientation: 'portrait-primary',
           start_url: '/',
@@ -44,12 +44,6 @@ export default defineConfig(() => {
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
-            },
-            {
-              src: '/pwa-maskable-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable',
             },
           ],
         },

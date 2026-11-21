@@ -364,14 +364,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                 <div className="flex flex-wrap items-center gap-3">
                   <button
                     type="button"
-                    onClick={() => setRegisterOpen(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-sm font-semibold transition"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    Pendaftaran Calon Pengantin
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setPanduanOpen(true)}
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200 text-sm font-semibold transition"
                   >
