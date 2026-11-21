@@ -738,11 +738,14 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                         </p>
                       )}
                     </div>
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
-                      <p className="text-[11px] text-slate-400 truncate" title={entry.jamLayanan}>
+                    <div className="pt-2 border-t border-slate-100 dark:border-emerald-950 space-y-2">
+                      <p
+                        className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-pre-line leading-relaxed"
+                        title={entry.jamLayanan.replace(/\s*\n\s*/g, ' | ')}
+                      >
                         {entry.jamLayanan}
                       </p>
-                      <div className="flex items-center gap-2.5 shrink-0">
+                      <div className="flex items-center justify-end gap-3">
                         <a
                           href={buildKuaGoogleMapsUrl(entry)}
                           target="_blank"
@@ -759,7 +762,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                               `${entry.kua} — ${entry.alamat}`,
                               `Telp: ${entry.telp}`,
                               entry.whatsapp ? `WA: ${entry.whatsapp}` : '',
-                              `Jam Layanan: ${entry.jamLayanan}`,
+                              `Jam Layanan: ${entry.jamLayanan.replace(/\s*\n\s*/g, '; ')}`,
                             ].filter(Boolean);
                             navigator.clipboard?.writeText(parts.join(' | ')).catch(() => {});
                             pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);

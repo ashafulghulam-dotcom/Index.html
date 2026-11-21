@@ -129,23 +129,26 @@ export function buildKuaGoogleMapsUrl(
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
+export const DEFAULT_KUA_JAM_LAYANAN =
+  "Senin–Kamis, 07.30–16.00 WIB\nJum'at, 07.30–16.30 WIB";
+
 export const DATA_DIREKTORI_16_KUA: KuaDirectoryEntry[] = [
-  { kua: 'KUA Jepara', alamat: 'Jl. KH. Wahid Hasyim, Potroyudan, Kec. Jepara', telp: '0291-591014', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Tahunan', alamat: 'Jl. Raya Jepara-Kudus KM 7, Kec. Tahunan', telp: '0291-593112', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Pecangaan', alamat: 'Jl. Raya Pecangaan Kulon, Kec. Pecangaan', telp: '0291-755110', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Kalinyamatan', alamat: 'Jl. Raya Gotri-Welahan, Purwogondo, Kalinyamatan', telp: '0291-755221', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Welahan', alamat: 'Jl. Raya Welahan, Kec. Welahan', telp: '0291-425611', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Mayong', alamat: 'Jl. Raya Mayong-Kudus, Pelemkerep, Kec. Mayong', telp: '0291-425109', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Nalumsari', alamat: 'Jl. Raya Nalumsari, Gemiring Lor, Kec. Nalumsari', telp: '0291-425301', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Batealit', alamat: 'Jl. Raya Batealit, Mindahan, Kec. Batealit', telp: '0291-595218', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Kedung', alamat: 'Jl. Raya Bugel-Pecangaan, Sukosono, Kec. Kedung', telp: '0291-594320', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Mlonggo', alamat: 'Jl. Raya Jepara-Bangsri KM 9, Suwawal, Kec. Mlonggo', telp: '0291-597104', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Pakis Aji', alamat: 'Jl. Raya Lebak-Suwawal Timur, Kec. Pakis Aji', telp: '0291-597412', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Bangsri', alamat: 'Jl. Raya Bangsri, Kec. Bangsri', telp: '0291-771018', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Kembang', alamat: 'Jl. Raya Bangsri-Keling, Jinggotan, Kec. Kembang', telp: '0291-771520', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Keling', alamat: 'Jl. Raya Kelet-Keling, Kec. Keling', telp: '0291-579112', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Donorojo', alamat: 'Jl. Raya Tulakan-Clering, Kec. Donorojo', telp: '0291-579310', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
-  { kua: 'KUA Karimunjawa', alamat: 'Jl. Pemuda Kepulauan Karimunjawa, Kec. Karimunjawa', telp: '0291-591001', jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB' },
+  { kua: 'KUA Jepara', alamat: 'Jl. KH. Wahid Hasyim, Potroyudan, Kec. Jepara', telp: '0291-591014', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Tahunan', alamat: 'Jl. Raya Jepara-Kudus KM 7, Kec. Tahunan', telp: '0291-593112', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Pecangaan', alamat: 'Jl. Raya Pecangaan Kulon, Kec. Pecangaan', telp: '0291-755110', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Kalinyamatan', alamat: 'Jl. Raya Gotri-Welahan, Purwogondo, Kalinyamatan', telp: '0291-755221', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Welahan', alamat: 'Jl. Raya Welahan, Kec. Welahan', telp: '0291-425611', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Mayong', alamat: 'Jl. Raya Mayong-Kudus, Pelemkerep, Kec. Mayong', telp: '0291-425109', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Nalumsari', alamat: 'Jl. Raya Nalumsari, Gemiring Lor, Kec. Nalumsari', telp: '0291-425301', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Batealit', alamat: 'Jl. Raya Batealit, Mindahan, Kec. Batealit', telp: '0291-595218', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Kedung', alamat: 'Jl. Raya Bugel-Pecangaan, Sukosono, Kec. Kedung', telp: '0291-594320', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Mlonggo', alamat: 'Jl. Raya Jepara-Bangsri KM 9, Suwawal, Kec. Mlonggo', telp: '0291-597104', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Pakis Aji', alamat: 'Jl. Raya Lebak-Suwawal Timur, Kec. Pakis Aji', telp: '0291-597412', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Bangsri', alamat: 'Jl. Raya Bangsri, Kec. Bangsri', telp: '0291-771018', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Kembang', alamat: 'Jl. Raya Bangsri-Keling, Jinggotan, Kec. Kembang', telp: '0291-771520', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Keling', alamat: 'Jl. Raya Kelet-Keling, Kec. Keling', telp: '0291-579112', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Donorojo', alamat: 'Jl. Raya Tulakan-Clering, Kec. Donorojo', telp: '0291-579310', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
+  { kua: 'KUA Karimunjawa', alamat: 'Jl. Pemuda Kepulauan Karimunjawa, Kec. Karimunjawa', telp: '0291-591001', jamLayanan: DEFAULT_KUA_JAM_LAYANAN },
 ];
 
 export const DEFAULT_PEJABAT: PejabatConfig = {

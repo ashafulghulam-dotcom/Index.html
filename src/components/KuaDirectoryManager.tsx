@@ -200,9 +200,9 @@ export const KuaDirectoryManager: React.FC = () => {
                     </p>
                   )}
 
-                  <p className="text-slate-600 dark:text-slate-300 flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                    <span>{entry.jamLayanan}</span>
+                  <p className="text-slate-600 dark:text-slate-300 flex items-start gap-2">
+                    <Clock className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-400" />
+                    <span className="whitespace-pre-line leading-snug">{entry.jamLayanan}</span>
                   </p>
 
                   {entry.kepalaKua && (
@@ -315,13 +315,13 @@ export const KuaDirectoryManager: React.FC = () => {
                 <label htmlFor="kua-edit-jam" className="block font-semibold text-slate-700 dark:text-slate-200">
                   Jam Buka / Layanan *
                 </label>
-                <input
+                <textarea
                   id="kua-edit-jam"
-                  type="text"
+                  rows={2}
                   required
                   value={form.jamLayanan}
                   onChange={(e) => setForm((prev) => ({ ...prev, jamLayanan: e.target.value }))}
-                  placeholder="Contoh: Senin–Jumat, 07.30–16.00 WIB"
+                  placeholder={"Senin–Kamis, 07.30–16.00 WIB\nJum'at, 07.30–16.30 WIB"}
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
                 />
               </div>

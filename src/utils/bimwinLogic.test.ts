@@ -680,13 +680,27 @@ describe('BIMWIN Pure Domain Logic', () => {
         telp: '0812-3456-7890',
         jamLayanan: 'Senin–Sabtu, 08.00–15.00 WIB',
         mapsUrl: 'https://maps.app.goo.gl/kuaJeparaCustom',
+        updatedAt: '2026-04-01T08:00:00.000Z',
+      },
+      {
+        kua: 'KUA Tahunan',
+        alamat: 'Jl. Raya Jepara-Kudus KM 7, Kec. Tahunan',
+        telp: '0291-593112',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
       },
     ]);
     assert.equal(merged.length, 16);
     const jepara = merged.find((item) => item.kua === 'KUA Jepara')!;
     assert.equal(jepara.alamat, 'Jl. Baru KUA Jepara No. 99');
     assert.equal(jepara.telp, '0812-3456-7890');
+    assert.equal(jepara.jamLayanan, 'Senin–Sabtu, 08.00–15.00 WIB');
     assert.equal(buildKuaGoogleMapsUrl(jepara), 'https://maps.app.goo.gl/kuaJeparaCustom');
+
+    const tahunan = merged.find((item) => item.kua === 'KUA Tahunan')!;
+    assert.equal(
+      tahunan.jamLayanan,
+      "Senin–Kamis, 07.30–16.00 WIB\nJum'at, 07.30–16.30 WIB"
+    );
   });
 
   it('provides all 10 official Pendidikan Terakhir options in exact order and migrates legacy values', () => {

@@ -1111,13 +1111,18 @@ export function mergeKuaDirectoryWithDefaults(
   return DATA_DIREKTORI_16_KUA.map((def) => {
     const custom = savedMap.get(def.kua.toLowerCase());
     if (!custom) return { ...def };
+    const isLegacyDefaultHours =
+      !custom.updatedAt &&
+      custom.jamLayanan?.trim() === 'Senin–Jumat, 07.30–16.00 WIB';
     return {
       ...def,
       ...custom,
       kua: def.kua,
       alamat: custom.alamat?.trim() || def.alamat,
       telp: custom.telp?.trim() || def.telp,
-      jamLayanan: custom.jamLayanan?.trim() || def.jamLayanan,
+      jamLayanan: isLegacyDefaultHours
+        ? def.jamLayanan
+        : custom.jamLayanan?.trim() || def.jamLayanan,
     };
   });
 }
