@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
+  Award,
   BarChart3,
   BookOpen,
   Building2,
@@ -10,6 +11,7 @@ import {
   ExternalLink,
   Eye,
   EyeOff,
+  HeartHandshake,
   HelpCircle,
   Home,
   MapPin,
@@ -23,6 +25,7 @@ import {
   ShieldCheck,
   Sun,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -360,7 +363,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               {/* Editorial Institutional Pitch (7 cols) */}
               <div className="lg:col-span-7 space-y-7">
                 <div className="space-y-4">
-                  <h1 className="font-display text-[14px] font-semibold tracking-tight text-slate-900 dark:text-white leading-[18px] text-balance">
+                  <h1 className="font-display text-[clamp(10.5px,3.25vw,14px)] sm:text-[14px] font-semibold tracking-tight text-slate-900 dark:text-white leading-[18px] whitespace-nowrap">
                     Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                   </h1>
                   <p className="text-[12px] text-slate-600 dark:text-slate-300 leading-[16px] max-w-xl">
@@ -382,30 +385,39 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                   </button>
                 </div>
 
-                {/* Clean Institutional Metrics Bar */}
-                <div className="pt-6 border-t border-slate-200 dark:border-emerald-950 grid grid-cols-3 gap-4 sm:gap-8 max-w-xl">
-                  <div className="flex flex-col justify-between">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                      Peserta Terdaftar
-                    </p>
-                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white mt-1">
+                {/* Modern Centered Institutional Metrics Strip */}
+                <div className="grid grid-cols-3 rounded-2xl border border-slate-200/90 dark:border-emerald-950 bg-white dark:bg-[#111C18] shadow-[0_8px_24px_-14px_rgba(15,104,78,0.18)] divide-x divide-slate-100 dark:divide-emerald-950/80 max-w-xl w-full mx-auto lg:mx-0 overflow-hidden">
+                  <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-slate-50/70 dark:hover:bg-emerald-950/30">
+                    <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 flex items-center justify-center mb-2.5">
+                      <Users className="w-4 h-4" />
+                    </span>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-slate-900 dark:text-white">
                       {pesertaList.length}
                     </p>
-                  </div>
-                  <div className="flex flex-col justify-between">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                      Pasangan Tersinkron
+                    <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
+                      Peserta Terdaftar
                     </p>
-                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-[#0F684E] dark:text-emerald-400 mt-1">
+                  </div>
+                  <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30">
+                    <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F684E]/10 dark:bg-emerald-950/80 text-[#0F684E] dark:text-emerald-400 flex items-center justify-center mb-2.5">
+                      <HeartHandshake className="w-4 h-4" />
+                    </span>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-[#0F684E] dark:text-emerald-400">
                       {totalCouples}
                     </p>
-                  </div>
-                  <div className="flex flex-col justify-between">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-snug">
-                      Sertifikat Terbit
+                    <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
+                      Pasangan Tersinkron
                     </p>
-                    <p className="font-mono-num text-2xl sm:text-3xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                  </div>
+                  <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
+                    <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-2.5">
+                      <Award className="w-4 h-4" />
+                    </span>
+                    <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-amber-600 dark:text-amber-400">
                       {totalCertificates}
+                    </p>
+                    <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
+                      Sertifikat Terbit
                     </p>
                   </div>
                 </div>
