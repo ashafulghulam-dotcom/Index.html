@@ -395,7 +395,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                       {pesertaList.length}
                     </p>
                     <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
-                      Peserta Terdaftar
+                      Peserta
+                      <br className="sm:hidden" /> Terdaftar
                     </p>
                   </div>
                   <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-emerald-50/40 dark:hover:bg-emerald-950/30">
@@ -406,7 +407,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                       {totalCouples}
                     </p>
                     <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
-                      Pasangan Tersinkron
+                      Pasangan
+                      <br className="sm:hidden" /> Tersinkron
                     </p>
                   </div>
                   <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-amber-50/40 dark:hover:bg-amber-950/20">
@@ -417,7 +419,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                       {totalCertificates}
                     </p>
                     <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 leading-snug mt-1.5">
-                      Sertifikat Terbit
+                      Sertifikat
+                      <br className="sm:hidden" /> Terbit
                     </p>
                   </div>
                 </div>
