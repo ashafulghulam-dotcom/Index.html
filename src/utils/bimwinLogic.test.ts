@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  addDaysToIsoDate,
   buildPesertaCsv,
   calculateAgeFromDob,
   calculateBudgetAllocation,
@@ -9,20 +10,30 @@ import {
   calculateStuntingReadiness,
   canAccessClassSelection,
   canAccessModuleQuiz,
+  canAccessPiagamKompak,
   canFasilitatorVerify,
   countUniqueSyncedCouples,
   evaluatePesertaStep,
+  filterAuditLogs,
+  getLocalIsoDate,
+  getMinAkadDate,
   getSmartFaqReply,
   isUnderageMarriage,
   isValidNik,
   maskNik,
+  mergeKuaDirectoryWithDefaults,
+  normalizeEducationLevel,
   normalizeVillageName,
+  resolveAuditLogKua,
   shuffleQuizQuestions,
+  validateKuaDirectoryUpdate,
   validatePartnerSync,
+  validateRencanaAkadDate,
   verifyDocumentQuery,
 } from './bimwinLogic.ts';
 import { buildKuaGoogleMapsUrl, DATA_DIREKTORI_16_KUA } from '../data/jeparaData.ts';
-import type { BimwinClassSchedule, BimwinUser } from '../types/bimwin.ts';
+import { EDUCATION_LEVEL_OPTIONS } from '../types/bimwin.ts';
+import type { AuditLogItem, BimwinClassSchedule, BimwinUser } from '../types/bimwin.ts';
 
 function makePeserta(overrides: Partial<BimwinUser> = {}): BimwinUser {
   return {
@@ -430,6 +441,48 @@ describe('BIMWIN Pure Domain Logic', () => {
     assert.equal(unlockedGate.ikmDone, true);
   });
 
+  it('locks Piagam Kami Kompak until both MOOC and Survei IKM are completed', () => {
+    const initial = makePeserta();
+    const initialGate = canAccessPiagamKompak(initial, 5);
+    assert.equal(initialGate.unlocked, false);
+    assert.equal(initialGate.moocFinished, false);
+    assert.equal(initialGate.ikmDone, false);
+    assert.match(initialGate.reason || '', /Piagam "Kami Kompak" masih terkunci/i);
+
+    const moocOnly = makePeserta({
+      pasanganUsername: 'siti_test',
+      pasanganNama: 'Siti Aminah',
+      progress: {
+        pretestDone: true,
+        pretestScore: 70,
+        postestDone: true,
+        postestScore: 100,
+        videosWatched: [1, 2, 3, 4, 5],
+        modulesRead: [1, 2, 3, 4, 5],
+        modulesCompleted: [1, 2, 3, 4, 5],
+        moduleScores: { 1: 100, 2: 100, 3: 100, 4: 100, 5: 100 },
+        selesaiClicked: true,
+        ikmDone: false,
+        verifikasiFasilitator: false,
+        kehadiranKelas: 'Belum Hadir',
+      },
+    });
+    const moocOnlyGate = canAccessPiagamKompak(moocOnly, 5);
+    assert.equal(moocOnlyGate.unlocked, false);
+    assert.equal(moocOnlyGate.moocFinished, true);
+    assert.equal(moocOnlyGate.ikmDone, false);
+    assert.match(moocOnlyGate.reason || '', /Survei Kepuasan Masyarakat \(IKM\)/i);
+
+    const unlockedUser = makePeserta({
+      ...moocOnly,
+      progress: { ...moocOnly.progress!, ikmDone: true },
+    });
+    const unlockedGate = canAccessPiagamKompak(unlockedUser, 5);
+    assert.equal(unlockedGate.unlocked, true);
+    assert.equal(unlockedGate.moocFinished, true);
+    assert.equal(unlockedGate.ikmDone, true);
+  });
+
   it('builds valid direct Google Maps URLs for all 16 KUA Kabupaten Jepara', () => {
     assert.equal(DATA_DIREKTORI_16_KUA.length, 16);
     for (const entry of DATA_DIREKTORI_16_KUA) {
@@ -438,5 +491,256 @@ describe('BIMWIN Pure Domain Logic', () => {
       assert.ok(decodeURIComponent(url).includes(entry.kua));
       assert.ok(decodeURIComponent(url).includes('Jepara'));
     }
+  });
+
+  it('prevents retaking Pretest and Postest once completed', () => {
+    const syncedBeforePretest = makePeserta({
+      pasanganUsername: 'siti_test',
+      pasanganNama: 'Siti Aminah',
+    });
+    assert.equal(evaluatePesertaStep(syncedBeforePretest, 5).canTakePretest, true);
+    assert.equal(evaluatePesertaStep(syncedBeforePretest, 5).canTakePostest, false);
+
+    const afterPretestAndModules = makePeserta({
+      ...syncedBeforePretest,
+      progress: {
+        ...syncedBeforePretest.progress!,
+        pretestDone: true,
+        pretestScore: 60,
+        videosWatched: [1, 2, 3, 4, 5],
+        modulesCompleted: [1, 2, 3, 4, 5],
+        moduleScores: { 1: 100, 2: 100, 3: 100, 4: 100, 5: 100 },
+      },
+    });
+    assert.equal(evaluatePesertaStep(afterPretestAndModules, 5).canTakePretest, false);
+    assert.equal(evaluatePesertaStep(afterPretestAndModules, 5).canTakePostest, true);
+
+    const afterPostest = makePeserta({
+      ...afterPretestAndModules,
+      progress: {
+        ...afterPretestAndModules.progress!,
+        postestDone: true,
+        postestScore: 100,
+      },
+    });
+    assert.equal(evaluatePesertaStep(afterPostest, 5).canTakePretest, false);
+    assert.equal(evaluatePesertaStep(afterPostest, 5).canTakePostest, false);
+  });
+
+  it('filters Audit Trail logs accurately by KUA, Fasilitator, and Day/Month/Year date range', () => {
+    const users: BimwinUser[] = [
+      {
+        id: 'u_fas_jepara',
+        username: 'fasilitator_jepara',
+        password: 'x',
+        role: 'Fasilitator',
+        nama: 'Ust. H. Miftahul Huda, S.Ag. (Jepara)',
+        kua: 'KUA Jepara',
+        createdAt: '2026-01-10T08:00:00.000Z',
+      },
+      {
+        id: 'u_fas_tahunan',
+        username: 'fasilitator_tahunan',
+        password: 'x',
+        role: 'Fasilitator',
+        nama: 'Ust. H. Miftahul Huda, S.Ag. (Tahunan)',
+        kua: 'KUA Tahunan',
+        createdAt: '2026-01-10T08:00:00.000Z',
+      },
+    ];
+
+    const logs: AuditLogItem[] = [
+      {
+        id: 'l1',
+        actor: 'Ust. H. Miftahul Huda, S.Ag. (Jepara)',
+        actorUsername: 'fasilitator_jepara',
+        role: 'Fasilitator',
+        kua: 'KUA Jepara',
+        action: 'Mengesahkan peserta KUA Jepara',
+        timestamp: '2026-03-12T10:00:00.000Z',
+      },
+      {
+        id: 'l2',
+        actor: 'Ust. H. Miftahul Huda, S.Ag. (Tahunan)',
+        role: 'Fasilitator',
+        // legacy log without explicit kua/actorUsername
+        action: 'Membuat jadwal kelas KUA Tahunan',
+        timestamp: '2026-03-20T09:00:00.000Z',
+      },
+      {
+        id: 'l3',
+        actor: 'Drs. H. Ahmad Munif, M.Ag.',
+        actorUsername: 'admin',
+        role: 'SuperAdmin',
+        kua: 'Kemenag Kab. Jepara',
+        action: 'Memperbarui konfigurasi sistem',
+        timestamp: '2026-02-05T08:00:00.000Z',
+      },
+    ];
+
+    // Legacy KUA resolution
+    assert.equal(resolveAuditLogKua(logs[1], users), 'KUA Tahunan');
+
+    // Filter by KUA
+    const byKua = filterAuditLogs(logs, users, { kua: 'KUA Jepara' });
+    assert.equal(byKua.error, undefined);
+    assert.deepEqual(
+      byKua.items.map((l) => l.id),
+      ['l1']
+    );
+
+    // Filter by Fasilitator (works even on legacy log matched by name)
+    const byFas = filterAuditLogs(logs, users, { fasilitator: 'fasilitator_tahunan' });
+    assert.equal(byFas.error, undefined);
+    assert.deepEqual(
+      byFas.items.map((l) => l.id),
+      ['l2']
+    );
+
+    // Filter by Day/Month/Year range (10 Maret 2026 s.d. 15 Maret 2026)
+    const byRange = filterAuditLogs(logs, users, {
+      startDate: { day: '10', month: '3', year: '2026' },
+      endDate: { day: '15', month: '3', year: '2026' },
+    });
+    assert.equal(byRange.error, undefined);
+    assert.deepEqual(
+      byRange.items.map((l) => l.id),
+      ['l1']
+    );
+
+    // Invalid calendar date (31 Februari 2026)
+    const invalidDate = filterAuditLogs(logs, users, {
+      startDate: { day: '31', month: '2', year: '2026' },
+    });
+    assert.match(invalidDate.error || '', /tidak tersedia/i);
+
+    // Reversed date range (start > end)
+    const reversed = filterAuditLogs(logs, users, {
+      startDate: { day: '25', month: '3', year: '2026' },
+      endDate: { day: '10', month: '3', year: '2026' },
+    });
+    assert.match(reversed.error || '', /tidak boleh lebih besar/i);
+  });
+
+  it('validates, merges, and resolves custom Google Maps URLs for 16 KUA directory management', () => {
+    assert.equal(
+      validateKuaDirectoryUpdate({
+        alamat: 'Jl. KH. Wahid Hasyim No. 12, Potroyudan, Jepara',
+        telp: '0291-591014',
+        whatsapp: '0813-2500-1010',
+        email: 'kua.jepara@kemenag.go.id',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
+        mapsUrl: 'https://maps.google.com/?q=-6.5888,110.6684',
+      }).ok,
+      true
+    );
+
+    assert.equal(
+      validateKuaDirectoryUpdate({
+        alamat: 'Jl',
+        telp: '0291-591014',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
+      }).ok,
+      false
+    );
+
+    assert.equal(
+      validateKuaDirectoryUpdate({
+        alamat: 'Jl. Raya Jepara',
+        telp: '123',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
+      }).ok,
+      false
+    );
+
+    assert.equal(
+      validateKuaDirectoryUpdate({
+        alamat: 'Jl. Raya Jepara',
+        telp: '0291-591014',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
+        email: 'bukan-email',
+      }).ok,
+      false
+    );
+
+    assert.equal(
+      validateKuaDirectoryUpdate({
+        alamat: 'Jl. Raya Jepara',
+        telp: '0291-591014',
+        jamLayanan: 'Senin–Jumat, 07.30–16.00 WIB',
+        mapsUrl: 'maps.google.com/invalid',
+      }).ok,
+      false
+    );
+
+    const merged = mergeKuaDirectoryWithDefaults([
+      {
+        kua: 'KUA Jepara',
+        alamat: 'Jl. Baru KUA Jepara No. 99',
+        telp: '0812-3456-7890',
+        jamLayanan: 'Senin–Sabtu, 08.00–15.00 WIB',
+        mapsUrl: 'https://maps.app.goo.gl/kuaJeparaCustom',
+      },
+    ]);
+    assert.equal(merged.length, 16);
+    const jepara = merged.find((item) => item.kua === 'KUA Jepara')!;
+    assert.equal(jepara.alamat, 'Jl. Baru KUA Jepara No. 99');
+    assert.equal(jepara.telp, '0812-3456-7890');
+    assert.equal(buildKuaGoogleMapsUrl(jepara), 'https://maps.app.goo.gl/kuaJeparaCustom');
+  });
+
+  it('provides all 10 official Pendidikan Terakhir options in exact order and migrates legacy values', () => {
+    assert.deepEqual([...EDUCATION_LEVEL_OPTIONS], [
+      'TIDAK/BLM SEKOLAH',
+      'BELUM TAMAT SD/SEDERAJAT',
+      'TAMAT SD/SEDERAJAT',
+      'SLTP/SEDERAJAT',
+      'SLTA/SEDERAJAT',
+      'DIPLOMA I/II',
+      'AKADEMI/DIPLOMA III/SARJANA MUDA',
+      'DIPLOMA IV/STRATA I',
+      'STRATA-II',
+      'STRATA-III',
+    ]);
+    assert.equal(EDUCATION_LEVEL_OPTIONS.length, 10);
+    assert.equal(normalizeEducationLevel('SMA / MA / SMK'), 'SLTA/SEDERAJAT');
+    assert.equal(normalizeEducationLevel('S1 / D4'), 'DIPLOMA IV/STRATA I');
+    assert.equal(normalizeEducationLevel('STRATA-III'), 'STRATA-III');
+  });
+
+  it('prevents selecting Rencana Tanggal Akad Nikah before registration date or in the past', () => {
+    const fixedNow = new Date(2026, 10, 21, 10, 30, 0); // 2026-11-21 local
+    assert.equal(getLocalIsoDate(fixedNow), '2026-11-21');
+    assert.equal(addDaysToIsoDate('2026-11-21', 30), '2026-12-21');
+
+    // New registration: minDate is today (2026-11-21)
+    assert.equal(getMinAkadDate(undefined, fixedNow), '2026-11-21');
+
+    // Past date (yesterday, previous month, previous year) must be rejected
+    const yesterday = validateRencanaAkadDate('2026-11-20', undefined, fixedNow);
+    assert.equal(yesterday.ok, false);
+    assert.equal(yesterday.minDate, '2026-11-21');
+    assert.match(yesterday.error || '', /tidak boleh sebelum tanggal pendaftaran/i);
+
+    const pastYear = validateRencanaAkadDate('2025-05-10', undefined, fixedNow);
+    assert.equal(pastYear.ok, false);
+
+    // Registration day itself and future dates are accepted
+    assert.equal(validateRencanaAkadDate('2026-11-21', undefined, fixedNow).ok, true);
+    assert.equal(validateRencanaAkadDate('2027-01-15', undefined, fixedNow).ok, true);
+
+    // Existing account created earlier: cannot choose dates before today or before createdAt
+    assert.equal(getMinAkadDate('2026-03-01', fixedNow), '2026-11-21');
+    assert.equal(validateRencanaAkadDate('2026-06-21', '2026-03-01', fixedNow).ok, false);
+    assert.equal(validateRencanaAkadDate('2026-12-10', '2026-03-01', fixedNow).ok, true);
+
+    // If accountCreatedAt is later than clock (skewed clock), respects createdAt too
+    assert.equal(getMinAkadDate('2026-11-25', fixedNow), '2026-11-25');
+    assert.equal(validateRencanaAkadDate('2026-11-24', '2026-11-25', fixedNow).ok, false);
+    assert.equal(validateRencanaAkadDate('2026-11-25', '2026-11-25', fixedNow).ok, true);
+
+    // Rejects empty and impossible calendar dates
+    assert.equal(validateRencanaAkadDate('', undefined, fixedNow).ok, false);
+    assert.equal(validateRencanaAkadDate('2027-02-31', undefined, fixedNow).ok, false);
   });
 });

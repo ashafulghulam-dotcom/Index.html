@@ -131,7 +131,7 @@ export const FasilitatorDashboard: React.FC = () => {
     { id: 'binaan', label: 'Peserta Binaan', icon: Users, badge: readyToVerifyCount || undefined, section: 'Layanan KUA' },
     { id: 'kelas', label: 'Jadwal Kelas & Absensi', icon: Calendar, badge: myClasses.length, section: 'Layanan KUA' },
     { id: 'konsultasi', label: 'Konsultasi & Mediasi', icon: MessageSquare, badge: pendingConsults || undefined, section: 'Layanan KUA' },
-    { id: 'pengingat', label: 'Smart Reminder WA & Email', icon: Bell, section: 'Komunikasi' },
+    { id: 'pengingat', label: 'Smart Reminder', icon: Bell, section: 'Komunikasi' },
     { id: 'akun', label: 'Profil & Keamanan Akun', icon: UserCog, section: 'Akun Saya' },
   ];
 

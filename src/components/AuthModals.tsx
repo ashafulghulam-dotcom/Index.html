@@ -1,23 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { DESA_PER_KUA_JEPARA, LIST_16_KUA } from '../data/jeparaData';
-import { BimwinUser, EducationLevel, Gender } from '../types/bimwin';
+import { BimwinUser, EDUCATION_LEVEL_OPTIONS, EducationLevel, Gender } from '../types/bimwin';
 import { RegisterPayload, useBimwin } from '../store/useBimwinStore';
 import {
+  addDaysToIsoDate,
   calculateAgeFromDob,
+  getMinAkadDate,
   isUnderageMarriage,
   normalizeVillageName,
+  validateRencanaAkadDate,
 } from '../utils/bimwinLogic';
 import { ModalDialog } from './UiPrimitives';
-
-const EDUCATION_OPTIONS: EducationLevel[] = [
-  'SD / MI',
-  'SMP / MTs',
-  'SMA / MA / SMK',
-  'D1 / D2 / D3',
-  'S1 / D4',
-  'S2 / S3',
-];
 
 function getSortedDesaForKua(kua: string): string[] {
   return [...(DESA_PER_KUA_JEPARA[kua] || [])].sort((a, b) => a.localeCompare(b));
@@ -44,14 +38,15 @@ function buildInitialRegistrationForm(overrides?: Partial<RegisterPayload>): Reg
     jenisKelamin: overrides?.jenisKelamin || 'Laki-laki',
     tempatLahir: overrides?.tempatLahir || 'Jepara',
     tanggalLahir: overrides?.tanggalLahir || '1999-05-15',
-    pendidikan: overrides?.pendidikan || 'S1 / D4',
+    pendidikan: overrides?.pendidikan || 'SLTA/SEDERAJAT',
     pekerjaan: '',
     noHp: '',
     email: '',
     kua: defaultKua,
     desaTempatNikah: defaultDesa,
     alamat: '',
-    tanggalRencanaNikah: overrides?.tanggalRencanaNikah || '2026-06-20',
+    tanggalRencanaNikah:
+      overrides?.tanggalRencanaNikah || addDaysToIsoDate(getMinAkadDate(), 30),
   };
 }
 
@@ -85,6 +80,7 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
     [form.tanggalLahir]
   );
   const underage = isUnderageMarriage(computedAge);
+  const minAkadDate = useMemo(() => getMinAkadDate(), []);
 
   const handleKuaChange = (newKua: string) => {
     const firstDesa = getSortedDesaForKua(newKua)[0];
@@ -293,15 +289,20 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
         </div>
 
         <div>
-          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+          <label
+            htmlFor="reg-pendidikan"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
             Pendidikan Terakhir
           </label>
           <select
+            id="reg-pendidikan"
+            aria-label="Pendidikan Terakhir"
             value={form.pendidikan}
             onChange={(e) => setForm({ ...form, pendidikan: e.target.value as EducationLevel })}
             className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#0D1613] outline-none focus:border-[#0F684E]"
           >
-            {EDUCATION_OPTIONS.map((opt) => (
+            {EDUCATION_LEVEL_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>
                 {opt}
               </option>
@@ -309,7 +310,10 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
           </select>
         </div>
         <div>
-          <label className="block font-semibold text-slate-700 dark:text-slate-200 mb-1">
+          <label
+            htmlFor="reg-tanggal-akad"
+            className="block font-semibold text-slate-700 dark:text-slate-200 mb-1"
+          >
             Rencana Tanggal Akad Nikah *{' '}
             {lockPartnerConstraints && (
               <span className="font-normal text-[11px] text-[#0F684E] dark:text-emerald-400">
@@ -318,8 +322,10 @@ const PesertaRegistrationForm: React.FC<PesertaRegistrationFormProps> = ({
             )}
           </label>
           <input
+            id="reg-tanggal-akad"
             type="date"
             required
+            min={lockPartnerConstraints ? undefined : minAkadDate}
             disabled={lockPartnerConstraints}
             value={form.tanggalRencanaNikah}
             onChange={(e) => setForm({ ...form, tanggalRencanaNikah: e.target.value })}
@@ -407,6 +413,11 @@ export const RegisterModal: React.FC<{ open: boolean; onClose: () => void }> = (
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const akadCheck = validateRencanaAkadDate(form.tanggalRencanaNikah);
+    if (!akadCheck.ok) {
+      setError(akadCheck.error || 'Rencana tanggal akad nikah tidak valid.');
+      return;
+    }
     const res = registerPeserta(form);
     if (!res.ok) {
       setError(res.error || 'Gagal mendaftar.');
@@ -862,7 +873,7 @@ export const PanduanModal: React.FC<{ open: boolean; onClose: () => void }> = ({
     <ModalDialog
       open={open}
       onClose={onClose}
-      title="Buku Saku & Panduan Visual SAMAWA Kemenag Jepara"
+      title="Panduan Aplikasi SAMAWA Kemenag Jepara"
       subtitle="Panduan operasional lengkap dengan ilustrasi alur kerja untuk Peserta, Fasilitator, Admin KUA, dan SuperAdmin Kemenag."
       maxWidth="4xl"
     >

@@ -1,6 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { BimwinStoreSnapshot, createInitialSeedData } from '../data/seedData';
-import { DEFAULT_KOMPAK_COMMITMENTS } from '../data/jeparaData';
+import {
+  DATA_DIREKTORI_16_KUA,
+  DEFAULT_KOMPAK_COMMITMENTS,
+  KuaDirectoryEntry,
+} from '../data/jeparaData';
 import {
   AttendanceStatus,
   BimwinClassSchedule,
@@ -21,13 +25,18 @@ import {
 import {
   calculateAgeFromDob,
   canAccessClassSelection,
+  canAccessPiagamKompak,
   canFasilitatorVerify,
   formatIndonesianDate,
   formatTtlFromParts,
   generateUniqueCertificateCode,
   getSmartFaqReply,
+  mergeKuaDirectoryWithDefaults,
+  normalizeEducationLevel,
   normalizeVillageName,
+  validateKuaDirectoryUpdate,
   validatePartnerSync,
+  validateRencanaAkadDate,
 } from '../utils/bimwinLogic';
 import {
   cascadeUsernameReferences,
@@ -187,6 +196,11 @@ interface BimwinContextValue {
   updateAssessmentQuiz: (kind: 'pretest' | 'postest', questions: QuizQuestion[]) => void;
   updateCompatibilityQuiz: (questions: CompatibilityQuestion[]) => void;
   updateSystemSettings: (settings: SystemSettings) => void;
+  updateKuaDirectoryEntry: (
+    kua: string,
+    updates: Omit<KuaDirectoryEntry, 'kua'>
+  ) => { ok: boolean; error?: string };
+  resetKuaDirectoryEntry: (kua: string) => void;
   addFaq: (t: string, j: string) => void;
   deleteFaq: (id: string) => void;
   addDocument: (doc: Omit<DocumentDownloadItem, 'id'>) => void;
@@ -210,6 +224,7 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
     ? parsed.users.map((u) => ({
         ...u,
         email: u.email || seedEmailByUsername.get(u.username.toLowerCase()),
+        pendidikan: normalizeEducationLevel(u.pendidikan),
       }))
     : seed.users;
 
@@ -232,6 +247,7 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
     faqs: Array.isArray(parsed.faqs) ? parsed.faqs : seed.faqs,
     documents: Array.isArray(parsed.documents) ? parsed.documents : seed.documents,
     gallery: Array.isArray(parsed.gallery) ? parsed.gallery : seed.gallery,
+    kuaDirectory: mergeKuaDirectoryWithDefaults(parsed.kuaDirectory),
     kritikSaran: Array.isArray(parsed.kritikSaran) ? parsed.kritikSaran : seed.kritikSaran,
     auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : seed.auditLogs,
     reminderLogs: Array.isArray(parsed.reminderLogs) ? parsed.reminderLogs : [],
@@ -330,19 +346,34 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const appendAudit = useCallback(
-    (snapshot: BimwinStoreSnapshot, actor: string, role: UserRole, action: string): BimwinStoreSnapshot => ({
-      ...snapshot,
-      auditLogs: [
-        {
-          id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
-          actor,
-          role,
-          action,
-          timestamp: new Date().toISOString(),
-        },
-        ...snapshot.auditLogs,
-      ].slice(0, 120),
-    }),
+    (
+      snapshot: BimwinStoreSnapshot,
+      actor: string,
+      role: UserRole,
+      action: string,
+      meta?: { kua?: string; actorUsername?: string }
+    ): BimwinStoreSnapshot => {
+      const matchedUser = snapshot.users.find(
+        (u) =>
+          (meta?.actorUsername && u.username.toLowerCase() === meta.actorUsername.toLowerCase()) ||
+          u.nama.trim().toLowerCase() === actor.trim().toLowerCase()
+      );
+      return {
+        ...snapshot,
+        auditLogs: [
+          {
+            id: `log_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+            actor,
+            actorUsername: meta?.actorUsername || matchedUser?.username,
+            role,
+            kua: meta?.kua || matchedUser?.kua || 'Kemenag Kab. Jepara',
+            action,
+            timestamp: new Date().toISOString(),
+          },
+          ...snapshot.auditLogs,
+        ].slice(0, 120),
+      };
+    },
     []
   );
 
@@ -386,6 +417,10 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       if (!/^\d{16}$/.test(payload.nik.trim())) {
         return { ok: false, error: 'NIK harus terdiri dari tepat 16 digit angka.' };
+      }
+      const akadCheck = validateRencanaAkadDate(payload.tanggalRencanaNikah);
+      if (!akadCheck.ok) {
+        return { ok: false, error: akadCheck.error };
       }
       const usia = calculateAgeFromDob(payload.tanggalLahir) ?? undefined;
       const newUser: BimwinUser = {
@@ -720,14 +755,25 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const completePretest = useCallback(
     (score: number) => {
-      updateCurrentPesertaProgress((p) => ({
-        ...p,
-        pretestDone: true,
-        pretestScore: score,
-      }));
+      if (currentUser?.progress?.pretestDone) {
+        pushToast(
+          'info',
+          'Pretest Sudah Dikerjakan',
+          'Pretest hanya dapat dikerjakan 1 kali dan tidak dapat diulangi.'
+        );
+        return;
+      }
+      updateCurrentPesertaProgress((p) => {
+        if (p.pretestDone) return p;
+        return {
+          ...p,
+          pretestDone: true,
+          pretestScore: score,
+        };
+      });
       pushToast('success', `Pretest Selesai (Skor ${score})`, 'Seluruh 5 Modul Pembelajaran kini terbuka.');
     },
-    [pushToast, updateCurrentPesertaProgress]
+    [currentUser?.progress?.pretestDone, pushToast, updateCurrentPesertaProgress]
   );
 
   const markModuleRead = useCallback(
@@ -784,18 +830,29 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const completePostest = useCallback(
     (score: number) => {
-      updateCurrentPesertaProgress((p) => ({
-        ...p,
-        postestDone: true,
-        postestScore: score,
-      }));
+      if (currentUser?.progress?.postestDone) {
+        pushToast(
+          'info',
+          'Postest Sudah Dikerjakan',
+          'Postest hanya dapat dikerjakan 1 kali dan tidak dapat diulangi.'
+        );
+        return;
+      }
+      updateCurrentPesertaProgress((p) => {
+        if (p.postestDone) return p;
+        return {
+          ...p,
+          postestDone: true,
+          postestScore: score,
+        };
+      });
       pushToast(
         'success',
         `Postest Selesai (Skor ${score})`,
         'Buka Menu SELESAI untuk mengisi Survei IKM dan memilih jadwal kelas KUA.'
       );
     },
-    [pushToast, updateCurrentPesertaProgress]
+    [currentUser?.progress?.postestDone, pushToast, updateCurrentPesertaProgress]
   );
 
   const markSelesaiClicked = useCallback(() => {
@@ -851,6 +908,11 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       jawabanKuis: Record<number, number>;
     }) => {
       if (!currentUser) return;
+      const access = canAccessPiagamKompak(currentUser, data.modules.length);
+      if (!access.unlocked) {
+        pushToast('error', 'Piagam Kami Kompak Masih Terkunci', access.reason);
+        return;
+      }
       const existingCode =
         currentUser.kompak?.kodePiagam ||
         data.users.find((u) => u.username === currentUser.pasanganUsername)?.kompak?.kodePiagam ||
@@ -895,7 +957,7 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }));
       pushToast('success', 'Piagam Kami Kompak Tersimpan', `Kode Registrasi: ${existingCode}`);
     },
-    [currentUser, data.users, pushToast]
+    [currentUser, data.modules.length, data.users, pushToast]
   );
 
   const selectClassMode = useCallback(
@@ -1176,6 +1238,20 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const updateOwnProfile = useCallback(
     (updates: Partial<BimwinUser>) => {
       if (!currentUser) return;
+      if (
+        currentUser.role === 'Peserta' &&
+        updates.tanggalRencanaNikah !== undefined &&
+        updates.tanggalRencanaNikah !== (currentUser.tanggalRencanaNikah || '')
+      ) {
+        const akadCheck = validateRencanaAkadDate(
+          updates.tanggalRencanaNikah,
+          currentUser.createdAt
+        );
+        if (!akadCheck.ok) {
+          pushToast('error', 'Rencana Tanggal Akad Tidak Valid', akadCheck.error);
+          return;
+        }
+      }
       setData((prev) => {
         const next: BimwinStoreSnapshot = {
           ...prev,
@@ -1828,6 +1904,75 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [appendAudit, currentUser, pushToast]
   );
 
+  const updateKuaDirectoryEntry = useCallback(
+    (kua: string, updates: Omit<KuaDirectoryEntry, 'kua'>) => {
+      if (!currentUser || currentUser.role !== 'SuperAdmin') {
+        return { ok: false, error: 'Hanya SuperAdmin Kemenag yang dapat mengubah Direktori 16 KUA.' };
+      }
+      const check = validateKuaDirectoryUpdate(updates);
+      if (!check.ok) {
+        return check;
+      }
+
+      const cleaned: KuaDirectoryEntry = {
+        kua,
+        alamat: updates.alamat.trim(),
+        telp: updates.telp.trim(),
+        whatsapp: updates.whatsapp?.trim() || undefined,
+        email: updates.email?.trim() || undefined,
+        kepalaKua: updates.kepalaKua?.trim() || undefined,
+        jamLayanan: updates.jamLayanan.trim(),
+        mapsUrl: updates.mapsUrl?.trim() || undefined,
+        mapsQuery: updates.mapsQuery?.trim() || undefined,
+        catatan: updates.catatan?.trim() || undefined,
+        updatedAt: new Date().toISOString(),
+      };
+
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            kuaDirectory: mergeKuaDirectoryWithDefaults(prev.kuaDirectory).map((entry) =>
+              entry.kua === kua ? cleaned : entry
+            ),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Memperbarui Direktori ${kua} (alamat, kontak aktif, dan jam layanan)`,
+          { kua, actorUsername: currentUser.username }
+        )
+      );
+
+      pushToast('success', `Direktori ${kua} Diperbarui`, 'Perubahan langsung tampil di Direktori 16 KUA publik.');
+      return { ok: true };
+    },
+    [appendAudit, currentUser, pushToast]
+  );
+
+  const resetKuaDirectoryEntry = useCallback(
+    (kua: string) => {
+      if (!currentUser || currentUser.role !== 'SuperAdmin') return;
+      const defaultEntry = DATA_DIREKTORI_16_KUA.find((item) => item.kua === kua);
+      if (!defaultEntry) return;
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            kuaDirectory: mergeKuaDirectoryWithDefaults(prev.kuaDirectory).map((entry) =>
+              entry.kua === kua ? { ...defaultEntry } : entry
+            ),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Memulihkan data default Direktori ${kua}`,
+          { kua, actorUsername: currentUser.username }
+        )
+      );
+      pushToast('info', `Direktori ${kua} Dipulihkan`, 'Data kembali ke pengaturan awal Kemenag Jepara.');
+    },
+    [appendAudit, currentUser, pushToast]
+  );
+
   const addFaq = useCallback(
     (t: string, j: string) => {
       setData((prev) => ({
@@ -2004,6 +2149,8 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     updateAssessmentQuiz,
     updateCompatibilityQuiz,
     updateSystemSettings,
+    updateKuaDirectoryEntry,
+    resetKuaDirectoryEntry,
     addFaq,
     deleteFaq,
     addDocument,

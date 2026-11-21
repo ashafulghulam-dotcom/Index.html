@@ -1141,9 +1141,19 @@ export const QuizModal: React.FC<{
   subtitle: string;
   questions: QuizQuestion[];
   passingScore?: number;
+  oneTimeOnly?: boolean;
   onClose: () => void;
   onComplete: (score: number) => void;
-}> = ({ open, title, subtitle, questions, passingScore = 80, onClose, onComplete }) => {
+}> = ({
+  open,
+  title,
+  subtitle,
+  questions,
+  passingScore = 80,
+  oneTimeOnly = false,
+  onClose,
+  onComplete,
+}) => {
   const shuffled = useMemo(() => (open ? shuffleQuizQuestions(questions) : []), [open, questions]);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [fontSize, setFontSize] = useState(14);
@@ -1212,10 +1222,19 @@ export const QuizModal: React.FC<{
     >
       <div className="space-y-4">
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>
-            Jawab seluruh {shuffled.length} pertanyaan · Standar kelulusan modul:{' '}
-            <strong className="font-mono-num">{passingScore}%</strong>
-          </span>
+          {oneTimeOnly ? (
+            <span>
+              Jawab seluruh {shuffled.length} pertanyaan ·{' '}
+              <strong className="text-amber-700 dark:text-amber-400">
+                Hanya 1 kali pengerjaan (tidak dapat diulangi)
+              </strong>
+            </span>
+          ) : (
+            <span>
+              Jawab seluruh {shuffled.length} pertanyaan · Standar kelulusan modul:{' '}
+              <strong className="font-mono-num">{passingScore}%</strong>
+            </span>
+          )}
           <div className="flex items-center gap-1.5">
             <button
               type="button"
@@ -1237,7 +1256,7 @@ export const QuizModal: React.FC<{
         {submittedScore !== null && (
           <div
             className={`p-4 rounded-xl border flex items-center justify-between gap-3 ${
-              submittedScore >= passingScore
+              oneTimeOnly || submittedScore >= passingScore
                 ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
                 : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
             }`}
@@ -1249,9 +1268,11 @@ export const QuizModal: React.FC<{
                   Skor Anda: <span className="font-mono-num">{submittedScore} / 100</span>
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  {submittedScore >= passingScore
-                    ? 'Selamat, Anda memenuhi standar kompetensi evaluasi.'
-                    : 'Anda dapat mengulang kembali setelah mempelajari ringkasan materi.'}
+                  {oneTimeOnly
+                    ? 'Hasil evaluasi Anda telah tersimpan permanen dan tidak dapat diulangi.'
+                    : submittedScore >= passingScore
+                      ? 'Selamat, Anda memenuhi standar kompetensi evaluasi.'
+                      : 'Anda dapat mengulang kembali setelah mempelajari ringkasan materi.'}
                 </p>
               </div>
             </div>

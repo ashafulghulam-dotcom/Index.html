@@ -1,4 +1,5 @@
 import {
+  DATA_DIREKTORI_16_KUA,
   DEFAULT_ANNOUNCEMENT,
   DEFAULT_DOKUMEN,
   DEFAULT_FAQ,
@@ -6,6 +7,7 @@ import {
   DEFAULT_KOMPAK_COMMITMENTS,
   DEFAULT_PEJABAT,
   DESA_PER_KUA_JEPARA,
+  KuaDirectoryEntry,
   LIST_16_KUA,
 } from './jeparaData';
 import {
@@ -49,6 +51,7 @@ export interface BimwinStoreSnapshot {
   faqs: FaqItem[];
   documents: DocumentDownloadItem[];
   gallery: GalleryItem[];
+  kuaDirectory: KuaDirectoryEntry[];
   auditLogs: AuditLogItem[];
   settings: SystemSettings;
 }
@@ -117,7 +120,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalLahir: '1998-05-12',
       ttl: 'Jepara, 12 Mei 1998',
       usia: 27,
-      pendidikan: 'S1 / D4',
+      pendidikan: 'DIPLOMA IV/STRATA I',
       pekerjaan: 'Desainer Mebel Ekspor',
       noHp: '085727112201',
       email: 'ahmad.rifai@catinjepara.id',
@@ -179,7 +182,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalLahir: '2000-09-08',
       ttl: 'Jepara, 8 September 2000',
       usia: 25,
-      pendidikan: 'S1 / D4',
+      pendidikan: 'DIPLOMA IV/STRATA I',
       pekerjaan: 'Guru Madrasah',
       noHp: '085727112202',
       email: 'siti.nurhaliza@catinjepara.id',
@@ -242,7 +245,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalLahir: '2001-02-14',
       ttl: 'Jepara, 14 Februari 2001',
       usia: 25,
-      pendidikan: 'SMA / MA / SMK',
+      pendidikan: 'SLTA/SEDERAJAT',
       pekerjaan: 'Wirausaha Ukiran',
       noHp: '082136778801',
       email: 'rizky.pratama@catinjepara.id',
@@ -278,7 +281,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalLahir: '2002-07-15',
       ttl: 'Jepara, 15 Juli 2002',
       usia: 23,
-      pendidikan: 'D1 / D2 / D3',
+      pendidikan: 'AKADEMI/DIPLOMA III/SARJANA MUDA',
       pekerjaan: 'Perawat Klinik',
       noHp: '082136778802',
       email: 'nadia.putri@catinjepara.id',
@@ -386,7 +389,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         tanggalLahir: '1999-04-11',
         ttl: 'Jepara, 11 April 1999',
         usia: 26,
-        pendidikan: index % 2 === 0 ? 'S1 / D4' : 'SMA / MA / SMK',
+        pendidikan: index % 2 === 0 ? 'DIPLOMA IV/STRATA I' : 'SLTA/SEDERAJAT',
         pekerjaan: 'Karyawan Swasta',
         noHp: `08522500${String(1000 + index * 2)}`,
         email: `${maleUser}@catinjepara.id`,
@@ -429,7 +432,12 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         tanggalLahir: item.underage ? '2008-08-12' : '2001-08-12',
         ttl: item.underage ? 'Jepara, 12 Agustus 2008' : 'Jepara, 12 Agustus 2001',
         usia: item.underage ? 17 : 24,
-        pendidikan: index % 3 === 0 ? 'S1 / D4' : index % 3 === 1 ? 'D1 / D2 / D3' : 'SMA / MA / SMK',
+        pendidikan:
+          index % 3 === 0
+            ? 'DIPLOMA IV/STRATA I'
+            : index % 3 === 1
+              ? 'AKADEMI/DIPLOMA III/SARJANA MUDA'
+              : 'SLTA/SEDERAJAT',
         pekerjaan: 'Wiraswasta',
         noHp: `08522500${String(1001 + index * 2)}`,
         email: `${femaleUser}@catinjepara.id`,
@@ -654,14 +662,45 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
     {
       id: 'log_1',
       actor: 'Ust. H. Miftahul Huda, S.Ag. (Jepara)',
+      actorUsername: 'fasilitator_jepara',
       role: 'Fasilitator',
+      kua: 'KUA Jepara',
       action: 'Mengesahkan kelulusan & menerbitkan sertifikat JPR-JEP-2026-0001 (Ahmad Rifai)',
       timestamp: '2026-03-12T11:30:00.000Z',
     },
     {
       id: 'log_2',
+      actor: 'Ust. H. Miftahul Huda, S.Ag. (Tahunan)',
+      actorUsername: 'fasilitator_tahunan',
+      role: 'Fasilitator',
+      kua: 'KUA Tahunan',
+      action: 'Membuat jadwal kelas Offline: Bimbingan Perkawinan Angkatan II KUA Tahunan',
+      timestamp: '2026-03-18T08:15:00.000Z',
+    },
+    {
+      id: 'log_3',
+      actor: 'Operator KUA Bangsri',
+      actorUsername: 'admin_bangsri',
+      role: 'AdminKUA',
+      kua: 'KUA Bangsri',
+      action: 'Mengirim pengingat WhatsApp jadwal kelas kepada peserta KUA Bangsri',
+      timestamp: '2026-02-22T09:45:00.000Z',
+    },
+    {
+      id: 'log_4',
+      actor: 'Ust. H. Miftahul Huda, S.Ag. (Pecangaan)',
+      actorUsername: 'fasilitator_pecangaan',
+      role: 'Fasilitator',
+      kua: 'KUA Pecangaan',
+      action: 'Membalas konsultasi pra-nikah terkait persiapan keuangan keluarga (KUA Pecangaan)',
+      timestamp: '2026-04-04T13:20:00.000Z',
+    },
+    {
+      id: 'log_5',
       actor: 'Drs. H. Ahmad Munif, M.Ag.',
+      actorUsername: 'admin',
       role: 'SuperAdmin',
+      kua: 'Kemenag Kab. Jepara',
       action: 'Memperbarui konfigurasi Pejabat Penandatangan Sertifikat 2026',
       timestamp: '2026-03-01T09:00:00.000Z',
     },
@@ -683,6 +722,7 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
     faqs: DEFAULT_FAQ,
     documents: DEFAULT_DOKUMEN,
     gallery: DEFAULT_GALLERY,
+    kuaDirectory: DATA_DIREKTORI_16_KUA.map((item) => ({ ...item })),
     auditLogs,
     settings: {
       announcement: DEFAULT_ANNOUNCEMENT,

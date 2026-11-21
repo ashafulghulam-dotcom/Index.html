@@ -20,9 +20,10 @@ export const KemenagLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'm
 
 export const SamawaBrandHeader: React.FC<{
   subtitle?: string;
+  pageTitle?: string;
   hideSubtitleOnMobile?: boolean;
   subtitleTone?: 'muted' | 'emerald';
-}> = ({ subtitle, hideSubtitleOnMobile = false, subtitleTone = 'muted' }) => (
+}> = ({ subtitle, pageTitle, hideSubtitleOnMobile = false, subtitleTone = 'muted' }) => (
   <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
     <KemenagLogo size="sm" />
     <div className="min-w-0 flex flex-col justify-center">
@@ -33,13 +34,23 @@ export const SamawaBrandHeader: React.FC<{
       />
       {subtitle && (
         <span
-          className={`mt-[4px] font-semibold text-[9px] leading-none uppercase tracking-[0.04em] truncate ${
+          className={`mt-[3px] font-semibold text-[9px] leading-tight uppercase tracking-[0.04em] ${
+            pageTitle ? 'whitespace-normal break-words' : 'truncate'
+          } ${
             subtitleTone === 'emerald'
               ? 'text-[#0F684E] dark:text-emerald-400'
               : 'text-slate-600 dark:text-slate-300'
           } ${hideSubtitleOnMobile ? 'hidden sm:block' : 'block'}`}
         >
           {subtitle}
+        </span>
+      )}
+      {pageTitle && (
+        <span
+          data-testid="active-page-header-label"
+          className="mt-[2px] text-[11px] sm:text-xs font-semibold leading-tight text-slate-800 dark:text-slate-100 whitespace-normal break-words"
+        >
+          {pageTitle}
         </span>
       )}
     </div>

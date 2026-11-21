@@ -2,13 +2,20 @@ export type UserRole = 'Peserta' | 'Fasilitator' | 'AdminKUA' | 'SuperAdmin';
 
 export type Gender = 'Laki-laki' | 'Perempuan';
 
-export type EducationLevel =
-  | 'SD / MI'
-  | 'SMP / MTs'
-  | 'SMA / MA / SMK'
-  | 'D1 / D2 / D3'
-  | 'S1 / D4'
-  | 'S2 / S3';
+export const EDUCATION_LEVEL_OPTIONS = [
+  'TIDAK/BLM SEKOLAH',
+  'BELUM TAMAT SD/SEDERAJAT',
+  'TAMAT SD/SEDERAJAT',
+  'SLTP/SEDERAJAT',
+  'SLTA/SEDERAJAT',
+  'DIPLOMA I/II',
+  'AKADEMI/DIPLOMA III/SARJANA MUDA',
+  'DIPLOMA IV/STRATA I',
+  'STRATA-II',
+  'STRATA-III',
+] as const;
+
+export type EducationLevel = (typeof EDUCATION_LEVEL_OPTIONS)[number];
 
 export type AttendanceStatus = 'Belum Hadir' | 'Hadir Kelas Online' | 'Hadir Kelas Offline';
 
@@ -252,7 +259,9 @@ export interface GalleryItem {
 export interface AuditLogItem {
   id: string;
   actor: string;
+  actorUsername?: string;
   role: UserRole;
+  kua?: string;
   action: string;
   timestamp: string;
 }

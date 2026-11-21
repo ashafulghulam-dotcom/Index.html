@@ -160,8 +160,8 @@ export const WorkspaceShell: React.FC<{
       )}
 
       {/* Clean Minimal Top Bar with Always-Visible Garis 3 */}
-      <header className="sticky top-0 z-30 h-16 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-b border-slate-200 dark:border-emerald-950 px-4 sm:px-6 flex items-center justify-between gap-4 no-print">
-        <div className="flex items-center gap-3 min-w-0">
+      <header className="sticky top-0 z-30 min-h-16 py-2 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-b border-slate-200 dark:border-emerald-950 px-3 sm:px-6 flex items-center justify-between gap-2.5 sm:gap-4 no-print">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1 lg:flex-initial">
           <button
             type="button"
             onClick={() => setDrawerOpen(true)}
@@ -172,7 +172,8 @@ export const WorkspaceShell: React.FC<{
             <Menu className="w-4 h-4" />
           </button>
           <SamawaBrandHeader
-            subtitle={`${roleLabel}${activeItem?.label ? ` · ${activeItem.label}` : ''}`}
+            subtitle={roleLabel}
+            pageTitle={activeItem?.label}
             subtitleTone="emerald"
           />
         </div>

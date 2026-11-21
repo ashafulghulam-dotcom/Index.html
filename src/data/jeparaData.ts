@@ -108,11 +108,23 @@ export interface KuaDirectoryEntry {
   kua: string;
   alamat: string;
   telp: string;
+  whatsapp?: string;
+  email?: string;
+  kepalaKua?: string;
   jamLayanan: string;
+  mapsUrl?: string;
   mapsQuery?: string;
+  catatan?: string;
+  updatedAt?: string;
 }
 
-export function buildKuaGoogleMapsUrl(entry: Pick<KuaDirectoryEntry, 'kua' | 'alamat' | 'mapsQuery'>): string {
+export function buildKuaGoogleMapsUrl(
+  entry: Pick<KuaDirectoryEntry, 'kua' | 'alamat' | 'mapsUrl' | 'mapsQuery'>
+): string {
+  const customUrl = entry.mapsUrl?.trim();
+  if (customUrl && /^https?:\/\//i.test(customUrl)) {
+    return customUrl;
+  }
   const query = entry.mapsQuery || `${entry.kua}, ${entry.alamat}, Kabupaten Jepara, Jawa Tengah`;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }

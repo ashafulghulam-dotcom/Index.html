@@ -41,11 +41,14 @@ import {
   calculateStuntingReadiness,
   canAccessClassSelection,
   canAccessModuleQuiz,
+  canAccessPiagamKompak,
   evaluatePesertaStep,
   formatIndonesianDate,
+  getMinAkadDate,
   isUnderageMarriage,
   maskNik,
   normalizeVillageName,
+  validateRencanaAkadDate,
 } from '../utils/bimwinLogic';
 import {
   downloadParticipantCardPdf,
@@ -176,6 +179,11 @@ export const PesertaDashboard: React.FC = () => {
     alamat: currentUser?.alamat || '',
     tanggalRencanaNikah: currentUser?.tanggalRencanaNikah || '',
   });
+  const [profileError, setProfileError] = useState('');
+  const minAkadDate = useMemo(
+    () => getMinAkadDate(currentUser?.createdAt),
+    [currentUser?.createdAt]
+  );
 
   // Izin reason per class
   const [izinReasons, setIzinReasons] = useState<Record<string, string>>({});
@@ -225,6 +233,7 @@ export const PesertaDashboard: React.FC = () => {
 
   const evalStep = evaluatePesertaStep(currentUser, data.modules.length);
   const classAccess = canAccessClassSelection(currentUser, data.modules.length);
+  const kompakAccess = canAccessPiagamKompak(currentUser, data.modules.length);
   const partnerUser = data.users.find(
     (u) => u.role === 'Peserta' && u.username === currentUser.pasanganUsername
   );
@@ -361,7 +370,17 @@ export const PesertaDashboard: React.FC = () => {
   const navItems: NavItem[] = [
     { id: 'belajar', label: 'Ruang Belajar', icon: GraduationCap, badge: `${evalStep.progressPercent}%`, section: 'Pembelajaran MOOC' },
     { id: 'selesai', label: 'Selesai & Dokumen', icon: FileCheck2, badge: evalStep.canDownloadDocuments ? 'Siap' : undefined, section: 'Pembelajaran MOOC' },
-    { id: 'kompak', label: 'Piagam Kami Kompak', icon: HeartHandshake, section: 'Pembelajaran MOOC' },
+    {
+      id: 'kompak',
+      label: 'Piagam Kami Kompak',
+      icon: HeartHandshake,
+      badge: kompakAccess.unlocked
+        ? currentUser.kompak?.kodePiagam
+          ? 'Tersimpan'
+          : undefined
+        : 'Terkunci',
+      section: 'Pembelajaran MOOC',
+    },
     {
       id: 'kelas',
       label: 'Kelas Online & Offline',
@@ -648,7 +667,7 @@ export const PesertaDashboard: React.FC = () => {
 
             <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-                Mengukur pemahaman awal calon pengantin sebelum membuka 5 modul utama.
+                Mengukur pemahaman awal calon pengantin sebelum membuka 5 modul utama. Hanya dapat dikerjakan 1 kali.
               </p>
               <div className="flex flex-wrap items-center gap-3 shrink-0">
                 <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -659,15 +678,33 @@ export const PesertaDashboard: React.FC = () => {
                 <button
                   type="button"
                   disabled={!evalStep.canTakePretest}
-                  onClick={() => setQuizTarget({ kind: 'pretest' })}
+                  title={
+                    currentUser.progress?.pretestDone
+                      ? 'Pretest hanya dapat dikerjakan 1 kali dan tidak dapat diulangi.'
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (evalStep.canTakePretest) setQuizTarget({ kind: 'pretest' });
+                  }}
                   className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                    evalStep.canTakePretest
-                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                    currentUser.progress?.pretestDone
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-400 cursor-not-allowed'
+                      : evalStep.canTakePretest
+                        ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                        : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
-                  {currentUser.progress?.pretestDone ? 'Ulangi Pretest' : 'Mulai Pretest'}
+                  {currentUser.progress?.pretestDone ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Sudah Dikerjakan
+                    </>
+                  ) : (
+                    <>
+                      {!evalStep.canTakePretest && <Lock className="w-3.5 h-3.5" />}
+                      Mulai Pretest
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -808,7 +845,7 @@ export const PesertaDashboard: React.FC = () => {
 
             <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-                Terbuka setelah seluruh 5 modul lulus kuis (≥80%). Mengukur peningkatan pemahaman (Before-After Gain).
+                Terbuka setelah seluruh 5 modul lulus kuis (≥80%). Mengukur peningkatan pemahaman (Before-After Gain) dan hanya dapat dikerjakan 1 kali.
               </p>
               <div className="flex flex-wrap items-center gap-3 shrink-0">
                 <span className="font-mono-num text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -828,15 +865,33 @@ export const PesertaDashboard: React.FC = () => {
                 <button
                   type="button"
                   disabled={!evalStep.canTakePostest}
-                  onClick={() => setQuizTarget({ kind: 'postest' })}
+                  title={
+                    currentUser.progress?.postestDone
+                      ? 'Postest hanya dapat dikerjakan 1 kali dan tidak dapat diulangi.'
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (evalStep.canTakePostest) setQuizTarget({ kind: 'postest' });
+                  }}
                   className={`px-4 py-2 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition ${
-                    evalStep.canTakePostest
-                      ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
-                      : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                    currentUser.progress?.postestDone
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-400 cursor-not-allowed'
+                      : evalStep.canTakePostest
+                        ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                        : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
                   }`}
                 >
-                  {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
-                  {currentUser.progress?.postestDone ? 'Ulangi Postest' : 'Mulai Postest'}
+                  {currentUser.progress?.postestDone ? (
+                    <>
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Sudah Dikerjakan
+                    </>
+                  ) : (
+                    <>
+                      {!evalStep.canTakePostest && <Lock className="w-3.5 h-3.5" />}
+                      Mulai Postest
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -991,133 +1046,235 @@ export const PesertaDashboard: React.FC = () => {
       {/* TAB 3: PIAGAM KAMI KOMPAK & KUIS KECOCOKAN */}
       {activeTab === 'kompak' && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-emerald-950 pb-4">
-              <div>
-                <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white">
-                  Kuis Kecocokan &amp; Piagam "Kami Kompak"
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Selaraskan visi komunikasi, keuangan, peran domestik, dan pengasuhan anak bersama pasangan.
-                </p>
-              </div>
-              <div className="text-left sm:text-right">
-                <p className="text-[11px] text-slate-500">Skor Keselarasan Pasangan</p>
-                <p className="font-mono-num text-xl font-bold text-[#0F684E] dark:text-emerald-400">
-                  {compatScore.percent}% · <span className="text-xs font-sans">{compatScore.label}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {data.compatibilityQuiz.map((q) => {
-                const partnerChoice = partnerUser?.kompak?.jawabanKuis?.[q.id];
-                return (
-                  <div
-                    key={q.id}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-2.5"
-                  >
-                    <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
-                      {q.id}. {q.tanya}
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {q.opsi.map((opt, idx) => {
-                        const mine = kompakForm.jawabanKuis[q.id] === idx;
-                        const isPartner = partnerChoice === idx;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() =>
-                              setKompakForm((prev) => ({
-                                ...prev,
-                                jawabanKuis: { ...prev.jawabanKuis, [q.id]: idx },
-                              }))
-                            }
-                            className={`text-left px-3 py-2 rounded-lg border text-xs transition ${
-                              mine
-                                ? 'border-[#0F684E] bg-emerald-50 dark:bg-emerald-950/60 font-semibold text-slate-900 dark:text-white'
-                                : 'border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18]'
-                            }`}
-                          >
-                            {opt}
-                            {isPartner && (
-                              <span className="block text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
-                                Pilihan {partnerUser?.nama}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-emerald-950">
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white">
-                3 Komitmen Tertulis Piagam Pasangan
-              </h3>
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  1. Kesalingan Peran &amp; Kesehatan Keluarga
-                </label>
-                <textarea
-                  rows={2}
-                  value={kompakForm.peranKeluarga}
-                  onChange={(e) => setKompakForm({ ...kompakForm, peranKeluarga: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  2. Moderasi Beragama &amp; Pendidikan Karakter Anak
-                </label>
-                <textarea
-                  rows={2}
-                  value={kompakForm.pendidikanKarakter}
-                  onChange={(e) =>
-                    setKompakForm({ ...kompakForm, pendidikanKarakter: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1">
-                  3. Pengasuhan &amp; Disiplin Positif Tanpa Kekerasan
-                </label>
-                <textarea
-                  rows={2}
-                  value={kompakForm.disiplinPositif}
-                  onChange={(e) =>
-                    setKompakForm({ ...kompakForm, disiplinPositif: e.target.value })
-                  }
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
-                />
+          {!kompakAccess.unlocked ? (
+            <div className="bg-white dark:bg-[#111C18] border border-amber-300 dark:border-amber-800/70 rounded-2xl p-6 space-y-5">
+              <div className="flex items-start gap-3.5">
+                <div className="w-11 h-11 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-amber-700 dark:text-amber-400" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                    Piagam Kami Kompak Terkunci
+                  </p>
+                  <h2 className="font-display text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">
+                    Selesaikan MOOC &amp; Survei IKM untuk Membuka Piagam &ldquo;Kami Kompak&rdquo;
+                  </h2>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {kompakAccess.reason}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex flex-wrap justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => saveKompakData(kompakForm)}
-                  className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div
+                  className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+                    kompakAccess.moocFinished
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950'
+                  }`}
                 >
-                  Simpan Kesepakatan Pasangan
-                </button>
-                {evalStep.canDownloadDocuments && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      1. Tuntaskan Pembelajaran MOOC
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Sinkron Pasangan, Pretest, 5 Modul (Video + Kuis ≥80%), dan Postest.
+                    </p>
+                    <p
+                      className={`text-xs font-semibold pt-1 ${
+                        kompakAccess.moocFinished
+                          ? 'text-[#0F684E] dark:text-emerald-400'
+                          : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                    >
+                      {kompakAccess.moocFinished ? 'Sudah Tuntas' : 'Belum Selesai'}
+                    </p>
+                  </div>
+                  {kompakAccess.moocFinished ? (
+                    <CheckCircle2 className="w-5 h-5 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('belajar')}
+                      className="px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold shrink-0"
+                    >
+                      Ke Ruang Belajar
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className={`p-4 rounded-xl border flex items-start justify-between gap-3 ${
+                    kompakAccess.ikmDone
+                      ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-800'
+                      : 'bg-[#F8FAF9] dark:bg-[#0D1613] border-slate-200 dark:border-emerald-950'
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">
+                      2. Isi Survei Kepuasan Masyarakat (IKM)
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Survei evaluasi layanan BIMWIN Kemenag Kab. Jepara sebelum menyusun Piagam Kami Kompak.
+                    </p>
+                    <p
+                      className={`text-xs font-semibold pt-1 ${
+                        kompakAccess.ikmDone
+                          ? 'text-[#0F684E] dark:text-emerald-400'
+                          : 'text-amber-700 dark:text-amber-400'
+                      }`}
+                    >
+                      {kompakAccess.ikmDone ? 'Sudah Diisi' : 'Wajib Diisi'}
+                    </p>
+                  </div>
+                  {kompakAccess.ikmDone ? (
+                    <CheckCircle2 className="w-5 h-5 text-[#0F684E] dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!kompakAccess.moocFinished}
+                      onClick={() => setIkmOpen(true)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 ${
+                        kompakAccess.moocFinished
+                          ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                          : 'bg-slate-200 dark:bg-emerald-950 text-slate-400 cursor-not-allowed'
+                      }`}
+                    >
+                      Isi Survei IKM
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-emerald-950 pb-4">
+                <div>
+                  <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white">
+                    Kuis Kecocokan &amp; Piagam &ldquo;Kami Kompak&rdquo;
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Selaraskan visi komunikasi, keuangan, peran domestik, dan pengasuhan anak bersama pasangan.
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="text-[11px] text-slate-500">Skor Keselarasan Pasangan</p>
+                  <p className="font-mono-num text-xl font-bold text-[#0F684E] dark:text-emerald-400">
+                    {compatScore.percent}% · <span className="text-xs font-sans">{compatScore.label}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {data.compatibilityQuiz.map((q) => {
+                  const partnerChoice = partnerUser?.kompak?.jawabanKuis?.[q.id];
+                  return (
+                    <div
+                      key={q.id}
+                      className="p-4 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] space-y-2.5"
+                    >
+                      <p className="text-xs sm:text-sm font-semibold text-slate-900 dark:text-white">
+                        {q.id}. {q.tanya}
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {q.opsi.map((opt, idx) => {
+                          const mine = kompakForm.jawabanKuis[q.id] === idx;
+                          const isPartner = partnerChoice === idx;
+                          return (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() =>
+                                setKompakForm((prev) => ({
+                                  ...prev,
+                                  jawabanKuis: { ...prev.jawabanKuis, [q.id]: idx },
+                                }))
+                              }
+                              className={`text-left px-3 py-2 rounded-lg border text-xs transition ${
+                                mine
+                                  ? 'border-[#0F684E] bg-emerald-50 dark:bg-emerald-950/60 font-semibold text-slate-900 dark:text-white'
+                                  : 'border-slate-200 dark:border-emerald-900 bg-white dark:bg-[#111C18]'
+                              }`}
+                            >
+                              {opt}
+                              {isPartner && (
+                                <span className="block text-[10px] font-semibold text-amber-600 dark:text-amber-400 mt-1">
+                                  Pilihan {partnerUser?.nama}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-emerald-950">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                  3 Komitmen Tertulis Piagam Pasangan
+                </h3>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    1. Kesalingan Peran &amp; Kesehatan Keluarga
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={kompakForm.peranKeluarga}
+                    onChange={(e) => setKompakForm({ ...kompakForm, peranKeluarga: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    2. Moderasi Beragama &amp; Pendidikan Karakter Anak
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={kompakForm.pendidikanKarakter}
+                    onChange={(e) =>
+                      setKompakForm({ ...kompakForm, pendidikanKarakter: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1">
+                    3. Pengasuhan &amp; Disiplin Positif Tanpa Kekerasan
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={kompakForm.disiplinPositif}
+                    onChange={(e) =>
+                      setKompakForm({ ...kompakForm, disiplinPositif: e.target.value })
+                    }
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs sm:text-sm"
+                  />
+                </div>
+
+                <div className="flex flex-wrap justify-end gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setPiagamOpen(true)}
-                    className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold inline-flex items-center gap-1.5"
+                    onClick={() => saveKompakData(kompakForm)}
+                    className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
                   >
-                    <Printer className="w-3.5 h-3.5" />
-                    Pratinjau &amp; Cetak Piagam
+                    Simpan Kesepakatan Pasangan
                   </button>
-                )}
+                  {evalStep.canDownloadDocuments && (
+                    <button
+                      type="button"
+                      onClick={() => setPiagamOpen(true)}
+                      className="px-4 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold inline-flex items-center gap-1.5"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      Pratinjau &amp; Cetak Piagam
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -2432,6 +2589,21 @@ export const PesertaDashboard: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                setProfileError('');
+                if (
+                  profileForm.tanggalRencanaNikah !== (currentUser.tanggalRencanaNikah || '')
+                ) {
+                  const akadCheck = validateRencanaAkadDate(
+                    profileForm.tanggalRencanaNikah,
+                    currentUser.createdAt
+                  );
+                  if (!akadCheck.ok) {
+                    setProfileError(
+                      akadCheck.error || 'Rencana tanggal akad nikah tidak valid.'
+                    );
+                    return;
+                  }
+                }
                 updateOwnProfile(profileForm);
               }}
               className="space-y-3 text-xs sm:text-sm"
@@ -2478,15 +2650,23 @@ export const PesertaDashboard: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Rencana Tanggal Akad Nikah</label>
+                  <label htmlFor="profil-tanggal-akad" className="block font-semibold mb-1">
+                    Rencana Tanggal Akad Nikah
+                  </label>
                   <input
+                    id="profil-tanggal-akad"
                     type="date"
+                    min={minAkadDate}
                     value={profileForm.tanggalRencanaNikah}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value })
-                    }
+                    onChange={(e) => {
+                      setProfileError('');
+                      setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value });
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
                   />
+                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    Minimal {formatIndonesianDate(minAkadDate)} (tidak bisa memilih waktu yang telah berlalu).
+                  </p>
                 </div>
               </div>
               <div>
@@ -2498,6 +2678,11 @@ export const PesertaDashboard: React.FC = () => {
                   className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
                 />
               </div>
+              {profileError && (
+                <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+                  {profileError}
+                </p>
+              )}
               <button
                 type="submit"
                 className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
@@ -2721,6 +2906,7 @@ export const PesertaDashboard: React.FC = () => {
                 : []
         }
         passingScore={quizTarget?.kind === 'module' ? 80 : 0}
+        oneTimeOnly={quizTarget?.kind === 'pretest' || quizTarget?.kind === 'postest'}
         onClose={() => setQuizTarget(null)}
         onComplete={(score) => {
           if (!quizTarget) return;

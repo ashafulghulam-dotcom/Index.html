@@ -1,7 +1,17 @@
-import { ALIAS_DESA_LAMA_JEPARA, DESA_PER_KUA_JEPARA, SMART_FAQ_RULES } from '../data/jeparaData';
 import {
+  ALIAS_DESA_LAMA_JEPARA,
+  DATA_DIREKTORI_16_KUA,
+  DESA_PER_KUA_JEPARA,
+  KuaDirectoryEntry,
+  LIST_16_KUA,
+  SMART_FAQ_RULES,
+} from '../data/jeparaData';
+import {
+  AuditLogItem,
   BimwinClassSchedule,
   BimwinUser,
+  EDUCATION_LEVEL_OPTIONS,
+  EducationLevel,
   QuizQuestion,
   StuntingCheckRecord,
   StuntingStatus,
@@ -9,7 +19,7 @@ import {
 } from '../types/bimwin';
 import { extractVerificationCode } from './qrVerification';
 
-const BULAN_INDO = [
+export const BULAN_INDO = [
   'Januari',
   'Februari',
   'Maret',
@@ -272,9 +282,9 @@ export function evaluatePesertaStep(
     currentStep,
     completedSteps,
     moocFinished,
-    canTakePretest: hasPartner,
+    canTakePretest: hasPartner && !pretestDone,
     canAccessModules: hasPartner && pretestDone,
-    canTakePostest: hasPartner && pretestDone && allModulesDone,
+    canTakePostest: hasPartner && pretestDone && allModulesDone && !postestDone,
     canOpenSelesai: moocFinished,
     canChooseClass,
     canDownloadDocuments,
@@ -320,6 +330,38 @@ export function canAccessClassSelection(
     reason: unlocked
       ? undefined
       : `Pilihan Kelas Online & Offline masih terkunci. Silakan lengkapi: ${missingRequirements.join(' dan ')}.`,
+  };
+}
+
+/**
+ * Participants may access & submit Piagam "Kami Kompak" ONLY after completing the full MOOC
+ * (partner sync, pretest, 5 modules, postest) AND submitting the IKM satisfaction survey.
+ */
+export function canAccessPiagamKompak(
+  user: BimwinUser,
+  totalModules: number = 5
+): ClassSelectionAccessState {
+  const evalStep = evaluatePesertaStep(user, totalModules);
+  const moocFinished = evalStep.moocFinished;
+  const ikmDone = Boolean(user.progress?.ikmDone);
+  const missingRequirements: string[] = [];
+
+  if (!moocFinished) {
+    missingRequirements.push('Menuntaskan MOOC (Sinkron Pasangan, Pretest, 5 Modul & Postest)');
+  }
+  if (!ikmDone) {
+    missingRequirements.push('Mengisi Survei Kepuasan Masyarakat (IKM)');
+  }
+
+  const unlocked = moocFinished && ikmDone;
+  return {
+    unlocked,
+    moocFinished,
+    ikmDone,
+    missingRequirements,
+    reason: unlocked
+      ? undefined
+      : `Piagam "Kami Kompak" masih terkunci. Silakan lengkapi: ${missingRequirements.join(' dan ')}.`,
   };
 }
 
@@ -836,3 +878,366 @@ export function buildPesertaCsv(users: BimwinUser[]): string {
 
   return [header, ...rows].map((r) => r.map(escapeCell).join(',')).join('\n');
 }
+
+export interface AuditDateParts {
+  day: string;
+  month: string;
+  year: string;
+}
+
+export interface AuditFilterCriteria {
+  query?: string;
+  kua?: string;
+  fasilitator?: string;
+  startDate?: AuditDateParts;
+  endDate?: AuditDateParts;
+}
+
+export interface AuditFilterResult {
+  items: AuditLogItem[];
+  error?: string;
+}
+
+/**
+ * Resolves the KUA or Kemenag unit associated with an AuditLogItem,
+ * supporting both explicit `log.kua` and legacy logs without `kua`.
+ */
+export function resolveAuditLogKua(log: AuditLogItem, users: BimwinUser[]): string {
+  if (log.kua && log.kua.trim()) return log.kua.trim();
+
+  if (log.actorUsername) {
+    const byUsername = users.find(
+      (u) => u.username.toLowerCase() === log.actorUsername!.toLowerCase()
+    );
+    if (byUsername?.kua) return byUsername.kua;
+  }
+
+  const normalizedActor = log.actor.trim().toLowerCase();
+  const byActorName = users.find((u) => u.nama.trim().toLowerCase() === normalizedActor);
+  if (byActorName?.kua) return byActorName.kua;
+
+  const haystack = `${log.actor} ${log.action}`.toLowerCase();
+  for (const kua of LIST_16_KUA) {
+    const kuaLower = kua.toLowerCase();
+    const shortName = kua.replace(/^KUA\s+/i, '').toLowerCase();
+    if (haystack.includes(kuaLower) || haystack.includes(`(${shortName})`)) {
+      return kua;
+    }
+  }
+
+  return 'Kemenag Kab. Jepara';
+}
+
+/**
+ * Converts { day, month, year } dropdown selections into a YYYYMMDD integer boundary.
+ * Supports full date (day+month+year), month+year, or year-only selections.
+ */
+export function parseAuditDateBoundary(
+  parts: AuditDateParts | undefined,
+  boundary: 'start' | 'end'
+): { ymd: number | null; error?: string } {
+  if (!parts) return { ymd: null };
+  const dayStr = parts.day.trim();
+  const monthStr = parts.month.trim();
+  const yearStr = parts.year.trim();
+
+  if (!dayStr && !monthStr && !yearStr) {
+    return { ymd: null };
+  }
+
+  const label = boundary === 'start' ? 'tanggal awal' : 'tanggal akhir';
+
+  if (!yearStr) {
+    return { ymd: null, error: `Pilih Tahun pada ${label} terlebih dahulu.` };
+  }
+  const year = Number(yearStr);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return { ymd: null, error: `Tahun pada ${label} tidak valid.` };
+  }
+
+  if (dayStr && !monthStr) {
+    return { ymd: null, error: `Pilih Bulan pada ${label} saat Tanggal diisi.` };
+  }
+
+  const month = monthStr ? Number(monthStr) : boundary === 'start' ? 1 : 12;
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return { ymd: null, error: `Bulan pada ${label} tidak valid.` };
+  }
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const day = dayStr ? Number(dayStr) : boundary === 'start' ? 1 : daysInMonth;
+  if (!Number.isInteger(day) || day < 1 || day > daysInMonth) {
+    return {
+      ymd: null,
+      error: `Tanggal ${dayStr} tidak tersedia pada bulan ${BULAN_INDO[month - 1]} ${year} (maksimal ${daysInMonth}).`,
+    };
+  }
+
+  return { ymd: year * 10000 + month * 100 + day };
+}
+
+function toTimestampYmd(timestamp: string): number | null {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getFullYear() * 10000 + (date.getMonth() + 1) * 100 + date.getDate();
+}
+
+export function filterAuditLogs(
+  logs: AuditLogItem[],
+  users: BimwinUser[],
+  criteria: AuditFilterCriteria
+): AuditFilterResult {
+  const startParsed = parseAuditDateBoundary(criteria.startDate, 'start');
+  if (startParsed.error) {
+    return { items: [], error: startParsed.error };
+  }
+  const endParsed = parseAuditDateBoundary(criteria.endDate, 'end');
+  if (endParsed.error) {
+    return { items: [], error: endParsed.error };
+  }
+  if (startParsed.ymd !== null && endParsed.ymd !== null && startParsed.ymd > endParsed.ymd) {
+    return {
+      items: [],
+      error: 'Tanggal awal tidak boleh lebih besar daripada tanggal akhir.',
+    };
+  }
+
+  const q = (criteria.query || '').trim().toLowerCase();
+  const kuaFilter = criteria.kua && criteria.kua !== 'ALL' ? criteria.kua : '';
+  const fasFilter = criteria.fasilitator && criteria.fasilitator !== 'ALL' ? criteria.fasilitator : '';
+
+  const selectedFasUser = fasFilter
+    ? users.find(
+        (u) =>
+          u.role === 'Fasilitator' &&
+          (u.username.toLowerCase() === fasFilter.toLowerCase() ||
+            u.nama.toLowerCase() === fasFilter.toLowerCase())
+      )
+    : undefined;
+
+  const items = logs.filter((log) => {
+    const resolvedKua = resolveAuditLogKua(log, users);
+
+    if (kuaFilter) {
+      const kuaLower = kuaFilter.toLowerCase();
+      const matchResolved = resolvedKua.toLowerCase() === kuaLower;
+      const matchAction = log.action.toLowerCase().includes(kuaLower);
+      if (!matchResolved && !matchAction) return false;
+    }
+
+    if (fasFilter) {
+      if (log.role !== 'Fasilitator') return false;
+      const fasLower = fasFilter.toLowerCase();
+      const matchUsername = Boolean(
+        log.actorUsername && log.actorUsername.toLowerCase() === fasLower
+      );
+      const matchName = selectedFasUser
+        ? log.actor.trim().toLowerCase() === selectedFasUser.nama.trim().toLowerCase()
+        : log.actor.trim().toLowerCase() === fasLower;
+      if (!matchUsername && !matchName) return false;
+    }
+
+    if (startParsed.ymd !== null || endParsed.ymd !== null) {
+      const logYmd = toTimestampYmd(log.timestamp);
+      if (logYmd === null) return false;
+      if (startParsed.ymd !== null && logYmd < startParsed.ymd) return false;
+      if (endParsed.ymd !== null && logYmd > endParsed.ymd) return false;
+    }
+
+    if (q) {
+      const hit =
+        log.actor.toLowerCase().includes(q) ||
+        log.role.toLowerCase().includes(q) ||
+        resolvedKua.toLowerCase().includes(q) ||
+        log.action.toLowerCase().includes(q);
+      if (!hit) return false;
+    }
+
+    return true;
+  });
+
+  return { items };
+}
+
+export function validateKuaDirectoryUpdate(
+  payload: Omit<KuaDirectoryEntry, 'kua'>
+): { ok: boolean; error?: string } {
+  const alamat = payload.alamat.trim();
+  const telp = payload.telp.trim();
+  const jamLayanan = payload.jamLayanan.trim();
+  const email = payload.email?.trim() || '';
+  const mapsUrl = payload.mapsUrl?.trim() || '';
+
+  if (alamat.length < 5) {
+    return { ok: false, error: 'Alamat lengkap KUA wajib diisi (minimal 5 karakter).' };
+  }
+  if (telp.replace(/\D/g, '').length < 6) {
+    return {
+      ok: false,
+      error: 'Nomor telepon / WA aktif wajib diisi dengan minimal 6 digit angka.',
+    };
+  }
+  if (jamLayanan.length < 4) {
+    return { ok: false, error: 'Jam buka / layanan KUA wajib diisi.' };
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { ok: false, error: 'Format email resmi KUA tidak valid.' };
+  }
+  if (mapsUrl && !/^https?:\/\//i.test(mapsUrl)) {
+    return {
+      ok: false,
+      error: 'Tautan Google Maps harus diawali dengan https:// atau http://.',
+    };
+  }
+  return { ok: true };
+}
+
+/**
+ * Merges saved KUA directory entries over the canonical 16 KUA defaults,
+ * ensuring all 16 KUA in Kabupaten Jepara are always present.
+ */
+export function mergeKuaDirectoryWithDefaults(
+  saved?: KuaDirectoryEntry[]
+): KuaDirectoryEntry[] {
+  const savedMap = new Map<string, KuaDirectoryEntry>();
+  if (Array.isArray(saved)) {
+    saved.forEach((item) => {
+      if (item && typeof item.kua === 'string' && item.kua.trim()) {
+        savedMap.set(item.kua.trim().toLowerCase(), item);
+      }
+    });
+  }
+
+  return DATA_DIREKTORI_16_KUA.map((def) => {
+    const custom = savedMap.get(def.kua.toLowerCase());
+    if (!custom) return { ...def };
+    return {
+      ...def,
+      ...custom,
+      kua: def.kua,
+      alamat: custom.alamat?.trim() || def.alamat,
+      telp: custom.telp?.trim() || def.telp,
+      jamLayanan: custom.jamLayanan?.trim() || def.jamLayanan,
+    };
+  });
+}
+
+const LEGACY_EDUCATION_MAP: Record<string, EducationLevel> = {
+  'sd / mi': 'TAMAT SD/SEDERAJAT',
+  'smp / mts': 'SLTP/SEDERAJAT',
+  'sma / ma / smk': 'SLTA/SEDERAJAT',
+  'd1 / d2 / d3': 'AKADEMI/DIPLOMA III/SARJANA MUDA',
+  's1 / d4': 'DIPLOMA IV/STRATA I',
+  's2 / s3': 'STRATA-II',
+};
+
+export function normalizeEducationLevel(raw?: string): EducationLevel | undefined {
+  if (!raw || !raw.trim()) return undefined;
+  const trimmed = raw.trim();
+  const exact = EDUCATION_LEVEL_OPTIONS.find(
+    (opt) => opt.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (exact) return exact;
+  return LEGACY_EDUCATION_MAP[trimmed.toLowerCase()] || 'SLTA/SEDERAJAT';
+}
+
+/**
+ * Returns a local calendar ISO date string (YYYY-MM-DD) without UTC timezone drift.
+ */
+export function getLocalIsoDate(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Adds a number of calendar days to a YYYY-MM-DD local date string.
+ */
+export function addDaysToIsoDate(isoDate: string, days: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate.trim());
+  if (!match) return getLocalIsoDate();
+  const dt = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  dt.setDate(dt.getDate() + days);
+  return getLocalIsoDate(dt);
+}
+
+function isValidIsoCalendarDate(isoDate: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const dt = new Date(year, month - 1, day);
+  return (
+    dt.getFullYear() === year &&
+    dt.getMonth() === month - 1 &&
+    dt.getDate() === day
+  );
+}
+
+/**
+ * Computes the earliest selectable Rencana Tanggal Akad Nikah (YYYY-MM-DD).
+ * Never allows dates earlier than the participant's account registration date
+ * or dates that have already passed relative to today.
+ */
+export function getMinAkadDate(accountCreatedAt?: string, now: Date = new Date()): string {
+  const todayIso = getLocalIsoDate(now);
+  if (!accountCreatedAt || !accountCreatedAt.trim()) {
+    return todayIso;
+  }
+
+  const trimmed = accountCreatedAt.trim();
+  let createdIso = '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed) && isValidIsoCalendarDate(trimmed)) {
+    createdIso = trimmed;
+  } else {
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      createdIso = getLocalIsoDate(parsed);
+    }
+  }
+
+  if (!createdIso) return todayIso;
+  return createdIso > todayIso ? createdIso : todayIso;
+}
+
+/**
+ * Validates that Rencana Tanggal Akad Nikah is a real calendar date on or after
+ * both the account registration date and today (no past dates allowed).
+ */
+export function validateRencanaAkadDate(
+  tanggalRencanaNikah: string | undefined,
+  accountCreatedAt?: string,
+  now: Date = new Date()
+): { ok: boolean; minDate: string; error?: string } {
+  const minDate = getMinAkadDate(accountCreatedAt, now);
+  const trimmed = (tanggalRencanaNikah || '').trim();
+
+  if (!trimmed) {
+    return {
+      ok: false,
+      minDate,
+      error: 'Rencana tanggal akad nikah wajib diisi.',
+    };
+  }
+
+  if (!isValidIsoCalendarDate(trimmed)) {
+    return {
+      ok: false,
+      minDate,
+      error: 'Format rencana tanggal akad nikah tidak valid.',
+    };
+  }
+
+  if (trimmed < minDate) {
+    return {
+      ok: false,
+      minDate,
+      error: `Rencana tanggal akad nikah tidak boleh sebelum tanggal pendaftaran atau waktu yang telah berlalu (minimal ${formatIndonesianDate(minDate)}).`,
+    };
+  }
+
+  return { ok: true, minDate };
+}
+

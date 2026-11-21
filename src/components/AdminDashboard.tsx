@@ -3,11 +3,13 @@ import {
   BarChart3,
   Bell,
   BookMarked,
+  Calendar,
   Database,
   Edit3,
   Upload,
   FileSpreadsheet,
   History,
+  MapPin,
   MessageSquare,
   Plus,
   Printer,
@@ -36,13 +38,18 @@ import { DESA_PER_KUA_JEPARA, LIST_16_KUA } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
 import { BimwinUser, ModuleDefinition, QuizQuestion } from '../types/bimwin';
 import {
+  AuditDateParts,
+  AuditFilterCriteria,
+  BULAN_INDO,
   buildPesertaCsv,
   countUniqueSyncedCouples,
   evaluatePesertaStep,
+  filterAuditLogs,
   formatIndonesianDate,
   isUnderageMarriage,
   maskNik,
   normalizeVillageName,
+  resolveAuditLogKua,
 } from '../utils/bimwinLogic';
 import { buildExecutiveReportRows, ExecutiveReportData } from '../utils/pdfDocuments';
 import {
@@ -52,6 +59,7 @@ import {
   saveModuleVideoBlob,
 } from '../utils/videoWatchGuard';
 import { AccountSecurityCard } from './AccountSecurityCard';
+import { KuaDirectoryManager } from './KuaDirectoryManager';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
 import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
@@ -129,6 +137,17 @@ export const AdminDashboard: React.FC = () => {
   const [kritikReplies, setKritikReplies] = useState<Record<string, string>>({});
   const [ikmKuaFilter, setIkmKuaFilter] = useState<string>(isSuper ? 'ALL' : currentUser?.kua || 'KUA Jepara');
   const [auditSearch, setAuditSearch] = useState('');
+  const [auditKuaDraft, setAuditKuaDraft] = useState<string>('ALL');
+  const [auditFasilitatorDraft, setAuditFasilitatorDraft] = useState<string>('ALL');
+  const [auditStartDraft, setAuditStartDraft] = useState<AuditDateParts>({ day: '', month: '', year: '' });
+  const [auditEndDraft, setAuditEndDraft] = useState<AuditDateParts>({ day: '', month: '', year: '' });
+  const [appliedAuditFilter, setAppliedAuditFilter] = useState<AuditFilterCriteria>({
+    query: '',
+    kua: 'ALL',
+    fasilitator: 'ALL',
+    startDate: { day: '', month: '', year: '' },
+    endDate: { day: '', month: '', year: '' },
+  });
   const [broadcastKua, setBroadcastKua] = useState(isSuper ? 'ALL' : currentUser?.kua || 'KUA Jepara');
   const [broadcastTitle, setBroadcastTitle] = useState('');
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -309,13 +328,14 @@ export const AdminDashboard: React.FC = () => {
   );
 
   const navItems: NavItem[] = [
-    { id: 'analitik', label: 'Analitik & Peta 16 KUA', icon: BarChart3, section: 'Eksekutif' },
+    { id: 'analitik', label: isSuper ? 'Analitik & Peta 16 KUA' : 'Analitik KUA', icon: BarChart3, section: 'Eksekutif' },
     { id: 'peserta', label: 'Data Peserta Catin', icon: Users, badge: scopedPeserta.length, section: 'Eksekutif' },
     { id: 'ikm', label: 'Survei IKM & Kritik Saran', icon: MessageSquare, badge: data.kritikSaran.length, section: 'Layanan Publik' },
-    { id: 'pengingat', label: 'Smart Reminder WA & Email', icon: Bell, section: 'Layanan Publik' },
+    { id: 'pengingat', label: 'Smart Reminder', icon: Bell, section: 'Layanan Publik' },
     ...(isSuper
       ? [
           { id: 'lms', label: 'Manajemen Kurikulum LMS', icon: BookMarked, section: 'SuperAdmin Kemenag' },
+          { id: 'direktori-kua', label: 'Direktori 16 KUA', icon: MapPin, badge: data.kuaDirectory.length, section: 'SuperAdmin Kemenag' },
           { id: 'petugas', label: 'Akun Admin & Fasilitator', icon: Shield, badge: staffList.length, section: 'SuperAdmin Kemenag' },
           { id: 'pengaturan', label: 'Pengaturan, Konten & Backup', icon: Settings, section: 'SuperAdmin Kemenag' },
           { id: 'audit', label: 'Audit Trail Aktivitas', icon: History, badge: data.auditLogs.length, section: 'SuperAdmin Kemenag' },
@@ -1628,40 +1648,391 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 7B: PENGATURAN DIREKTORI 16 KUA (SUPERADMIN) */}
+      {isSuper && activeTab === 'direktori-kua' && <KuaDirectoryManager />}
+
       {/* TAB 8: AUDIT TRAIL (SUPERADMIN) */}
       {isSuper && activeTab === 'audit' && (() => {
-        const q = auditSearch.trim().toLowerCase();
-        const filteredLogs = data.auditLogs.filter(
-          (log) =>
-            !q ||
-            log.actor.toLowerCase().includes(q) ||
-            log.role.toLowerCase().includes(q) ||
-            log.action.toLowerCase().includes(q)
+        const allFasilitators = data.users
+          .filter((u) => u.role === 'Fasilitator')
+          .sort((a, b) => a.kua.localeCompare(b.kua) || a.nama.localeCompare(b.nama));
+
+        const fasilitatorOptions =
+          auditKuaDraft !== 'ALL' && auditKuaDraft !== 'Kemenag Kab. Jepara'
+            ? allFasilitators.filter((f) => f.kua === auditKuaDraft)
+            : allFasilitators;
+
+        const auditYearSet = new Set<number>([2024, 2025, 2026, 2027, new Date().getFullYear()]);
+        data.auditLogs.forEach((log) => {
+          const y = new Date(log.timestamp).getFullYear();
+          if (!Number.isNaN(y)) auditYearSet.add(y);
+        });
+        const auditYears = Array.from(auditYearSet).sort((a, b) => b - a);
+        const dayOptions = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+        const applyAuditCriteria = (override?: Partial<AuditFilterCriteria>) => {
+          setAppliedAuditFilter({
+            query: override?.query ?? auditSearch,
+            kua: override?.kua ?? auditKuaDraft,
+            fasilitator: override?.fasilitator ?? auditFasilitatorDraft,
+            startDate: override?.startDate ?? { ...auditStartDraft },
+            endDate: override?.endDate ?? { ...auditEndDraft },
+          });
+        };
+
+        const resetAuditFilters = () => {
+          const emptyDate: AuditDateParts = { day: '', month: '', year: '' };
+          setAuditSearch('');
+          setAuditKuaDraft('ALL');
+          setAuditFasilitatorDraft('ALL');
+          setAuditStartDraft(emptyDate);
+          setAuditEndDraft(emptyDate);
+          setAppliedAuditFilter({
+            query: '',
+            kua: 'ALL',
+            fasilitator: 'ALL',
+            startDate: emptyDate,
+            endDate: emptyDate,
+          });
+        };
+
+        const filterResult = filterAuditLogs(data.auditLogs, data.users, appliedAuditFilter);
+        const filteredLogs = filterResult.items;
+
+        const hasActiveFilter = Boolean(
+          (appliedAuditFilter.query && appliedAuditFilter.query.trim()) ||
+            (appliedAuditFilter.kua && appliedAuditFilter.kua !== 'ALL') ||
+            (appliedAuditFilter.fasilitator && appliedAuditFilter.fasilitator !== 'ALL') ||
+            appliedAuditFilter.startDate?.day ||
+            appliedAuditFilter.startDate?.month ||
+            appliedAuditFilter.startDate?.year ||
+            appliedAuditFilter.endDate?.day ||
+            appliedAuditFilter.endDate?.month ||
+            appliedAuditFilter.endDate?.year
         );
+
+        const formatPartsLabel = (parts?: AuditDateParts) => {
+          if (!parts || (!parts.day && !parts.month && !parts.year)) return '';
+          const mLabel = parts.month ? BULAN_INDO[Number(parts.month) - 1] || parts.month : '';
+          return [parts.day ? Number(parts.day) : '', mLabel, parts.year].filter(Boolean).join(' ');
+        };
+
+        const selectedFasName =
+          appliedAuditFilter.fasilitator && appliedAuditFilter.fasilitator !== 'ALL'
+            ? allFasilitators.find((f) => f.username === appliedAuditFilter.fasilitator)?.nama ||
+              appliedAuditFilter.fasilitator
+            : '';
+
         return (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <h2 className="font-display text-2xl font-semibold">
-                Audit Trail Aktivitas Petugas ({filteredLogs.length})
-              </h2>
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={auditSearch}
-                  onChange={(e) => setAuditSearch(e.target.value)}
-                  placeholder="Cari petugas, peran, aktivitas..."
-                  className="w-full pl-9 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs"
-                />
+              <div>
+                <h2 className="font-display text-2xl font-semibold">
+                  Audit Trail Aktivitas Petugas ({filteredLogs.length})
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Telusuri riwayat aktivitas per KUA, per Fasilitator, atau berdasarkan rentang tanggal, bulan, dan tahun.
+                </p>
               </div>
+              {hasActiveFilter && (
+                <button
+                  type="button"
+                  onClick={resetAuditFilters}
+                  className="self-start sm:self-auto px-3.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-xs font-semibold inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-200"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Reset Filter
+                </button>
+              )}
             </div>
+
+            {/* Panel Filter Audit Trail */}
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-4 sm:p-5 space-y-4">
+              {/* Baris 1: Pencarian per KUA, Fasilitator & Kata Kunci */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  applyAuditCriteria();
+                }}
+                className="space-y-2.5"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  Pencarian Per KUA &amp; Fasilitator
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 items-end">
+                  <div className="lg:col-span-3 space-y-1">
+                    <label
+                      htmlFor="audit-kua-select"
+                      className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+                    >
+                      Filter KUA / Unit
+                    </label>
+                    <select
+                      id="audit-kua-select"
+                      aria-label="Filter KUA Audit Trail"
+                      value={auditKuaDraft}
+                      onChange={(e) => {
+                        const nextKua = e.target.value;
+                        setAuditKuaDraft(nextKua);
+                        if (
+                          auditFasilitatorDraft !== 'ALL' &&
+                          nextKua !== 'ALL'
+                        ) {
+                          const currentFas = allFasilitators.find(
+                            (f) => f.username === auditFasilitatorDraft
+                          );
+                          if (currentFas && currentFas.kua !== nextKua) {
+                            setAuditFasilitatorDraft('ALL');
+                          }
+                        }
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                    >
+                      <option value="ALL">Semua KUA &amp; Kemenag</option>
+                      <option value="Kemenag Kab. Jepara">Kemenag Kab. Jepara</option>
+                      {LIST_16_KUA.map((kua) => (
+                        <option key={kua} value={kua}>
+                          {kua}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-4 space-y-1">
+                    <label
+                      htmlFor="audit-fasilitator-select"
+                      className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+                    >
+                      Filter Fasilitator
+                    </label>
+                    <select
+                      id="audit-fasilitator-select"
+                      aria-label="Filter Fasilitator Audit Trail"
+                      value={auditFasilitatorDraft}
+                      onChange={(e) => setAuditFasilitatorDraft(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                    >
+                      <option value="ALL">Semua Fasilitator ({fasilitatorOptions.length})</option>
+                      {fasilitatorOptions.map((fas) => (
+                        <option key={fas.id} value={fas.username}>
+                          {fas.nama} — {fas.kua}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="lg:col-span-3 space-y-1">
+                    <label
+                      htmlFor="audit-keyword-input"
+                      className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+                    >
+                      Kata Kunci Aktivitas
+                    </label>
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        id="audit-keyword-input"
+                        type="text"
+                        value={auditSearch}
+                        onChange={(e) => setAuditSearch(e.target.value)}
+                        placeholder="Cari petugas, peran, aktivitas..."
+                        className="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-2">
+                    <button
+                      type="submit"
+                      className="w-full px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Search className="w-3.5 h-3.5" />
+                      Cari KUA / Fasilitator
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              <div className="border-t border-slate-200 dark:border-emerald-950" />
+
+              {/* Baris 2: Pencarian Rentang Tanggal, Bulan, Tahun sampai Tanggal, Bulan, Tahun */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  applyAuditCriteria();
+                }}
+                className="space-y-2.5"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 inline-flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-[#0F684E] dark:text-emerald-400" />
+                  Pencarian Rentang Tanggal (Dari Tanggal, Bulan, Tahun sampai Tanggal, Bulan, Tahun)
+                </p>
+
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-3 items-end">
+                  {/* Dari Tanggal / Bulan / Tahun */}
+                  <div className="xl:col-span-5 space-y-1">
+                    <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      Dari (Tanggal / Bulan / Tahun)
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        aria-label="Dari Tanggal"
+                        value={auditStartDraft.day}
+                        onChange={(e) =>
+                          setAuditStartDraft((prev) => ({ ...prev, day: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Tgl</option>
+                        {dayOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Dari Bulan"
+                        value={auditStartDraft.month}
+                        onChange={(e) =>
+                          setAuditStartDraft((prev) => ({ ...prev, month: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Bulan</option>
+                        {BULAN_INDO.map((namaBulan, idx) => (
+                          <option key={namaBulan} value={String(idx + 1)}>
+                            {namaBulan}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Dari Tahun"
+                        value={auditStartDraft.year}
+                        onChange={(e) =>
+                          setAuditStartDraft((prev) => ({ ...prev, year: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Tahun</option>
+                        {auditYears.map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Sampai Tanggal / Bulan / Tahun */}
+                  <div className="xl:col-span-5 space-y-1">
+                    <span className="block text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                      Sampai (Tanggal / Bulan / Tahun)
+                    </span>
+                    <div className="grid grid-cols-3 gap-2">
+                      <select
+                        aria-label="Sampai Tanggal"
+                        value={auditEndDraft.day}
+                        onChange={(e) =>
+                          setAuditEndDraft((prev) => ({ ...prev, day: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Tgl</option>
+                        {dayOptions.map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Sampai Bulan"
+                        value={auditEndDraft.month}
+                        onChange={(e) =>
+                          setAuditEndDraft((prev) => ({ ...prev, month: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Bulan</option>
+                        {BULAN_INDO.map((namaBulan, idx) => (
+                          <option key={namaBulan} value={String(idx + 1)}>
+                            {namaBulan}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Sampai Tahun"
+                        value={auditEndDraft.year}
+                        onChange={(e) =>
+                          setAuditEndDraft((prev) => ({ ...prev, year: e.target.value }))
+                        }
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs outline-none focus:border-[#0F684E]"
+                      >
+                        <option value="">Tahun</option>
+                        {auditYears.map((y) => (
+                          <option key={y} value={String(y)}>
+                            {y}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Tombol Cari Tanggal */}
+                  <div className="xl:col-span-2">
+                    <button
+                      type="submit"
+                      className="w-full px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition"
+                    >
+                      <Calendar className="w-3.5 h-3.5" />
+                      Cari Tanggal
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {filterResult.error && (
+                <p className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-lg px-3 py-2">
+                  {filterResult.error}
+                </p>
+              )}
+
+              {hasActiveFilter && !filterResult.error && (
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] text-slate-600 dark:text-slate-300">
+                  <span className="font-semibold text-slate-500">Filter aktif:</span>
+                  {appliedAuditFilter.kua && appliedAuditFilter.kua !== 'ALL' && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300 font-semibold">
+                      Unit: {appliedAuditFilter.kua}
+                    </span>
+                  )}
+                  {selectedFasName && (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-[#0F684E] dark:text-emerald-300 font-semibold">
+                      Fasilitator: {selectedFasName}
+                    </span>
+                  )}
+                  {(formatPartsLabel(appliedAuditFilter.startDate) ||
+                    formatPartsLabel(appliedAuditFilter.endDate)) && (
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-semibold">
+                      Rentang: {formatPartsLabel(appliedAuditFilter.startDate) || 'Awal'} s.d.{' '}
+                      {formatPartsLabel(appliedAuditFilter.endDate) || 'Sekarang'}
+                    </span>
+                  )}
+                  {appliedAuditFilter.query && appliedAuditFilter.query.trim() && (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-emerald-950 text-slate-700 dark:text-slate-200 font-semibold">
+                      Kata kunci: &ldquo;{appliedAuditFilter.query.trim()}&rdquo;
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-xs min-w-[540px]">
+                <table className="w-full text-xs min-w-[660px]">
                   <thead className="bg-[#F8FAF9] dark:bg-[#0D1613] border-b border-slate-200 dark:border-emerald-950">
                     <tr>
                       <th className="text-left px-4 py-3 font-semibold">Waktu</th>
                       <th className="text-left px-4 py-3 font-semibold">Petugas</th>
+                      <th className="text-left px-4 py-3 font-semibold">Unit / KUA</th>
                       <th className="text-left px-4 py-3 font-semibold">Peran</th>
                       <th className="text-left px-4 py-3 font-semibold">Aktivitas</th>
                     </tr>
@@ -1669,8 +2040,10 @@ export const AdminDashboard: React.FC = () => {
                   <tbody className="divide-y divide-slate-200 dark:divide-emerald-950">
                     {filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-slate-500">
-                          Tidak ada log aktivitas yang cocok dengan pencarian.
+                        <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                          {filterResult.error
+                            ? 'Periksa kembali rentang tanggal pencarian di atas.'
+                            : 'Tidak ada log aktivitas yang cocok dengan filter pencarian.'}
                         </td>
                       </tr>
                     ) : (
@@ -1680,6 +2053,9 @@ export const AdminDashboard: React.FC = () => {
                             {formatIndonesianDate(log.timestamp)}
                           </td>
                           <td className="px-4 py-2.5 font-semibold whitespace-nowrap">{log.actor}</td>
+                          <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {resolveAuditLogKua(log, data.users)}
+                          </td>
                           <td className="px-4 py-2.5 text-[#0F684E] dark:text-emerald-400 font-semibold whitespace-nowrap">
                             {log.role}
                           </td>

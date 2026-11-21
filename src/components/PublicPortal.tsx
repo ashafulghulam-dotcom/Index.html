@@ -36,12 +36,12 @@ import {
 } from 'recharts';
 import {
   buildKuaGoogleMapsUrl,
-  DATA_DIREKTORI_16_KUA,
   LIST_16_KUA,
 } from '../data/jeparaData';
 import { useBimwin } from '../store/useBimwinStore';
 import { VerificationResult } from '../types/bimwin';
 import { countUniqueSyncedCouples, verifyDocumentQuery } from '../utils/bimwinLogic';
+import { normalizeWhatsAppNumber } from '../utils/smartReminder';
 import { SamawaBrandHeader } from './UiPrimitives';
 import {
   ForgotPasswordModal,
@@ -121,11 +121,16 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
 
   const filteredDirectory = useMemo(() => {
     const q = kuaSearch.trim().toLowerCase();
-    if (!q) return DATA_DIREKTORI_16_KUA;
-    return DATA_DIREKTORI_16_KUA.filter(
-      (d) => d.kua.toLowerCase().includes(q) || d.alamat.toLowerCase().includes(q)
+    if (!q) return data.kuaDirectory;
+    return data.kuaDirectory.filter(
+      (d) =>
+        d.kua.toLowerCase().includes(q) ||
+        d.alamat.toLowerCase().includes(q) ||
+        d.telp.toLowerCase().includes(q) ||
+        (d.whatsapp || '').toLowerCase().includes(q) ||
+        (d.kepalaKua || '').toLowerCase().includes(q)
     );
-  }, [kuaSearch]);
+  }, [data.kuaDirectory, kuaSearch]);
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,7 +314,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                   className="w-full text-left px-3 py-2.5 rounded-xl flex items-center gap-3 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950/60 transition"
                 >
                   <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-emerald-400 shrink-0" />
-                  Buku Saku 8 Langkah
+                  Panduan Aplikasi
                 </button>
                 <button
                   type="button"
@@ -355,10 +360,10 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               {/* Editorial Institutional Pitch (7 cols) */}
               <div className="lg:col-span-7 space-y-7">
                 <div className="space-y-4">
-                  <h1 className="font-display text-[20px] font-semibold tracking-tight text-slate-900 dark:text-white leading-[1.15] text-balance">
+                  <h1 className="font-display text-[14px] font-semibold tracking-tight text-slate-900 dark:text-white leading-[18px] text-balance">
                     Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                   </h1>
-                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
+                  <p className="text-[12px] text-slate-600 dark:text-slate-300 leading-[16px] max-w-xl">
                     SAMAWA (Sarana Membangun Wawasan Keluarga) Platform Resmi Bimbingan Perkawinan
                     Kementerian Agama Kabupaten Jepara dengan Sistem{' '}
                     <em className="italic">Blended Learning</em> guna Mempersiapkan Keluarga
@@ -373,7 +378,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] hover:bg-slate-50 dark:hover:bg-emerald-950/60 text-slate-800 dark:text-slate-200 text-sm font-semibold transition"
                   >
                     <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-emerald-400" />
-                    Buku Saku 8 Langkah
+                    Panduan Aplikasi
                   </button>
                 </div>
 
@@ -412,9 +417,9 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                 className="lg:col-span-5 bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 sm:p-7 shadow-sm space-y-5"
               >
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">Masuk ke Portal</h2>
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white">MASUK</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                    Akses ruang kerja Peserta, Fasilitator, Admin KUA, atau SuperAdmin Kemenag.
+                    Silahkan masuk ke Aplikasi dengan Akun Anda
                   </p>
                 </div>
 
@@ -479,6 +484,20 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </form>
+
+                <div className="pt-3 border-t border-slate-100 dark:border-emerald-950/80 text-center">
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                    Calon Pengantin belum punya akun?{' '}
+                    <button
+                      type="button"
+                      onClick={() => setRegisterOpen(true)}
+                      className="font-semibold text-[#0F684E] dark:text-emerald-400 hover:underline focus:outline-none focus:underline"
+                    >
+                      Daftar
+                    </button>
+                    .
+                  </p>
+                </div>
               </div>
             </div>
           </section>
@@ -685,9 +704,44 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                         <Phone className="w-3.5 h-3.5 shrink-0 text-slate-400" />
                         <span>{entry.telp}</span>
                       </p>
+                      {entry.whatsapp && (() => {
+                        const waNum = normalizeWhatsAppNumber(entry.whatsapp);
+                        return waNum ? (
+                          <a
+                            href={`https://wa.me/${waNum}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-mono-num text-[#0F684E] dark:text-emerald-400 hover:underline flex items-center gap-1.5"
+                          >
+                            <span>WA: {entry.whatsapp}</span>
+                            <ExternalLink className="w-3 h-3 shrink-0 opacity-70" />
+                          </a>
+                        ) : (
+                          <p className="text-xs font-mono-num text-[#0F684E] dark:text-emerald-400">
+                            WA: {entry.whatsapp}
+                          </p>
+                        );
+                      })()}
+                      {entry.kepalaKua && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          Kepala KUA: {entry.kepalaKua}
+                        </p>
+                      )}
+                      {entry.email && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                          {entry.email}
+                        </p>
+                      )}
+                      {entry.catatan && (
+                        <p className="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-50/70 dark:bg-amber-950/30 rounded-md px-2 py-1">
+                          {entry.catatan}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-emerald-950">
-                      <p className="text-[11px] text-slate-400 truncate">{entry.jamLayanan}</p>
+                      <p className="text-[11px] text-slate-400 truncate" title={entry.jamLayanan}>
+                        {entry.jamLayanan}
+                      </p>
                       <div className="flex items-center gap-2.5 shrink-0">
                         <a
                           href={buildKuaGoogleMapsUrl(entry)}
@@ -701,8 +755,13 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const text = `${entry.kua} — ${entry.alamat} (Telp: ${entry.telp})`;
-                            navigator.clipboard?.writeText(text).catch(() => {});
+                            const parts = [
+                              `${entry.kua} — ${entry.alamat}`,
+                              `Telp: ${entry.telp}`,
+                              entry.whatsapp ? `WA: ${entry.whatsapp}` : '',
+                              `Jam Layanan: ${entry.jamLayanan}`,
+                            ].filter(Boolean);
+                            navigator.clipboard?.writeText(parts.join(' | ')).catch(() => {});
                             pushToast('info', `Info ${entry.kua} Disalin`, entry.alamat);
                           }}
                           className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-[#0F684E] dark:text-slate-400 dark:hover:text-emerald-400 hover:underline"
