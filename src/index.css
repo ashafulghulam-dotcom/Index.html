@@ -30,6 +30,11 @@
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
+
+  .samawa-dot-grid {
+    background-image: radial-gradient(rgba(15, 104, 78, 0.14) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
 }
 
 /* Custom subtle scrollbars */
