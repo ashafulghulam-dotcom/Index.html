@@ -62,7 +62,6 @@ import {
 } from './PWAInstallControls';
 import { QRScannerModal } from './QRScannerModal';
 import { VerificationModal } from './VerificationModal';
-import luxurySanctuaryBg from '../assets/images/samawa_luxury_sanctuary_1795320129761.jpg';
 
 type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq';
 
@@ -197,9 +196,9 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-clip bg-[#FAF8F3] dark:bg-[#060F0C] text-slate-900 dark:text-slate-100">
+    <div className="min-h-screen flex flex-col overflow-x-clip bg-white dark:bg-[#060F0C] text-slate-900 dark:text-slate-100">
       {/* Luxury Institutional Top Bar */}
-      <header className="sticky top-0 z-40 bg-[#FCFBF8]/92 dark:bg-[#07110E]/92 backdrop-blur-xl border-b border-[#C9A654]/25 dark:border-[#D4AF37]/20">
+      <header className="sticky top-0 z-40 bg-white/95 dark:bg-[#07110E]/92 backdrop-blur-xl border-b border-slate-200/80 dark:border-[#D4AF37]/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3 h-full min-w-0">
             <button
@@ -207,7 +206,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               onClick={() => setMenuDrawerOpen(true)}
               aria-label="Buka menu navigasi"
               aria-expanded={menuDrawerOpen}
-              className="p-2 rounded-lg border border-[#E2DAC9] dark:border-[#D4AF37]/25 bg-white/80 dark:bg-[#0D1A15] text-slate-700 dark:text-slate-200 hover:border-[#C9A654]/60 hover:bg-[#FAF7F0] dark:hover:bg-emerald-950/60 transition shrink-0"
+              className="p-2 rounded-lg border border-slate-200/90 dark:border-[#D4AF37]/25 bg-white dark:bg-[#0D1A15] text-slate-700 dark:text-slate-200 hover:border-[#C9A654]/70 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition shrink-0"
             >
               <Menu className="w-4 h-4" />
             </button>
@@ -236,7 +235,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               type="button"
               onClick={toggleDarkMode}
               aria-label={darkMode ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
-              className="p-2 rounded-lg border border-[#E2DAC9] dark:border-[#D4AF37]/25 bg-white/80 dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#C9A654]/60 hover:bg-[#FAF7F0] dark:hover:bg-emerald-950/60 transition"
+              className="p-2 rounded-lg border border-slate-200/90 dark:border-[#D4AF37]/25 bg-white dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#C9A654]/70 hover:bg-slate-50 dark:hover:bg-emerald-950/60 transition"
             >
               {darkMode ? <Sun className="w-4 h-4 text-[#F1D680]" /> : <Moon className="w-4 h-4" />}
             </button>
@@ -359,249 +358,229 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
         </div>
       )}
 
-      <main id="beranda" className="relative flex-1 flex flex-col">
-        {/* DEFAULT VIEW: Sovereign Emerald & Champagne Gold Luxury Institutional Dashboard */}
+      <main id="beranda" className="relative flex-1 flex flex-col bg-white dark:bg-[#060F0C]">
+        {/* DEFAULT VIEW: Pure White Porcelain, Imperial Emerald & Champagne Gold Luxury Dashboard */}
         {activeSection === 'beranda' && (
-          <section className="flex-1 flex flex-col">
-            {/* Upper Grand Sovereign Emerald Sanctuary */}
-            <div className="relative overflow-hidden bg-[#05231A] dark:bg-[#041711]">
-              {/* Bespoke Carved Jepara Architectural Backdrop with Measured Scrim */}
-              <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-                <img
-                  src={luxurySanctuaryBg}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  className="absolute inset-0 w-full h-full object-cover object-center opacity-45 dark:opacity-35 select-none"
-                />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#041C15]/92 via-[#06291F]/74 to-[#041913]/88" />
-                <div className="absolute inset-0 bg-gradient-to-b from-[#041A13]/50 via-transparent to-[#041A13]/92" />
-                <div className="absolute -top-24 left-1/3 w-[520px] h-[360px] rounded-full bg-[#D4AF37]/[0.11] blur-3xl" />
-              </div>
-
-              <div className="relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-14 sm:pt-11 sm:pb-16 lg:pt-12 lg:pb-[74px]">
-                <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-                  {/* Editorial Luxury Institutional Pitch (7 cols) */}
-                  <div className="lg:col-span-7 space-y-6 sm:space-y-7">
-                    <div className="space-y-3.5 sm:space-y-4">
-                      <div className="flex items-center gap-1.5 sm:gap-2.5 text-[10.5px] sm:text-xs font-medium whitespace-nowrap">
-                        <span className="w-5 sm:w-8 h-[1.5px] rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F6E4A2] shrink-0" />
-                        <span className="text-[#F2D884] tracking-[0.01em]">
-                          Kemenag Kabupaten Jepara
-                        </span>
-                        <span aria-hidden="true" className="text-[#D4AF37]/75 font-bold">
-                          ·
-                        </span>
-                        <span className="text-emerald-100/90">Bimbingan Perkawinan Resmi</span>
-                      </div>
-
-                      <h1 className="font-display text-[clamp(10.5px,3.25vw,14px)] sm:text-[34px] lg:text-[44px] font-semibold tracking-[-0.015em] text-white leading-[18px] sm:leading-[1.12] whitespace-nowrap sm:whitespace-normal sm:text-balance drop-shadow-[0_2px_12px_rgba(0,0,0,0.3)]">
-                        Kenali Diri, Pahami Pasangan,{' '}
-                        <span className="bg-gradient-to-r from-[#F9E9AC] via-[#E8C560] to-[#D4A73B] bg-clip-text text-transparent">
-                          Siapkan Pernikahan.
-                        </span>
-                      </h1>
-
-                      <p className="text-[12px] sm:text-[15px] text-emerald-100/85 leading-[17px] sm:leading-relaxed max-w-xl">
-                        SAMAWA (Sarana Membangun Wawasan Keluarga) Platform Resmi Bimbingan
-                        Perkawinan Kementerian Agama Kabupaten Jepara dengan Sistem{' '}
-                        <em className="italic font-medium text-[#FDF6DC]">Blended Learning</em>{' '}
-                        guna Mempersiapkan Keluarga Sakinah.
-                      </p>
+          <section className="relative flex-1 flex flex-col justify-center bg-white dark:bg-[#060F0C]">
+            <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-11 lg:py-12 space-y-8 lg:space-y-10">
+              <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                {/* Editorial Luxury Institutional Pitch (7 cols) */}
+                <div className="lg:col-span-7 space-y-6 sm:space-y-7">
+                  <div className="space-y-3.5 sm:space-y-4">
+                    <div className="flex items-center gap-1.5 sm:gap-2.5 text-[10.5px] sm:text-xs font-medium whitespace-nowrap">
+                      <span className="w-5 sm:w-8 h-[2px] rounded-full bg-gradient-to-r from-[#0F684E] to-[#C9A654] shrink-0" />
+                      <span className="text-[#0F684E] dark:text-[#F2D884] font-semibold tracking-[0.01em]">
+                        Kemenag Kabupaten Jepara
+                      </span>
+                      <span aria-hidden="true" className="text-[#C9A654] font-bold">
+                        ·
+                      </span>
+                      <span className="text-slate-600 dark:text-slate-300">
+                        Bimbingan Perkawinan Resmi
+                      </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-3.5">
-                      <button
-                        type="button"
-                        onClick={() => setPanduanOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-[#E5C25C]/40 bg-white/10 hover:bg-white/16 text-white text-xs sm:text-sm font-semibold backdrop-blur-md shadow-[0_10px_24px_-12px_rgba(0,0,0,0.5)] transition whitespace-nowrap"
-                      >
-                        <BookOpen className="w-4 h-4 text-[#F3D882]" />
-                        Panduan Aplikasi
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setKritikOpen(true)}
-                        className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-white/20 hover:border-[#E5C25C]/45 bg-[#041B14]/45 hover:bg-white/12 text-emerald-50 text-xs sm:text-sm font-semibold backdrop-blur-md transition whitespace-nowrap"
-                      >
-                        <MessageSquare className="w-4 h-4 text-[#F3D882]" />
-                        <span>Kritik &amp; Saran</span>
-                      </button>
-                    </div>
+                    <h1 className="font-display text-[clamp(10.5px,3.25vw,14px)] sm:text-[34px] lg:text-[44px] font-semibold tracking-[-0.015em] text-slate-900 dark:text-white leading-[18px] sm:leading-[1.12] whitespace-nowrap sm:whitespace-normal sm:text-balance">
+                      Kenali Diri, Pahami Pasangan,{' '}
+                      <span className="bg-gradient-to-r from-[#0A4D39] via-[#0F684E] to-[#B08422] dark:from-[#F9E9AC] dark:via-[#E8C560] dark:to-[#D4A73B] bg-clip-text text-transparent">
+                        Siapkan Pernikahan.
+                      </span>
+                    </h1>
 
-                    {/* Sovereign Centered Glass-Emerald & Champagne Gold KPI Plinth */}
-                    <div className="relative rounded-2xl border border-[#D4AF37]/28 bg-[#031913]/68 backdrop-blur-xl shadow-[0_24px_56px_-22px_rgba(0,0,0,0.65)] max-w-xl w-full mx-auto lg:mx-0 overflow-hidden">
-                      <div
-                        aria-hidden="true"
-                        className="h-px w-full bg-gradient-to-r from-transparent via-[#F2D884]/65 to-transparent"
-                      />
-                      <div className="grid grid-cols-3 divide-x divide-[#D4AF37]/18">
-                        <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-white/[0.04]">
-                          <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 border border-white/15 text-emerald-50 flex items-center justify-center mb-2.5">
-                            <Users className="w-4 h-4" />
-                          </span>
-                          <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-white">
-                            {pesertaList.length}
-                          </p>
-                          <p className="text-[11px] sm:text-xs font-medium text-emerald-100/75 leading-snug mt-1.5">
-                            Peserta
-                            <br className="sm:hidden" /> Terdaftar
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-white/[0.04]">
-                          <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-400/12 border border-emerald-300/25 text-[#7CE8BE] flex items-center justify-center mb-2.5">
-                            <HeartHandshake className="w-4 h-4" />
-                          </span>
-                          <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-[#7CE8BE]">
-                            {totalCouples}
-                          </p>
-                          <p className="text-[11px] sm:text-xs font-medium text-emerald-100/75 leading-snug mt-1.5">
-                            Pasangan
-                            <br className="sm:hidden" /> Tersinkron
-                          </p>
-                        </div>
-                        <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-white/[0.04]">
-                          <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#D4AF37]/15 border border-[#E5C25C]/30 text-[#F4D678] flex items-center justify-center mb-2.5">
-                            <Award className="w-4 h-4" />
-                          </span>
-                          <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-[#F4D678]">
-                            {totalCertificates}
-                          </p>
-                          <p className="text-[11px] sm:text-xs font-medium text-emerald-100/75 leading-snug mt-1.5">
-                            Sertifikat
-                            <br className="sm:hidden" /> Terbit
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <p className="text-[12px] sm:text-[15px] text-slate-600 dark:text-slate-300 leading-[17px] sm:leading-relaxed max-w-xl">
+                      SAMAWA (Sarana Membangun Wawasan Keluarga) Platform Resmi Bimbingan Perkawinan
+                      Kementerian Agama Kabupaten Jepara dengan Sistem{' '}
+                      <em className="italic font-medium text-slate-900 dark:text-[#FDF6DC]">
+                        Blended Learning
+                      </em>{' '}
+                      guna Mempersiapkan Keluarga Sakinah.
+                    </p>
                   </div>
 
-                  {/* Sculpted Luxury Concierge Login Vault (5 cols) */}
-                  <div
-                    id="masuk-portal"
-                    className="lg:col-span-5 bg-[#FFFEFB] dark:bg-[#0B1713] border border-[#D4AF37]/35 dark:border-[#D4AF37]/28 ring-1 ring-white/80 dark:ring-emerald-400/10 rounded-3xl shadow-[0_32px_72px_-20px_rgba(0,0,0,0.58)] overflow-hidden"
-                  >
-                    <div className="h-1.5 w-full bg-gradient-to-r from-[#094735] via-[#D4AF37] to-[#094735]" />
-                    <div className="p-6 sm:p-8 space-y-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h2 className="text-xl font-bold tracking-[0.04em] text-slate-900 dark:text-white">
-                            MASUK
-                          </h2>
-                          <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 mt-1">
-                            Silahkan masuk ke Aplikasi dengan Akun Anda
-                          </p>
-                        </div>
-                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F684E]/12 to-[#D4AF37]/18 dark:from-emerald-950/90 dark:to-[#D4AF37]/20 border border-[#D4AF37]/28 text-[#0B523D] dark:text-[#F1D680] flex items-center justify-center shrink-0">
-                          <ShieldCheck className="w-5 h-5" />
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-3.5">
+                    <button
+                      type="button"
+                      onClick={() => setPanduanOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-[#DFD7C6] dark:border-[#D4AF37]/35 bg-white dark:bg-[#0D1A15] hover:border-[#C9A654] hover:bg-[#FDFCF9] dark:hover:bg-[#11221C] text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-semibold shadow-[0_8px_20px_-14px_rgba(9,66,50,0.3)] transition whitespace-nowrap"
+                    >
+                      <BookOpen className="w-4 h-4 text-[#0F684E] dark:text-[#F3D882]" />
+                      Panduan Aplikasi
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKritikOpen(true)}
+                      className="inline-flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl border border-[#DFD7C6] dark:border-[#D4AF37]/30 bg-white dark:bg-[#0D1A15] hover:border-[#C9A654] hover:bg-[#FDFCF9] dark:hover:bg-[#11221C] text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-semibold shadow-[0_8px_20px_-14px_rgba(9,66,50,0.25)] transition whitespace-nowrap"
+                    >
+                      <MessageSquare className="w-4 h-4 text-[#B08A2E] dark:text-[#F3D882]" />
+                      <span>Kritik &amp; Saran</span>
+                    </button>
+                  </div>
+
+                  {/* Centered Pure-White & Brushed-Gold Luxury KPI Plinth */}
+                  <div className="relative rounded-2xl border border-[#E6DFD0] dark:border-[#D4AF37]/25 bg-white dark:bg-[#0B1713] shadow-[0_18px_42px_-24px_rgba(9,66,50,0.22)] dark:shadow-[0_24px_56px_-22px_rgba(0,0,0,0.65)] max-w-xl w-full mx-auto lg:mx-0 overflow-hidden">
+                    <div
+                      aria-hidden="true"
+                      className="h-[2px] w-full bg-gradient-to-r from-[#0F684E]/75 via-[#D4AF37]/85 to-[#0F684E]/75"
+                    />
+                    <div className="grid grid-cols-3 divide-x divide-[#EFEAE0] dark:divide-[#D4AF37]/18">
+                      <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-[#FCFBF8] dark:hover:bg-white/[0.03]">
+                        <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-50 dark:bg-white/10 border border-slate-200/80 dark:border-white/15 text-slate-700 dark:text-emerald-50 flex items-center justify-center mb-2.5">
+                          <Users className="w-4 h-4" />
                         </span>
+                        <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-slate-900 dark:text-white">
+                          {pesertaList.length}
+                        </p>
+                        <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-emerald-100/75 leading-snug mt-1.5">
+                          Peserta
+                          <br className="sm:hidden" /> Terdaftar
+                        </p>
                       </div>
-
-                      <form onSubmit={handleLoginSubmit} className="space-y-4">
-                        <div>
-                          <label
-                            htmlFor="login-username"
-                            className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5"
-                          >
-                            Username
-                          </label>
-                          <div className="relative">
-                            <User className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            <input
-                              id="login-username"
-                              type="text"
-                              required
-                              value={username}
-                              onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))}
-                              placeholder="Masukkan username"
-                              className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-xl border border-[#E5DFD2] dark:border-emerald-900/80 bg-[#F7F5EF] dark:bg-[#07110E] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition focus:bg-white dark:focus:bg-[#0D1A15] focus:border-[#0F684E] dark:focus:border-[#D4AF37]/65 focus:ring-2 focus:ring-[#0F684E]/15 dark:focus:ring-[#D4AF37]/15"
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label
-                              htmlFor="login-password"
-                              className="text-xs font-semibold text-slate-700 dark:text-slate-200"
-                            >
-                              Kata Sandi
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => setForgotOpen(true)}
-                              className="text-xs font-semibold text-[#0F684E] dark:text-[#F1D680] hover:underline"
-                            >
-                              Lupa Kata Sandi?
-                            </button>
-                          </div>
-                          <div className="relative">
-                            <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                            <input
-                              id="login-password"
-                              type={showPass ? 'text' : 'password'}
-                              required
-                              value={password}
-                              onChange={(e) => setPassword(e.target.value)}
-                              placeholder="Masukkan kata sandi"
-                              className="w-full pl-10 pr-10 py-2.5 sm:py-3 rounded-xl border border-[#E5DFD2] dark:border-emerald-900/80 bg-[#F7F5EF] dark:bg-[#07110E] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition focus:bg-white dark:focus:bg-[#0D1A15] focus:border-[#0F684E] dark:focus:border-[#D4AF37]/65 focus:ring-2 focus:ring-[#0F684E]/15 dark:focus:ring-[#D4AF37]/15"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPass((v) => !v)}
-                              aria-label="Tampilkan kata sandi"
-                              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
-                            >
-                              {showPass ? (
-                                <EyeOff className="w-4 h-4" />
-                              ) : (
-                                <Eye className="w-4 h-4" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        {loginError && (
-                          <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3.5 py-2.5">
-                            {loginError}
-                          </p>
-                        )}
-
-                        <button
-                          type="submit"
-                          className="w-full py-3 rounded-xl bg-gradient-to-r from-[#083E2E] via-[#0F684E] to-[#0A4D39] hover:from-[#063124] hover:to-[#083E2E] ring-1 ring-[#D4AF37]/35 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-[0_14px_30px_-10px_rgba(8,62,46,0.68)] transition group"
-                        >
-                          Masuk Sistem
-                          <ArrowRight className="w-4 h-4 text-[#F3D882] transition-transform group-hover:translate-x-0.5" />
-                        </button>
-                      </form>
-
-                      <div className="pt-4 border-t border-[#ECE7DC] dark:border-emerald-900/70 text-center">
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-                          Calon Pengantin belum punya akun?{' '}
-                          <button
-                            type="button"
-                            onClick={() => setRegisterOpen(true)}
-                            className="font-semibold text-[#0F684E] dark:text-[#F1D680] hover:underline focus:outline-none focus:underline"
-                          >
-                            Daftar
-                          </button>
-                          .
+                      <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-[#FCFBF8] dark:hover:bg-white/[0.03]">
+                        <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#0F684E]/[0.08] dark:bg-emerald-400/12 border border-[#0F684E]/20 dark:border-emerald-300/25 text-[#0F684E] dark:text-[#7CE8BE] flex items-center justify-center mb-2.5">
+                          <HeartHandshake className="w-4 h-4" />
+                        </span>
+                        <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-[#0F684E] dark:text-[#7CE8BE]">
+                          {totalCouples}
+                        </p>
+                        <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-emerald-100/75 leading-snug mt-1.5">
+                          Pasangan
+                          <br className="sm:hidden" /> Tersinkron
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-center justify-start text-center px-2.5 py-4 sm:px-5 sm:py-5 transition-colors hover:bg-[#FCFBF8] dark:hover:bg-white/[0.03]">
+                        <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#D4AF37]/12 dark:bg-[#D4AF37]/15 border border-[#D4AF37]/30 text-[#B0821B] dark:text-[#F4D678] flex items-center justify-center mb-2.5">
+                          <Award className="w-4 h-4" />
+                        </span>
+                        <p className="font-mono-num text-2xl sm:text-3xl font-bold tracking-tight leading-none text-[#B0821B] dark:text-[#F4D678]">
+                          {totalCertificates}
+                        </p>
+                        <p className="text-[11px] sm:text-xs font-medium text-slate-500 dark:text-emerald-100/75 leading-snug mt-1.5">
+                          Sertifikat
+                          <br className="sm:hidden" /> Terbit
                         </p>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                {/* Sculpted Luxury Concierge Login Vault (5 cols) */}
+                <div
+                  id="masuk-portal"
+                  className="lg:col-span-5 bg-white dark:bg-[#0B1713] border border-[#E2DAC9] dark:border-[#D4AF37]/28 rounded-3xl shadow-[0_24px_60px_-24px_rgba(9,56,42,0.22)] dark:shadow-[0_32px_72px_-20px_rgba(0,0,0,0.65)] overflow-hidden"
+                >
+                  <div className="h-1.5 w-full bg-gradient-to-r from-[#094735] via-[#D4AF37] to-[#094735]" />
+                  <div className="p-6 sm:p-8 space-y-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-xl font-bold tracking-[0.04em] text-slate-900 dark:text-white">
+                          MASUK
+                        </h2>
+                        <p className="text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 mt-1">
+                          Silahkan masuk ke Aplikasi dengan Akun Anda
+                        </p>
+                      </div>
+                      <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F684E]/10 to-[#D4AF37]/18 dark:from-emerald-950/90 dark:to-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#0B523D] dark:text-[#F1D680] flex items-center justify-center shrink-0">
+                        <ShieldCheck className="w-5 h-5" />
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleLoginSubmit} className="space-y-4">
+                      <div>
+                        <label
+                          htmlFor="login-username"
+                          className="block text-xs font-semibold text-slate-700 dark:text-slate-200 mb-1.5"
+                        >
+                          Username
+                        </label>
+                        <div className="relative">
+                          <User className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="login-username"
+                            type="text"
+                            required
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value.replace(/\s+/g, ''))}
+                            placeholder="Masukkan username"
+                            className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-xl border border-slate-200/90 dark:border-emerald-900/80 bg-[#FAFAF8] dark:bg-[#07110E] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition focus:bg-white dark:focus:bg-[#0D1A15] focus:border-[#0F684E] dark:focus:border-[#D4AF37]/65 focus:ring-2 focus:ring-[#0F684E]/15 dark:focus:ring-[#D4AF37]/15"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <label
+                            htmlFor="login-password"
+                            className="text-xs font-semibold text-slate-700 dark:text-slate-200"
+                          >
+                            Kata Sandi
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setForgotOpen(true)}
+                            className="text-xs font-semibold text-[#0F684E] dark:text-[#F1D680] hover:underline"
+                          >
+                            Lupa Kata Sandi?
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <Lock className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          <input
+                            id="login-password"
+                            type={showPass ? 'text' : 'password'}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Masukkan kata sandi"
+                            className="w-full pl-10 pr-10 py-2.5 sm:py-3 rounded-xl border border-slate-200/90 dark:border-emerald-900/80 bg-[#FAFAF8] dark:bg-[#07110E] text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 outline-none transition focus:bg-white dark:focus:bg-[#0D1A15] focus:border-[#0F684E] dark:focus:border-[#D4AF37]/65 focus:ring-2 focus:ring-[#0F684E]/15 dark:focus:ring-[#D4AF37]/15"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPass((v) => !v)}
+                            aria-label="Tampilkan kata sandi"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition"
+                          >
+                            {showPass ? (
+                              <EyeOff className="w-4 h-4" />
+                            ) : (
+                              <Eye className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {loginError && (
+                        <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-xl px-3.5 py-2.5">
+                          {loginError}
+                        </p>
+                      )}
+
+                      <button
+                        type="submit"
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-[#083E2E] via-[#0F684E] to-[#0A4D39] hover:from-[#063124] hover:to-[#083E2E] ring-1 ring-[#D4AF37]/35 text-white text-sm font-semibold inline-flex items-center justify-center gap-2 shadow-[0_14px_30px_-10px_rgba(8,62,46,0.55)] transition group"
+                      >
+                        Masuk Sistem
+                        <ArrowRight className="w-4 h-4 text-[#F3D882] transition-transform group-hover:translate-x-0.5" />
+                      </button>
+                    </form>
+
+                    <div className="pt-4 border-t border-slate-100 dark:border-emerald-900/70 text-center">
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+                        Calon Pengantin belum punya akun?{' '}
+                        <button
+                          type="button"
+                          onClick={() => setRegisterOpen(true)}
+                          className="font-semibold text-[#0F684E] dark:text-[#F1D680] hover:underline focus:outline-none focus:underline"
+                        >
+                          Daftar
+                        </button>
+                        .
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Subtle Champagne Gold Horizon Accent */}
-              <div
-                aria-hidden="true"
-                className="relative z-10 h-px w-full bg-gradient-to-r from-transparent via-[#D4AF37]/65 to-transparent"
-              />
-            </div>
-
-            {/* Lower Alabaster Marble Stage with Overlapping Luxury Service Cards */}
-            <div className="flex-1 bg-[#FAF8F3] dark:bg-[#060F0C]">
-              <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 -mt-7 sm:-mt-8 pb-8 sm:pb-10 relative z-20">
+              {/* Luxury Editorial Public Services Strip */}
+              <div className="pt-6 border-t border-[#EFEAE0] dark:border-[#D4AF37]/15">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {[
                     {
@@ -639,9 +618,9 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                         key={svc.id}
                         type="button"
                         onClick={() => navigateSection(svc.id)}
-                        className="group text-left p-4 sm:p-[18px] rounded-2xl border border-[#E5DFD2] dark:border-[#D4AF37]/20 bg-[#FFFEFB] dark:bg-[#0D1A15] hover:border-[#C9A654]/75 dark:hover:border-[#D4AF37]/55 shadow-[0_14px_34px_-22px_rgba(9,42,32,0.3)] dark:shadow-[0_16px_36px_-22px_rgba(0,0,0,0.75)] hover:shadow-[0_20px_42px_-20px_rgba(9,42,32,0.36)] hover:-translate-y-0.5 transition-all duration-200 flex items-start gap-3"
+                        className="group text-left p-4 sm:p-[18px] rounded-2xl border border-[#E6DFD0] dark:border-[#D4AF37]/20 bg-white dark:bg-[#0D1A15] hover:border-[#C9A654] dark:hover:border-[#D4AF37]/55 shadow-[0_12px_28px_-22px_rgba(9,42,32,0.24)] dark:shadow-[0_16px_36px_-22px_rgba(0,0,0,0.75)] hover:shadow-[0_18px_36px_-18px_rgba(9,42,32,0.28)] hover:-translate-y-0.5 transition-all duration-200 flex items-start gap-3"
                       >
-                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F684E]/10 to-[#D4AF37]/15 dark:from-emerald-950/90 dark:to-[#D4AF37]/18 border border-[#D4AF37]/22 text-[#0B523D] dark:text-[#F1D680] flex items-center justify-center shrink-0 transition-colors duration-200 group-hover:from-[#0B523D] group-hover:to-[#083D2D] group-hover:text-[#F5DC89] group-hover:border-[#D4AF37]/45">
+                        <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F684E]/10 to-[#D4AF37]/15 dark:from-emerald-950/90 dark:to-[#D4AF37]/18 border border-[#D4AF37]/25 text-[#0B523D] dark:text-[#F1D680] flex items-center justify-center shrink-0 transition-colors duration-200 group-hover:from-[#0B523D] group-hover:to-[#083D2D] group-hover:text-[#F5DC89] group-hover:border-[#D4AF37]/45">
                           <Icon className="w-4 h-4" />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -1047,7 +1026,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
       </main>
 
       {/* Refined Luxury Institutional Footer */}
-      <footer className="border-t border-[#D4AF37]/25 dark:border-[#D4AF37]/18 bg-[#F4F1E8] dark:bg-[#050C0A]">
+      <footer className="border-t border-slate-200/85 dark:border-[#D4AF37]/18 bg-white dark:bg-[#050C0A]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
           <div className="flex flex-col items-center sm:items-start leading-relaxed">
             <p className="whitespace-nowrap font-medium text-slate-700 dark:text-slate-200">
@@ -1063,7 +1042,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               rel="noopener noreferrer"
               aria-label="TikTok Bimwin Kemenag Jepara"
               title="TikTok"
-              className="w-9 h-9 rounded-lg border border-[#E2DAC9] dark:border-[#D4AF37]/25 bg-[#FFFEFB] dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#C9A654] hover:text-slate-950 dark:hover:border-[#F1D680] dark:hover:text-white flex items-center justify-center transition"
+              className="w-9 h-9 rounded-lg border border-slate-200/90 dark:border-[#D4AF37]/25 bg-white dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#C9A654] hover:text-slate-950 dark:hover:border-[#F1D680] dark:hover:text-white flex items-center justify-center transition"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="w-[17px] h-[17px]">
                 <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
@@ -1075,7 +1054,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               rel="noopener noreferrer"
               aria-label="YouTube Bimwin Kemenag Jepara"
               title="YouTube"
-              className="w-9 h-9 rounded-lg border border-[#E2DAC9] dark:border-[#D4AF37]/25 bg-[#FFFEFB] dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#FF0000]/50 hover:text-[#FF0000] dark:hover:border-red-500/60 dark:hover:text-red-400 flex items-center justify-center transition"
+              className="w-9 h-9 rounded-lg border border-slate-200/90 dark:border-[#D4AF37]/25 bg-white dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#FF0000]/50 hover:text-[#FF0000] dark:hover:border-red-500/60 dark:hover:text-red-400 flex items-center justify-center transition"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="w-[18px] h-[18px]">
                 <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
@@ -1087,7 +1066,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               rel="noopener noreferrer"
               aria-label="Instagram Bimwin Kemenag Jepara"
               title="Instagram"
-              className="w-9 h-9 rounded-lg border border-[#E2DAC9] dark:border-[#D4AF37]/25 bg-[#FFFEFB] dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#E1306C]/50 hover:text-[#E1306C] dark:hover:border-pink-400/60 dark:hover:text-pink-400 flex items-center justify-center transition"
+              className="w-9 h-9 rounded-lg border border-slate-200/90 dark:border-[#D4AF37]/25 bg-white dark:bg-[#0D1A15] text-slate-600 dark:text-slate-300 hover:border-[#E1306C]/50 hover:text-[#E1306C] dark:hover:border-pink-400/60 dark:hover:text-pink-400 flex items-center justify-center transition"
             >
               <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className="w-[17px] h-[17px]">
                 <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z" />
