@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Bell,
+  BellRing,
   CheckCircle2,
   Clock,
   Copy,
@@ -9,6 +10,7 @@ import {
   MessageCircle,
   Search,
   Send,
+  Smartphone,
   Sparkles,
 } from 'lucide-react';
 import { LIST_16_KUA } from '../data/jeparaData';
@@ -23,8 +25,11 @@ import {
   isValidEmailAddress,
   normalizeWhatsAppNumber,
   ParticipantReminderProfile,
+  renderMobilePushPreview,
   renderReminderTemplate,
+  resolveMobileNotifPolicy,
 } from '../utils/smartReminder';
+import { MobileNotifConfigModal } from './MobileNotifConfigModal';
 
 interface SmartReminderPanelProps {
   scopeMode: 'all' | 'kua';
@@ -36,6 +41,7 @@ type FilterMode =
   | 'need_action'
   | 'all'
   | 'akad_dekat'
+  | 'apk_installed'
   | ParticipantReminderProfile['category'];
 
 export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
@@ -43,7 +49,7 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
   kuaName,
   roleTitle,
 }) => {
-  const { data, logSmartReminder, pushToast } = useBimwin();
+  const { data, logSmartReminder, sendMobilePushReminder, pushToast } = useBimwin();
 
   const [selectedKua, setSelectedKua] = useState<string>(
     scopeMode === 'all' ? 'ALL' : kuaName || 'KUA Jepara'
@@ -58,8 +64,13 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
     'Assalamu\'alaikum {nama},\n\nKami mengingatkan untuk melanjutkan tahapan Bimbingan Perkawinan Mandiri di {kua} ({tahap}, rencana akad {tanggal_akad}).\n\nTerima kasih.\nSAMAWA — Kementerian Agama Kab. Jepara'
   );
   const [showHistory, setShowHistory] = useState(false);
+  const [mobileNotifModalOpen, setMobileNotifModalOpen] = useState(false);
 
   const effectiveKua = scopeMode === 'all' ? selectedKua : kuaName || 'KUA Jepara';
+  const activeMobilePolicy = useMemo(
+    () => resolveMobileNotifPolicy(data.mobileNotifPolicies, effectiveKua),
+    [data.mobileNotifPolicies, effectiveKua]
+  );
 
   const scopedPeserta = useMemo(() => {
     return data.users.filter(
@@ -84,6 +95,12 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
           lastLog,
           hasWa: Boolean(normalizeWhatsAppNumber(user.noHp)),
           hasEmail: isValidEmailAddress(user.email),
+          apkInstalled: Boolean(user.appNotification?.apkInstalled),
+          apkPushActive: Boolean(
+            user.appNotification?.apkInstalled &&
+              user.appNotification.pushEnabled &&
+              !user.appNotification.mutedByOfficer
+          ),
         };
       })
       .sort((a, b) => {
@@ -110,6 +127,8 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
       ).length,
       belumIkm: enrichedList.filter((i) => i.classification.category === 'belum_ikm').length,
       belumVerifikasi: enrichedList.filter((i) => i.classification.category === 'belum_verifikasi').length,
+      apkInstalled: enrichedList.filter((i) => i.apkInstalled).length,
+      apkPushActive: enrichedList.filter((i) => i.apkPushActive).length,
     };
   }, [enrichedList]);
 
@@ -127,6 +146,7 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
 
       if (filterMode === 'all') return true;
       if (filterMode === 'need_action') return item.classification.category !== 'sudah_lulus';
+      if (filterMode === 'apk_installed') return item.apkInstalled;
       if (filterMode === 'akad_dekat') {
         return (
           item.daysToAkad !== null &&
@@ -138,6 +158,11 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
       return item.classification.category === filterMode;
     });
   }, [enrichedList, filterMode, search]);
+
+  const filteredApkActive = useMemo(
+    () => filteredList.filter((i) => i.apkPushActive),
+    [filteredList]
+  );
 
   const resolveMessageForItem = (item: (typeof enrichedList)[number]) => {
     if (!useCustomTemplate) {
@@ -200,6 +225,40 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
     );
   };
 
+  const handleBatchPushHp = () => {
+    if (filteredApkActive.length === 0) {
+      pushToast(
+        'info',
+        'Belum Ada Pengguna APK Aktif',
+        'Tidak ada peserta terfilter yang sudah memasang APK dengan notifikasi HP aktif.'
+      );
+      return;
+    }
+    const targets = filteredApkActive.map((item) => {
+      const rendered = useCustomTemplate
+        ? resolveMessageForItem(item)
+        : (() => {
+            const preview = renderMobilePushPreview(
+              activeMobilePolicy,
+              item.user,
+              item.classification
+            );
+            return { subject: preview.title, message: preview.body };
+          })();
+      return {
+        username: item.user.username,
+        nama: item.user.nama,
+        kua: item.user.kua,
+        subject: rendered.subject,
+        message: rendered.message,
+      };
+    });
+    sendMobilePushReminder({
+      scopeKua: effectiveKua,
+      targets,
+    });
+  };
+
   return (
     <div className="space-y-5">
       {/* Header */}
@@ -207,14 +266,14 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400 inline-flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5" />
-            Smart Reminder WhatsApp &amp; Email · {roleTitle}
+            Smart Reminder WA, Email &amp; Notif HP (APK) · {roleTitle}
           </p>
           <h2 className="font-display text-2xl font-semibold text-slate-900 dark:text-white mt-0.5">
             Pengingat Cerdas Peserta —{' '}
             {effectiveKua === 'ALL' ? 'Semua 16 KUA Jepara' : effectiveKua}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Otomatis mendeteksi tahapan tertunda (sinkronisasi, MOOC, IKM, jadwal kelas, &amp; akad dekat) dengan pesan personal siap kirim via WhatsApp, Email, atau Notifikasi Portal.
+            Otomatis mendeteksi tahapan tertunda (sinkronisasi, MOOC, IKM, jadwal kelas, &amp; akad dekat) dengan pesan personal siap kirim via WhatsApp, Email, Notifikasi HP (APK), atau Portal.
           </p>
         </div>
 
@@ -234,6 +293,17 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
               ))}
             </select>
           )}
+          <button
+            type="button"
+            onClick={() => setMobileNotifModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold shadow-xs transition"
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            <span>Atur Notif HP (APK)</span>
+            <span className="px-1.5 py-0.5 rounded bg-white/15 font-mono-num text-[10px]">
+              {counts.apkPushActive}/{counts.apkInstalled}
+            </span>
+          </button>
           <button
             type="button"
             onClick={() => setShowHistory((v) => !v)}
@@ -300,6 +370,15 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBatchPushHp}
+              disabled={filteredApkActive.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-300 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/50 text-[#0F684E] dark:text-emerald-300 hover:bg-emerald-100/80 disabled:opacity-40 text-xs font-semibold transition"
+            >
+              <BellRing className="w-3.5 h-3.5" />
+              Kirim Notif HP ({filteredApkActive.length} APK)
+            </button>
             <button
               type="button"
               onClick={handleBatchInApp}
@@ -377,6 +456,7 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
           className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-white dark:bg-[#111C18] text-xs font-semibold"
         >
           <option value="need_action">Semua yang Perlu Pengingat ({counts.needAction})</option>
+          <option value="apk_installed">Sudah Download APK ({counts.apkInstalled})</option>
           <option value="akad_dekat">Prioritas Akad ≤ 14 Hari ({counts.akadDekat})</option>
           <option value="belum_sinkron">Belum Sinkron Pasangan ({counts.belumSinkron})</option>
           <option value="belum_pretest">Belum Pretest</option>
@@ -439,7 +519,7 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
                 <th className="text-left px-4 py-3 font-semibold">Peserta &amp; Kontak</th>
                 <th className="text-left px-4 py-3 font-semibold">Status &amp; Rekomendasi</th>
                 <th className="text-left px-4 py-3 font-semibold">Jadwal Akad</th>
-                <th className="text-right px-4 py-3 font-semibold">Aksi Kirim WA / Email</th>
+                <th className="text-right px-4 py-3 font-semibold">Aksi WA / Email / Notif HP</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-emerald-950">
@@ -451,7 +531,16 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
                 </tr>
               ) : (
                 filteredList.map((item) => {
-                  const { user, classification, daysToAkad, lastLog, hasWa, hasEmail } = item;
+                  const {
+                    user,
+                    classification,
+                    daysToAkad,
+                    lastLog,
+                    hasWa,
+                    hasEmail,
+                    apkInstalled,
+                    apkPushActive,
+                  } = item;
                   const { subject, message } = resolveMessageForItem(item);
                   const waUrl = buildWhatsAppReminderUrl(user.noHp || '', message);
                   const emailUrl = buildEmailReminderUrl(user.email || '', subject, message);
@@ -476,6 +565,13 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
                         <p className="text-[11px] text-slate-500 truncate max-w-[230px]">
                           Email: {user.email || 'Belum diisi'}
                         </p>
+                        {apkInstalled && (
+                          <p className="text-[10px] font-semibold text-[#0F684E] dark:text-emerald-400 inline-flex items-center gap-1 mt-1">
+                            <Smartphone className="w-3 h-3" />
+                            APK {user.appNotification?.devicePlatform || 'HP'} ·{' '}
+                            {apkPushActive ? 'Notif HP Aktif' : 'Notif Dijeda'}
+                          </p>
+                        )}
                       </td>
 
                       <td className="px-4 py-3 align-top space-y-1">
@@ -585,6 +681,43 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
 
                           <button
                             type="button"
+                            disabled={!apkPushActive}
+                            onClick={() => {
+                              const pushPreview = useCustomTemplate
+                                ? { title: subject, body: message }
+                                : renderMobilePushPreview(activeMobilePolicy, user, classification);
+                              sendMobilePushReminder({
+                                scopeKua: effectiveKua,
+                                targets: [
+                                  {
+                                    username: user.username,
+                                    nama: user.nama,
+                                    kua: user.kua,
+                                    subject: pushPreview.title,
+                                    message: pushPreview.body,
+                                  },
+                                ],
+                              });
+                            }}
+                            title={
+                              apkPushActive
+                                ? 'Kirim Notifikasi HP (APK Terpasang)'
+                                : apkInstalled
+                                  ? 'Notifikasi HP peserta sedang dijeda (atur via Atur Notif HP)'
+                                  : 'Peserta belum memasang Aplikasi/APK SAMAWA'
+                            }
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-semibold transition ${
+                              apkPushActive
+                                ? 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                                : 'bg-slate-100 dark:bg-emerald-950/50 text-slate-400 cursor-not-allowed'
+                            }`}
+                          >
+                            <Smartphone className="w-3 h-3" />
+                            Notif HP
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => {
                               logSmartReminder({
                                 pesertaUsername: user.username,
@@ -625,6 +758,16 @@ export const SmartReminderPanel: React.FC<SmartReminderPanelProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Pengaturan Notifikasi HP (Peserta Pengguna APK) Modal */}
+      <MobileNotifConfigModal
+        open={mobileNotifModalOpen}
+        onClose={() => setMobileNotifModalOpen(false)}
+        scopeMode={scopeMode}
+        kuaName={kuaName}
+        initialScopeKua={effectiveKua}
+        roleTitle={roleTitle}
+      />
     </div>
   );
 };

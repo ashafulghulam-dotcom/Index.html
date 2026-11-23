@@ -5,11 +5,17 @@ import {
   buildBatchEmailBccUrl,
   buildEmailReminderUrl,
   buildWhatsAppReminderUrl,
+  canManageMobileNotifScope,
   classifyParticipantReminder,
   computeDaysUntilAkad,
+  createDefaultMobileNotifPolicy,
+  filterApkNotifRecipients,
   isValidEmailAddress,
+  isWithinQuietHours,
   normalizeWhatsAppNumber,
+  renderMobilePushPreview,
   renderReminderTemplate,
+  resolveMobileNotifPolicy,
 } from './smartReminder.ts';
 
 function makeUser(overrides: Partial<BimwinUser> = {}): BimwinUser {
@@ -136,4 +142,98 @@ describe('Smart Reminder WA & Email Pure Logic', () => {
     );
     assert.ok(bccUrl.startsWith('mailto:?bcc=a%40example.id%2Cb%40example.id&subject='));
   });
+
+  it('enforces RBAC scopes for mobile APK notification management (Admin Kemenag vs KUA/Fasilitator)', () => {
+    const superAdmin = { role: 'SuperAdmin' as const, kua: 'Kemenag Kab. Jepara' };
+    const adminJepara = { role: 'AdminKUA' as const, kua: 'KUA Jepara' };
+    const fasTahunan = { role: 'Fasilitator' as const, kua: 'KUA Tahunan' };
+    const peserta = { role: 'Peserta' as const, kua: 'KUA Jepara' };
+
+    // SuperAdmin (Admin Kemenag) can manage ALL and any KUA
+    assert.equal(canManageMobileNotifScope(superAdmin, 'ALL'), true);
+    assert.equal(canManageMobileNotifScope(superAdmin, 'KUA Jepara'), true);
+    assert.equal(canManageMobileNotifScope(superAdmin, 'KUA Tahunan'), true);
+
+    // Admin KUA & Fasilitator can ONLY manage their own kecamatan
+    assert.equal(canManageMobileNotifScope(adminJepara, 'KUA Jepara'), true);
+    assert.equal(canManageMobileNotifScope(adminJepara, 'ALL'), false);
+    assert.equal(canManageMobileNotifScope(adminJepara, 'KUA Tahunan'), false);
+
+    assert.equal(canManageMobileNotifScope(fasTahunan, 'KUA Tahunan'), true);
+    assert.equal(canManageMobileNotifScope(fasTahunan, 'ALL'), false);
+    assert.equal(canManageMobileNotifScope(fasTahunan, 'KUA Jepara'), false);
+
+    // Peserta cannot manage KUA/system policy
+    assert.equal(canManageMobileNotifScope(peserta, 'KUA Jepara'), false);
+    assert.equal(canManageMobileNotifScope(null, 'ALL'), false);
+  });
+
+  it('filters APK-installed recipients by KUA scope and active push status, resolves policies, quiet hours, and push preview', () => {
+    const users: BimwinUser[] = [
+      makeUser({
+        id: 'p1',
+        username: 'catin_tahunan_aktif',
+        kua: 'KUA Tahunan',
+        appNotification: { apkInstalled: true, devicePlatform: 'Android', pushEnabled: true },
+      }),
+      makeUser({
+        id: 'p2',
+        username: 'catin_tahunan_jeda',
+        kua: 'KUA Tahunan',
+        appNotification: {
+          apkInstalled: true,
+          devicePlatform: 'iOS',
+          pushEnabled: false,
+          mutedByOfficer: true,
+        },
+      }),
+      makeUser({
+        id: 'p3',
+        username: 'catin_tahunan_noapk',
+        kua: 'KUA Tahunan',
+        appNotification: { apkInstalled: false, pushEnabled: false },
+      }),
+      makeUser({
+        id: 'p4',
+        username: 'catin_jepara_aktif',
+        kua: 'KUA Jepara',
+        appNotification: { apkInstalled: true, devicePlatform: 'Android', pushEnabled: true },
+      }),
+    ];
+
+    // ALL scope (Kemenag) sees all 3 APK-installed users, 2 active
+    assert.equal(filterApkNotifRecipients(users, 'ALL').length, 3);
+    assert.equal(filterApkNotifRecipients(users, 'ALL', { onlyPushEnabled: true }).length, 2);
+
+    // Kecamatan scope (KUA Tahunan) sees ONLY KUA Tahunan APK users (2 installed, 1 active)
+    const tahunanInstalled = filterApkNotifRecipients(users, 'KUA Tahunan');
+    assert.deepEqual(
+      tahunanInstalled.map((u) => u.id),
+      ['p1', 'p2']
+    );
+    const tahunanActive = filterApkNotifRecipients(users, 'KUA Tahunan', { onlyPushEnabled: true });
+    assert.deepEqual(
+      tahunanActive.map((u) => u.id),
+      ['p1']
+    );
+
+    // Policy inheritance: KUA falls back to ALL policy when no KUA override exists
+    const allPolicy = { ...createDefaultMobileNotifPolicy('ALL'), scheduleTime: '09:30' };
+    const resolvedKua = resolveMobileNotifPolicy({ ALL: allPolicy }, 'KUA Tahunan');
+    assert.equal(resolvedKua.scopeKey, 'KUA Tahunan');
+    assert.equal(resolvedKua.scheduleTime, '09:30');
+
+    // Quiet hours (overnight 21:00 -> 06:00)
+    assert.equal(isWithinQuietHours('22:30', '21:00', '06:00'), true);
+    assert.equal(isWithinQuietHours('05:15', '21:00', '06:00'), true);
+    assert.equal(isWithinQuietHours('08:00', '21:00', '06:00'), false);
+
+    // Live push preview renders personalized template variables
+    const profile = classifyParticipantReminder(users[0], 5, new Date('2026-04-01T00:00:00Z'));
+    const preview = renderMobilePushPreview(resolvedKua, users[0], profile);
+    assert.ok(preview.title.includes(profile.categoryLabel));
+    assert.ok(preview.body.includes(users[0].nama));
+    assert.ok(preview.body.includes(users[0].kua));
+  });
 });
+

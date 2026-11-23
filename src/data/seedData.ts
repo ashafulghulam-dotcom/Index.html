@@ -27,6 +27,7 @@ import {
   GalleryItem,
   IkmSurveyRecord,
   KritikSaranItem,
+  MobileNotifPolicy,
   ModuleDefinition,
   NotificationItem,
   PostMarriageJournal,
@@ -34,6 +35,7 @@ import {
   ReminderLogItem,
   SystemSettings,
 } from '../types/bimwin';
+import { createDefaultMobileNotifPolicy } from '../utils/smartReminder';
 
 export interface BimwinStoreSnapshot {
   users: BimwinUser[];
@@ -47,6 +49,7 @@ export interface BimwinStoreSnapshot {
   ikmSurveys: IkmSurveyRecord[];
   notifications: NotificationItem[];
   reminderLogs?: ReminderLogItem[];
+  mobileNotifPolicies?: Record<string, MobileNotifPolicy>;
   kritikSaran: KritikSaranItem[];
   faqs: FaqItem[];
   documents: DocumentDownloadItem[];
@@ -130,6 +133,12 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalRencanaNikah: '2026-05-17',
       pasanganUsername: 'siti_jepara',
       pasanganNama: 'Siti Nurhaliza',
+      appNotification: {
+        apkInstalled: true,
+        installedAt: '2026-02-14T10:15:00.000Z',
+        devicePlatform: 'Android',
+        pushEnabled: true,
+      },
       createdAt: '2026-02-14T09:00:00.000Z',
       progress: {
         pretestDone: true,
@@ -192,6 +201,12 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       tanggalRencanaNikah: '2026-05-17',
       pasanganUsername: 'ahmad_jepara',
       pasanganNama: 'Ahmad Rifai',
+      appNotification: {
+        apkInstalled: true,
+        installedAt: '2026-02-14T10:20:00.000Z',
+        devicePlatform: 'iOS',
+        pushEnabled: true,
+      },
       createdAt: '2026-02-14T09:10:00.000Z',
       progress: {
         pretestDone: true,
@@ -253,6 +268,12 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       desaTempatNikah: 'Tahunan',
       alamat: 'Desa Tahunan RT 04/RW 02, Kec. Tahunan',
       tanggalRencanaNikah: '2026-06-21',
+      appNotification: {
+        apkInstalled: true,
+        installedAt: '2026-03-20T11:05:00.000Z',
+        devicePlatform: 'Android',
+        pushEnabled: true,
+      },
       createdAt: '2026-03-20T10:00:00.000Z',
       progress: {
         pretestDone: false,
@@ -289,6 +310,12 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
       desaTempatNikah: 'Tahunan',
       alamat: 'Desa Kecapi RT 02/RW 05, Kec. Tahunan',
       tanggalRencanaNikah: '2026-06-21',
+      appNotification: {
+        apkInstalled: true,
+        installedAt: '2026-03-20T11:20:00.000Z',
+        devicePlatform: 'Android',
+        pushEnabled: true,
+      },
       createdAt: '2026-03-20T10:15:00.000Z',
       progress: {
         pretestDone: false,
@@ -399,6 +426,18 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         tanggalRencanaNikah: '2026-06-14',
         pasanganUsername: femaleUser,
         pasanganNama: item.female,
+        appNotification:
+          index % 3 !== 2
+            ? {
+                apkInstalled: true,
+                installedAt: `${item.month}T09:15:00.000Z`,
+                devicePlatform: index % 4 === 0 ? 'iOS' : 'Android',
+                pushEnabled: true,
+              }
+            : {
+                apkInstalled: false,
+                pushEnabled: false,
+              },
         createdAt: `${item.month}T08:30:00.000Z`,
         progress: makeProgress(true),
         stunting: {
@@ -447,6 +486,18 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
         tanggalRencanaNikah: '2026-06-14',
         pasanganUsername: maleUser,
         pasanganNama: item.male,
+        appNotification:
+          index % 4 !== 3
+            ? {
+                apkInstalled: true,
+                installedAt: `${item.month}T09:20:00.000Z`,
+                devicePlatform: index % 3 === 1 ? 'iOS' : 'Android',
+                pushEnabled: true,
+              }
+            : {
+                apkInstalled: false,
+                pushEnabled: false,
+              },
         createdAt: `${item.month}T08:40:00.000Z`,
         progress: makeProgress(false),
         stunting: item.stuntingRisk
@@ -718,6 +769,9 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
     ikmSurveys,
     notifications,
     reminderLogs: [],
+    mobileNotifPolicies: {
+      ALL: createDefaultMobileNotifPolicy('ALL'),
+    },
     kritikSaran,
     faqs: DEFAULT_FAQ,
     documents: DEFAULT_DOKUMEN,

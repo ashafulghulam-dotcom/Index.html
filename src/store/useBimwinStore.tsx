@@ -15,6 +15,7 @@ import {
   FaqItem,
   GalleryItem,
   Gender,
+  MobileNotifPolicy,
   ModuleDefinition,
   QuizQuestion,
   ReminderLogItem,
@@ -39,6 +40,11 @@ import {
   validatePartnerSync,
   validateRencanaAkadDate,
 } from '../utils/bimwinLogic';
+import {
+  canManageMobileNotifScope,
+  createDefaultMobileNotifPolicy,
+  dispatchBrowserPushNotification,
+} from '../utils/smartReminder';
 import {
   cascadeUsernameReferences,
   validateBackupSnapshot,
@@ -179,6 +185,28 @@ interface BimwinContextValue {
     message: string;
     alsoSendInApp?: boolean;
   }) => void;
+  saveMobileNotifPolicy: (
+    scopeKey: string,
+    policy: MobileNotifPolicy
+  ) => { ok: boolean; error?: string };
+  toggleParticipantMobileNotif: (
+    pesertaId: string,
+    enabled: boolean
+  ) => { ok: boolean; error?: string };
+  registerPesertaApkDevice: (
+    platform?: 'Android' | 'iOS' | 'Desktop',
+    pushEnabled?: boolean
+  ) => void;
+  sendMobilePushReminder: (payload: {
+    scopeKua: string;
+    targets: Array<{
+      username: string;
+      nama: string;
+      kua: string;
+      subject: string;
+      message: string;
+    }>;
+  }) => { ok: boolean; sentCount: number; error?: string };
 
   // Admin & SuperAdmin workflows
   updatePesertaByAdmin: (pesertaId: string, updates: Partial<BimwinUser>) => void;
@@ -221,13 +249,25 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
   const seedEmailByUsername = new Map(
     seed.users.filter((u) => u.email).map((u) => [u.username.toLowerCase(), u.email])
   );
+  const seedAppNotifByUsername = new Map(
+    seed.users
+      .filter((u) => u.appNotification)
+      .map((u) => [u.username.toLowerCase(), u.appNotification])
+  );
   const users = Array.isArray(parsed.users) && parsed.users.length > 0
     ? parsed.users.map((u) => ({
         ...u,
         email: u.email || seedEmailByUsername.get(u.username.toLowerCase()),
         pendidikan: normalizeEducationLevel(u.pendidikan),
+        appNotification:
+          u.appNotification || seedAppNotifByUsername.get(u.username.toLowerCase()),
       }))
     : seed.users;
+
+  const mobileNotifPolicies: Record<string, MobileNotifPolicy> = {
+    ALL: createDefaultMobileNotifPolicy('ALL'),
+    ...(parsed.mobileNotifPolicies || {}),
+  };
 
   return {
     ...seed,
@@ -255,6 +295,7 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
     kritikSaran: Array.isArray(parsed.kritikSaran) ? parsed.kritikSaran : seed.kritikSaran,
     auditLogs: Array.isArray(parsed.auditLogs) ? parsed.auditLogs : seed.auditLogs,
     reminderLogs: Array.isArray(parsed.reminderLogs) ? parsed.reminderLogs : [],
+    mobileNotifPolicies,
     settings: parsed.settings || seed.settings,
   };
 }
@@ -1645,12 +1686,13 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       setData((prev) => {
         const nextNotifs =
-          payload.channel === 'InApp' || payload.alsoSendInApp
+          payload.channel === 'InApp' || payload.channel === 'PushHP' || payload.alsoSendInApp
             ? [
                 {
                   id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
                   targetKua: payload.kua,
                   targetUsername: payload.pesertaUsername,
+                  channel: payload.channel === 'PushHP' ? ('PushHP' as const) : ('Portal' as const),
                   judul: payload.subject.trim(),
                   pesan: payload.message.trim(),
                   pengirim: `${currentUser.nama} (${payload.channel})`,
@@ -1674,6 +1716,252 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     },
     [appendAudit, currentUser]
+  );
+
+  const saveMobileNotifPolicy = useCallback(
+    (scopeKey: string, policy: MobileNotifPolicy): { ok: boolean; error?: string } => {
+      if (!currentUser) {
+        return { ok: false, error: 'Sesi login tidak ditemukan.' };
+      }
+      if (!canManageMobileNotifScope(currentUser, scopeKey)) {
+        const msg = `Anda hanya berwenang mengatur notifikasi HP untuk wilayah ${currentUser.kua}.`;
+        pushToast('error', 'Akses Ditolak', msg);
+        return { ok: false, error: msg };
+      }
+
+      const nowIso = new Date().toISOString();
+      const normalizedPolicy: MobileNotifPolicy = {
+        ...policy,
+        scopeKey,
+        customTitleTemplate: policy.customTitleTemplate.trim() || createDefaultMobileNotifPolicy(scopeKey).customTitleTemplate,
+        customBodyTemplate: policy.customBodyTemplate.trim() || createDefaultMobileNotifPolicy(scopeKey).customBodyTemplate,
+        updatedAt: nowIso,
+        updatedBy: currentUser.nama,
+      };
+      const scopeLabel = scopeKey === 'ALL' ? 'Semua 16 KUA Kab. Jepara' : scopeKey;
+
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            mobileNotifPolicies: {
+              ...(prev.mobileNotifPolicies || {}),
+              [scopeKey]: normalizedPolicy,
+            },
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Memperbarui pengaturan Notifikasi HP (APK) untuk ${scopeLabel} (${normalizedPolicy.enabled ? 'Aktif' : 'Nonaktif'}, jadwal ${normalizedPolicy.scheduleTime} WIB)`
+        )
+      );
+
+      pushToast(
+        'success',
+        'Pengaturan Notifikasi HP Tersimpan',
+        `Cakupan: ${scopeLabel} · Status: ${normalizedPolicy.enabled ? 'Aktif' : 'Dijeda'}`
+      );
+      return { ok: true };
+    },
+    [appendAudit, currentUser, pushToast]
+  );
+
+  const toggleParticipantMobileNotif = useCallback(
+    (pesertaId: string, enabled: boolean): { ok: boolean; error?: string } => {
+      if (!currentUser) {
+        return { ok: false, error: 'Sesi login tidak ditemukan.' };
+      }
+      const target = data.users.find((u) => u.id === pesertaId);
+      if (!target || target.role !== 'Peserta') {
+        return { ok: false, error: 'Data peserta tidak ditemukan.' };
+      }
+
+      const isSelf = currentUser.id === target.id;
+      const officerAllowed = canManageMobileNotifScope(currentUser, target.kua);
+      if (!isSelf && !officerAllowed) {
+        const msg = `Anda hanya dapat mengatur notifikasi HP peserta di wilayah ${currentUser.kua}.`;
+        pushToast('error', 'Akses Ditolak', msg);
+        return { ok: false, error: msg };
+      }
+
+      if (!target.appNotification?.apkInstalled) {
+        const msg = `${target.nama} belum memasang Aplikasi/APK SAMAWA di perangkat HP.`;
+        pushToast('info', 'Aplikasi Belum Terpasang', msg);
+        return { ok: false, error: msg };
+      }
+
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            users: prev.users.map((u) =>
+              u.id === pesertaId
+                ? {
+                    ...u,
+                    appNotification: {
+                      ...(u.appNotification || { apkInstalled: true, pushEnabled: enabled }),
+                      pushEnabled: enabled,
+                      mutedByOfficer: isSelf ? false : !enabled,
+                    },
+                  }
+                : u
+            ),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `${enabled ? 'Mengaktifkan' : 'Menjeda'} Notifikasi HP (APK) untuk ${target.nama} (${target.kua})`
+        )
+      );
+
+      pushToast(
+        'success',
+        enabled ? `Notif HP Diaktifkan (${target.nama})` : `Notif HP Dijeda (${target.nama})`,
+        `${target.kua} · Perangkat ${target.appNotification.devicePlatform || 'HP'}`
+      );
+      return { ok: true };
+    },
+    [appendAudit, currentUser, data.users, pushToast]
+  );
+
+  const registerPesertaApkDevice = useCallback(
+    (platform: 'Android' | 'iOS' | 'Desktop' = 'Android', pushEnabled: boolean = true) => {
+      if (!currentUser || currentUser.role !== 'Peserta') return;
+      const nowIso = new Date().toISOString();
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) =>
+          u.id === currentUser.id
+            ? {
+                ...u,
+                appNotification: {
+                  ...(u.appNotification || {}),
+                  apkInstalled: true,
+                  installedAt: u.appNotification?.installedAt || nowIso,
+                  devicePlatform: platform,
+                  pushEnabled,
+                  mutedByOfficer: false,
+                },
+              }
+            : u
+        ),
+      }));
+    },
+    [currentUser]
+  );
+
+  const sendMobilePushReminder = useCallback(
+    (payload: {
+      scopeKua: string;
+      targets: Array<{
+        username: string;
+        nama: string;
+        kua: string;
+        subject: string;
+        message: string;
+      }>;
+    }): { ok: boolean; sentCount: number; error?: string } => {
+      if (!currentUser) {
+        return { ok: false, sentCount: 0, error: 'Sesi login tidak ditemukan.' };
+      }
+      if (!canManageMobileNotifScope(currentUser, payload.scopeKua)) {
+        const msg = `Anda hanya berwenang mengirim notifikasi HP ke wilayah ${currentUser.kua}.`;
+        pushToast('error', 'Akses Ditolak', msg);
+        return { ok: false, sentCount: 0, error: msg };
+      }
+
+      const eligibleTargets = payload.targets.filter((t) => {
+        if (currentUser.role !== 'SuperAdmin' && t.kua !== currentUser.kua) return false;
+        const userRec = data.users.find(
+          (u) => u.username.toLowerCase() === t.username.toLowerCase()
+        );
+        return Boolean(
+          userRec?.appNotification?.apkInstalled &&
+            userRec.appNotification.pushEnabled &&
+            !userRec.appNotification.mutedByOfficer
+        );
+      });
+
+      if (eligibleTargets.length === 0) {
+        const msg =
+          'Tidak ada peserta dengan Aplikasi/APK terpasang dan Notifikasi HP aktif pada target yang dipilih.';
+        pushToast('info', 'Tidak Ada Penerima APK Aktif', msg);
+        return { ok: false, sentCount: 0, error: msg };
+      }
+
+      const nowIso = new Date().toISOString();
+      const targetUsernameSet = new Set(eligibleTargets.map((t) => t.username.toLowerCase()));
+
+      const newLogs: ReminderLogItem[] = eligibleTargets.map((t, idx) => ({
+        id: `rem_push_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+        pesertaUsername: t.username,
+        pesertaNama: t.nama,
+        kua: t.kua,
+        channel: 'PushHP',
+        subject: t.subject.trim(),
+        message: t.message.trim(),
+        sentBy: currentUser.nama,
+        sentByRole: currentUser.role,
+        sentAt: nowIso,
+      }));
+
+      const newNotifs = eligibleTargets.map((t, idx) => ({
+        id: `notif_push_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 5)}`,
+        targetKua: t.kua,
+        targetUsername: t.username,
+        channel: 'PushHP' as const,
+        judul: t.subject.trim(),
+        pesan: t.message.trim(),
+        pengirim: `${currentUser.nama} (Notif HP APK)`,
+        readBy: [],
+        createdAt: nowIso,
+      }));
+
+      const scopeLabel =
+        payload.scopeKua === 'ALL' ? 'Semua 16 KUA Kab. Jepara' : payload.scopeKua;
+
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            users: prev.users.map((u) =>
+              targetUsernameSet.has(u.username.toLowerCase()) && u.appNotification
+                ? {
+                    ...u,
+                    appNotification: {
+                      ...u.appNotification,
+                      lastPushSentAt: nowIso,
+                    },
+                  }
+                : u
+            ),
+            notifications: [...newNotifs, ...(prev.notifications || [])],
+            reminderLogs: [...newLogs, ...(prev.reminderLogs || [])].slice(0, 200),
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Mengirim Notifikasi HP (APK) ke ${eligibleTargets.length} peserta (${scopeLabel})`
+        )
+      );
+
+      // Fire native PWA/Browser notification preview if permitted on current device
+      const first = eligibleTargets[0];
+      if (first) {
+        void dispatchBrowserPushNotification(
+          first.subject.trim(),
+          eligibleTargets.length > 1
+            ? `Terkirim ke ${eligibleTargets.length} perangkat APK (${scopeLabel}). ${first.message.trim().slice(0, 100)}`
+            : first.message.trim().slice(0, 140),
+          `samawa-push-${Date.now()}`
+        );
+      }
+
+      pushToast(
+        'success',
+        `Notifikasi HP Terkirim (${eligibleTargets.length} Perangkat APK)`,
+        `Tercatat pada riwayat Smart Reminder & masuk ke perangkat peserta ${scopeLabel}.`
+      );
+      return { ok: true, sentCount: eligibleTargets.length };
+    },
+    [appendAudit, currentUser, data.users, pushToast]
   );
 
   const updatePesertaByAdmin = useCallback(
@@ -2146,6 +2434,10 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     replyConsultation,
     sendReminderNotification,
     logSmartReminder,
+    saveMobileNotifPolicy,
+    toggleParticipantMobileNotif,
+    registerPesertaApkDevice,
+    sendMobilePushReminder,
     updatePesertaByAdmin,
     deleteUserByAdmin,
     saveStaffAccount,

@@ -1,4 +1,4 @@
-import { BimwinUser } from '../types/bimwin';
+import { BimwinUser, MobileNotifPolicy } from '../types/bimwin';
 import { evaluatePesertaStep, formatIndonesianDate, normalizeVillageName } from './bimwinLogic';
 
 export type SmartReminderFilter =
@@ -206,3 +206,160 @@ export function buildBatchEmailBccUrl(
   if (validUnique.length === 0) return '';
   return `mailto:?bcc=${encodeURIComponent(validUnique.join(','))}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
+
+export function createDefaultMobileNotifPolicy(scopeKey: string): MobileNotifPolicy {
+  const scopeLabel = scopeKey === 'ALL' ? 'Kemenag Kab. Jepara' : scopeKey;
+  return {
+    scopeKey,
+    enabled: true,
+    frequency: 'otomatis_tahap',
+    scheduleTime: '08:00',
+    quietHoursStart: '21:00',
+    quietHoursEnd: '06:00',
+    soundAndVibrate: true,
+    triggers: {
+      belumSinkron: true,
+      moocTertunda: true,
+      surveiIkm: true,
+      jadwalKelas: true,
+      akadMendekat: true,
+      sertifikatTerbit: true,
+    },
+    customTitleTemplate: `Pengingat SAMAWA ${scopeLabel} — {tahap}`,
+    customBodyTemplate:
+      'Halo {nama}, progres BIMWIN Anda di {kua} saat ini {progres} ({tahap}). Rencana akad: {tanggal_akad}. Buka aplikasi SAMAWA untuk melanjutkan.',
+  };
+}
+
+export function resolveMobileNotifPolicy(
+  policies: Record<string, MobileNotifPolicy> | undefined,
+  scopeKey: string
+): MobileNotifPolicy {
+  if (policies?.[scopeKey]) {
+    return policies[scopeKey];
+  }
+  if (scopeKey !== 'ALL' && policies?.ALL) {
+    return {
+      ...policies.ALL,
+      scopeKey,
+    };
+  }
+  return createDefaultMobileNotifPolicy(scopeKey);
+}
+
+/**
+ * Enforces strict RBAC for mobile APK notification settings:
+ * - SuperAdmin (Admin Kemenag) can configure 'ALL' and any KUA kecamatan.
+ * - AdminKUA & Fasilitator can ONLY configure their own kecamatan (actor.kua).
+ */
+export function canManageMobileNotifScope(
+  actor: Pick<BimwinUser, 'role' | 'kua'> | null | undefined,
+  scopeKey: string
+): boolean {
+  if (!actor) return false;
+  if (actor.role === 'SuperAdmin') return true;
+  if (actor.role === 'AdminKUA' || actor.role === 'Fasilitator') {
+    return Boolean(scopeKey && scopeKey !== 'ALL' && scopeKey === actor.kua);
+  }
+  return false;
+}
+
+/**
+ * Filters participants eligible for mobile APK push notifications within a given KUA scope.
+ */
+export function filterApkNotifRecipients(
+  users: BimwinUser[],
+  scopeKua: string,
+  options: { onlyPushEnabled?: boolean } = {}
+): BimwinUser[] {
+  const { onlyPushEnabled = false } = options;
+  return users.filter((u) => {
+    if (u.role !== 'Peserta') return false;
+    if (scopeKua !== 'ALL' && u.kua !== scopeKua) return false;
+    if (!u.appNotification?.apkInstalled) return false;
+    if (onlyPushEnabled && (!u.appNotification.pushEnabled || u.appNotification.mutedByOfficer)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+function parseMinutesOfDay(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/**
+ * Returns true when timeHHMM falls inside the configured quiet hours window (supports overnight ranges like 21:00 -> 06:00).
+ */
+export function isWithinQuietHours(
+  timeHHMM: string,
+  quietStart: string,
+  quietEnd: string
+): boolean {
+  const current = parseMinutesOfDay(timeHHMM);
+  const start = parseMinutesOfDay(quietStart);
+  const end = parseMinutesOfDay(quietEnd);
+  if (current === null || start === null || end === null || start === end) return false;
+  if (start < end) {
+    return current >= start && current < end;
+  }
+  // Overnight span (e.g., 21:00 to 06:00)
+  return current >= start || current < end;
+}
+
+export function renderMobilePushPreview(
+  policy: MobileNotifPolicy,
+  user: BimwinUser,
+  profile: ParticipantReminderProfile
+): { title: string; body: string } {
+  const titleSource = policy.customTitleTemplate.trim() || profile.defaultSubject;
+  const bodySource = policy.customBodyTemplate.trim() || profile.pendingSummary;
+  return {
+    title: renderReminderTemplate(titleSource, user, profile),
+    body: renderReminderTemplate(bodySource, user, profile),
+  };
+}
+
+/**
+ * Dispatches a real native browser / PWA Service Worker notification on the device when permitted.
+ */
+export async function dispatchBrowserPushNotification(
+  title: string,
+  body: string,
+  tag: string = 'samawa-bimwin-push'
+): Promise<'sent' | 'denied' | 'unsupported'> {
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return 'unsupported';
+  }
+  if (window.Notification.permission !== 'granted') {
+    return 'denied';
+  }
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (reg && typeof reg.showNotification === 'function') {
+        await reg.showNotification(title, {
+          body,
+          icon: '/pwa-192x192.png',
+          badge: '/pwa-192x192.png',
+          tag,
+        });
+        return 'sent';
+      }
+    }
+    new window.Notification(title, {
+      body,
+      icon: '/pwa-192x192.png',
+      tag,
+    });
+    return 'sent';
+  } catch {
+    return 'unsupported';
+  }
+}
+

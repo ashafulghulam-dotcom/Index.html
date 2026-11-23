@@ -75,6 +75,41 @@ export interface PesertaProgress {
   tanggalTerbitSertifikat?: string;
 }
 
+export interface ParticipantAppNotifStatus {
+  apkInstalled: boolean;
+  installedAt?: string;
+  devicePlatform?: 'Android' | 'iOS' | 'Desktop';
+  pushEnabled: boolean;
+  mutedByOfficer?: boolean;
+  lastPushSentAt?: string;
+}
+
+export type MobileNotifFrequency = 'otomatis_tahap' | 'harian' | 'dua_hari' | 'mingguan';
+
+export interface MobileNotifTriggers {
+  belumSinkron: boolean;
+  moocTertunda: boolean;
+  surveiIkm: boolean;
+  jadwalKelas: boolean;
+  akadMendekat: boolean;
+  sertifikatTerbit: boolean;
+}
+
+export interface MobileNotifPolicy {
+  scopeKey: string; // 'ALL' (Kemenag Kab. Jepara) or specific KUA name
+  enabled: boolean;
+  frequency: MobileNotifFrequency;
+  scheduleTime: string; // HH:mm WIB
+  quietHoursStart: string; // HH:mm
+  quietHoursEnd: string; // HH:mm
+  soundAndVibrate: boolean;
+  triggers: MobileNotifTriggers;
+  customTitleTemplate: string;
+  customBodyTemplate: string;
+  updatedAt?: string;
+  updatedBy?: string;
+}
+
 export interface BimwinUser {
   id: string;
   username: string;
@@ -101,6 +136,7 @@ export interface BimwinUser {
   stunting?: StuntingCheckRecord;
   kompak?: KompakData;
   berkasChecklist?: Record<string, boolean>;
+  appNotification?: ParticipantAppNotifStatus;
   createdAt: string;
   jabatan?: string; // for Fasilitator/Admin
   nip?: string;
@@ -220,7 +256,7 @@ export interface ReminderLogItem {
   pesertaUsername: string;
   pesertaNama: string;
   kua: string;
-  channel: 'WhatsApp' | 'Email' | 'InApp';
+  channel: 'WhatsApp' | 'Email' | 'InApp' | 'PushHP';
   subject: string;
   message: string;
   sentBy: string;
@@ -232,6 +268,7 @@ export interface NotificationItem {
   id: string;
   targetKua: string; // 'ALL' or specific KUA
   targetUsername?: string;
+  channel?: 'Portal' | 'PushHP';
   judul: string;
   pesan: string;
   pengirim: string;

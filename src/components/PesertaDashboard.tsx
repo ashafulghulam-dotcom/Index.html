@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Award,
   Bell,
+  BellRing,
   BookOpen,
   Building2,
   Calculator,
@@ -24,6 +25,7 @@ import {
   PlayCircle,
   Printer,
   Share2,
+  Smartphone,
   Sparkles,
   Trash2,
   UserPlus,
@@ -32,8 +34,10 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { DEFAULT_KOMPAK_COMMITMENTS, DOA_PENGANTIN } from '../data/jeparaData';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useBimwin } from '../store/useBimwinStore';
 import { ModuleDefinition } from '../types/bimwin';
+import { resolveMobileNotifPolicy } from '../utils/smartReminder';
 import {
   calculateBudgetAllocation,
   calculateCompatibilityScore,
@@ -96,9 +100,25 @@ export const PesertaDashboard: React.FC = () => {
     updateOwnProfile,
     toggleBerkasChecklist,
     markNotificationRead,
+    registerPesertaApkDevice,
+    toggleParticipantMobileNotif,
     requestConfirm,
     pushToast,
   } = useBimwin();
+  const { isInstalled: isPwaInstalled, platform: detectedPlatform } = usePWAInstall();
+
+  useEffect(() => {
+    if (!currentUser || currentUser.role !== 'Peserta') return;
+    if (isPwaInstalled && !currentUser.appNotification?.apkInstalled) {
+      const devicePlatform =
+        detectedPlatform === 'ios'
+          ? 'iOS'
+          : detectedPlatform === 'android'
+            ? 'Android'
+            : 'Desktop';
+      registerPesertaApkDevice(devicePlatform, true);
+    }
+  }, [currentUser, isPwaInstalled, detectedPlatform, registerPesertaApkDevice]);
 
   const [activeTab, setActiveTab] = useState('belajar');
 
@@ -2795,49 +2815,143 @@ export const PesertaDashboard: React.FC = () => {
       )}
 
       {/* TAB 11: KOTAK MASUK PENGINGAT */}
-      {activeTab === 'notifikasi' && (
-        <div className="space-y-3">
-          <h2 className="font-display text-2xl font-semibold">Kotak Masuk Pengingat Resmi</h2>
-          {myNotifications.length === 0 ? (
-            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-8 text-center text-xs text-slate-500">
-              Belum ada pengingat masuk.
-            </div>
-          ) : (
-            myNotifications.map((n) => {
-              const isRead = n.readBy.includes(currentUser.username);
-              return (
-                <div
-                  key={n.id}
-                  className={`bg-white dark:bg-[#111C18] border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    isRead
-                      ? 'border-slate-200 dark:border-emerald-950'
-                      : 'border-[#0F684E] bg-emerald-50/30 dark:bg-emerald-950/20'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <p className="text-xs text-slate-500">
-                      {n.pengirim} · <span className="font-mono-num">{formatIndonesianDate(n.createdAt)}</span>
-                    </p>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">{n.judul}</h3>
-                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      {n.pesan}
-                    </p>
-                  </div>
-                  {!isRead && (
-                    <button
-                      type="button"
-                      onClick={() => markNotificationRead(n.id)}
-                      className="px-3.5 py-1.5 rounded-lg bg-[#0F684E] text-white text-xs font-semibold shrink-0"
-                    >
-                      Tandai Dibaca
-                    </button>
-                  )}
-                </div>
+      {activeTab === 'notifikasi' && (() => {
+        const kuaPolicy = resolveMobileNotifPolicy(data.mobileNotifPolicies, currentUser.kua);
+        const appNotif = currentUser.appNotification;
+        const apkReady = Boolean(appNotif?.apkInstalled || isPwaInstalled);
+        const pushActive = Boolean(
+          apkReady && appNotif?.pushEnabled && !appNotif?.mutedByOfficer
+        );
+
+        const handleToggleMyHpNotif = async () => {
+          const devicePlatform =
+            detectedPlatform === 'ios'
+              ? 'iOS'
+              : detectedPlatform === 'android'
+                ? 'Android'
+                : 'Desktop';
+
+          if (!pushActive) {
+            if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'default') {
+              try {
+                await window.Notification.requestPermission();
+              } catch {
+                // ignore permission prompt error in restricted frames
+              }
+            }
+            if (!appNotif?.apkInstalled) {
+              registerPesertaApkDevice(devicePlatform, true);
+              pushToast(
+                'success',
+                'Notifikasi HP (APK) Diaktifkan',
+                `Perangkat ${devicePlatform} Anda terdaftar untuk menerima pengingat dari ${currentUser.kua}.`
               );
-            })
-          )}
-        </div>
-      )}
+            } else {
+              toggleParticipantMobileNotif(currentUser.id, true);
+            }
+          } else {
+            toggleParticipantMobileNotif(currentUser.id, false);
+          }
+        };
+
+        return (
+          <div className="space-y-4">
+            <h2 className="font-display text-2xl font-semibold">Kotak Masuk Pengingat Resmi</h2>
+
+            {/* Mobile APK Notification Status Card */}
+            <div className="bg-white dark:bg-[#111C18] border border-emerald-200 dark:border-emerald-900 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/70 text-[#0F684E] dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-sm font-bold text-slate-900 dark:text-white flex flex-wrap items-center gap-2">
+                    <span>Notifikasi HP (Aplikasi SAMAWA)</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        pushActive
+                          ? 'bg-emerald-50 dark:bg-emerald-950/70 text-[#0F684E] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {pushActive
+                        ? `Aktif (${appNotif?.devicePlatform || 'HP'})`
+                        : apkReady
+                          ? 'Dijeda'
+                          : 'Belum Aktif'}
+                    </span>
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {kuaPolicy.enabled
+                      ? `Jadwal pengingat otomatis ${currentUser.kua}: pukul ${kuaPolicy.scheduleTime} WIB (Jam tenang ${kuaPolicy.quietHoursStart}–${kuaPolicy.quietHoursEnd} WIB).`
+                      : `Pengingat HP otomatis dari ${currentUser.kua} sedang dijeda sementara oleh petugas.`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleToggleMyHpNotif}
+                className={`inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shrink-0 transition ${
+                  pushActive
+                    ? 'border border-slate-300 dark:border-emerald-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-emerald-950'
+                    : 'bg-[#0F684E] hover:bg-[#0B523D] text-white'
+                }`}
+              >
+                <BellRing className="w-3.5 h-3.5" />
+                {pushActive ? 'Jeda Notif HP' : 'Aktifkan Notif HP'}
+              </button>
+            </div>
+
+            {myNotifications.length === 0 ? (
+              <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-8 text-center text-xs text-slate-500">
+                Belum ada pengingat masuk.
+              </div>
+            ) : (
+              myNotifications.map((n) => {
+                const isRead = n.readBy.includes(currentUser.username);
+                return (
+                  <div
+                    key={n.id}
+                    className={`bg-white dark:bg-[#111C18] border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                      isRead
+                        ? 'border-slate-200 dark:border-emerald-950'
+                        : 'border-[#0F684E] bg-emerald-50/30 dark:bg-emerald-950/20'
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span>
+                          {n.pengirim} ·{' '}
+                          <span className="font-mono-num">{formatIndonesianDate(n.createdAt)}</span>
+                        </span>
+                        {n.channel === 'PushHP' && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-900 text-[10px] font-bold text-[#0F684E] dark:text-emerald-300">
+                            <Smartphone className="w-2.5 h-2.5" />
+                            Notif HP APK
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{n.judul}</h3>
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                        {n.pesan}
+                      </p>
+                    </div>
+                    {!isRead && (
+                      <button
+                        type="button"
+                        onClick={() => markNotificationRead(n.id)}
+                        className="px-3.5 py-1.5 rounded-lg bg-[#0F684E] text-white text-xs font-semibold shrink-0"
+                      >
+                        Tandai Dibaca
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        );
+      })()}
 
       {/* Create & Link Partner Modal (Aligned with Participant Registration Form) */}
       <CreatePartnerModal
