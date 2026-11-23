@@ -113,10 +113,19 @@ export interface QuizQuestion {
   ans: number;
 }
 
+export type ModuleLanguage = 'id' | 'jv' | 'en' | 'ar';
+
 export interface ModuleSection {
   heading: string;
   paragraphs: string[];
   bullets?: string[];
+}
+
+export interface LocalizedModuleContent {
+  judul: string;
+  keyTakeawayLabel: string;
+  sections: ModuleSection[];
+  keyTakeaway: string;
 }
 
 export interface ModuleDefinition {
@@ -135,6 +144,11 @@ export interface ModuleDefinition {
     jv: string;
     en: string;
     ar: string;
+  };
+  localizedContent?: {
+    jv: LocalizedModuleContent;
+    en: LocalizedModuleContent;
+    ar: LocalizedModuleContent;
   };
   quiz: QuizQuestion[];
 }

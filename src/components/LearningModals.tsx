@@ -17,8 +17,12 @@ import {
   Volume2,
   VolumeX,
 } from 'lucide-react';
-import { ModuleDefinition, QuizQuestion } from '../types/bimwin';
-import { shuffleQuizQuestions } from '../utils/bimwinLogic';
+import { ModuleDefinition, ModuleLanguage, QuizQuestion } from '../types/bimwin';
+import {
+  buildModuleSpeechText,
+  resolveLocalizedModuleView,
+  shuffleQuizQuestions,
+} from '../utils/bimwinLogic';
 import {
   clampVideoSeekPosition,
   evaluateVideoCompletion,
@@ -139,18 +143,30 @@ export const ModuleReaderModal: React.FC<{
   onOpenQuiz: (moduleId: number) => void;
 }> = ({ module, videoWatched = false, onClose, onOpenVideo, onOpenQuiz }) => {
   const [fontSize, setFontSize] = useState(15);
-  const [lang, setLang] = useState<'id' | 'jv' | 'en' | 'ar'>('id');
+  const [lang, setLang] = useState<ModuleLanguage>('id');
   const [speaking, setSpeaking] = useState(false);
 
   useEffect(() => {
+    setLang('id');
+    setSpeaking(false);
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel();
       }
     };
-  }, [module]);
+  }, [module?.id]);
 
   if (!module) return null;
+
+  const activeContent = resolveLocalizedModuleView(module, lang);
+
+  const handleLanguageChange = (nextLang: ModuleLanguage) => {
+    if (speaking && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+    }
+    setLang(nextLang);
+  };
 
   const handleToggleSpeech = () => {
     if (speaking) {
@@ -158,10 +174,7 @@ export const ModuleReaderModal: React.FC<{
       setSpeaking(false);
       return;
     }
-    const contentToRead =
-      lang === 'id'
-        ? `${module.judul}. ${module.sections.map((s) => `${s.heading}. ${s.paragraphs.join(' ')}`).join(' ')}`
-        : module.translations[lang];
+    const contentToRead = buildModuleSpeechText(module, lang);
     const langCode = lang === 'en' ? 'en-US' : lang === 'ar' ? 'ar-SA' : 'id-ID';
     setSpeaking(true);
     speakText(contentToRead, langCode, () => setSpeaking(false));
@@ -175,7 +188,7 @@ export const ModuleReaderModal: React.FC<{
         setSpeaking(false);
         onClose();
       }}
-      title={module.judul}
+      title={activeContent.judul}
       subtitle={`Ringkasan Materi Resmi · Estimasi baca ${module.durationMinutes} menit`}
       maxWidth="4xl"
       footer={
@@ -239,7 +252,7 @@ export const ModuleReaderModal: React.FC<{
               <button
                 key={code}
                 type="button"
-                onClick={() => setLang(code)}
+                onClick={() => handleLanguageChange(code)}
                 className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
                   lang === code
                     ? 'bg-[#0F684E] text-white'
@@ -299,39 +312,37 @@ export const ModuleReaderModal: React.FC<{
         <div
           style={{ fontSize: `${fontSize}px` }}
           dir={lang === 'ar' ? 'rtl' : 'ltr'}
-          className="space-y-5 leading-relaxed text-slate-700 dark:text-slate-200 max-w-3xl"
+          className={`w-full space-y-5 leading-relaxed text-slate-700 dark:text-slate-200 ${
+            lang === 'ar' ? 'text-right' : 'text-left'
+          }`}
         >
-          {lang === 'id' ? (
-            <>
-              {module.sections.map((sec) => (
-                <section key={sec.heading} className="space-y-2">
-                  <h4 className="font-bold text-[#0F684E] dark:text-emerald-400">{sec.heading}</h4>
-                  {sec.paragraphs.map((p, idx) => (
-                    <p key={idx}>{p}</p>
-                  ))}
-                  {sec.bullets && (
-                    <ul className="list-disc pl-5 space-y-1.5 pt-1">
-                      {sec.bullets.map((b, idx) => (
-                        <li key={idx}>{b}</li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+          {activeContent.sections.map((sec, sIdx) => (
+            <section key={`${lang}-${sIdx}-${sec.heading}`} className="space-y-2">
+              <h4 className="font-bold text-[#0F684E] dark:text-emerald-400">{sec.heading}</h4>
+              {sec.paragraphs.map((p, idx) => (
+                <p key={idx}>{p}</p>
               ))}
-              <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-1">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400">
-                  Intisari Kunci Evaluasi
-                </h5>
-                <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200">
-                  {module.keyTakeaway}
-                </p>
-              </div>
-            </>
-          ) : (
-            <div className="p-5 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950">
-              <p>{module.translations[lang]}</p>
-            </div>
-          )}
+              {sec.bullets && sec.bullets.length > 0 && (
+                <ul className="list-disc ps-5 space-y-1.5 pt-1">
+                  {sec.bullets.map((b, idx) => (
+                    <li key={idx}>{b}</li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+          <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 space-y-1">
+            <h5
+              className={`text-xs font-bold text-amber-800 dark:text-amber-400 ${
+                lang === 'ar' ? '' : 'uppercase tracking-wider'
+              }`}
+            >
+              {activeContent.keyTakeawayLabel}
+            </h5>
+            <p className="text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+              {activeContent.keyTakeaway}
+            </p>
+          </div>
         </div>
       </div>
     </ModalDialog>

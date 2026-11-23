@@ -246,9 +246,9 @@ export const DOA_PENGANTIN: DoaEntry[] = [
     latin: 'Bārakallāhu laka wa bāraka ‘alaika wa jama‘a bainakumā fī khair.',
     translations: {
       id: 'Semoga Allah memberkahimu di waktu bahagia dan memberkahimu di waktu susah, serta menghimpun kalian berdua dalam kebaikan.',
-      jv: 'Mugi-mugi Gusti Allah paring berkah dhumateng panjenengan ing salebeting kabingahan lan kasusahan, saha ngempalaken panjenengan kekalih wonten ing kesaenan.',
+      jv: 'Mugi-mugi Gusti Allah paring berkah dhumateng panjenengan ing wekdal kabingahan lan paring berkah dhumateng panjenengan ing wekdal kasusahan, saha ngempalaken panjenengan kekalih wonten ing kesaenan.',
       en: 'May Allah bless you in times of happiness and bless you in times of difficulty, and unite both of you in goodness.',
-      ar: 'اللهم بارك للعروسين واجمع بينهما في خير ومودة ورحمة وسكينة دائمة.',
+      ar: 'بارك الله لك في السراء وبارك عليك في الضراء، وجمع بينكما في كل خير ومودة ورحمة.',
     },
   },
   {
@@ -259,9 +259,9 @@ export const DOA_PENGANTIN: DoaEntry[] = [
     latin: 'Allāhumma innī as’aluka khairahā wa khaira mā jabaltahā ‘alaihi, wa a‘ūdzu bika min syarrihā wa min syarri mā jabaltahā ‘alaih.',
     translations: {
       id: 'Ya Allah, sesungguhnya aku memohon kepada-Mu kebaikannya dan kebaikan tabiat yang Engkau ciptakan padanya, dan aku berlindung kepada-Mu dari keburukannya dan keburukan tabiatnya.',
-      jv: 'Duh Gusti Allah, saestu kawula nyuwun dhumateng Paduka kesaenanipun garwa kawula saha kesaenan watakipun, lan kawula nyuwun pangayoman saking awonipun.',
-      en: 'O Allah, I ask You for her goodness and the goodness of the nature You created in her, and I seek refuge in You from any evil in her nature.',
-      ar: 'دعاء الزوج عند الزفاف طلباً للبركة والخير والوقاية من كل شر وسوء.',
+      jv: 'Duh Gusti Allah, saestu kawula nyuwun dhumateng Paduka kesaenanipun garwa kawula saha kesaenan watak ingkang Paduka ciptakaken wonten ing piyambakipun, lan kawula nyuwun pangayoman dhumateng Paduka saking awonipun saha awonipun watak ingkang Paduka ciptakaken wonten ing piyambakipun.',
+      en: 'O Allah, indeed I ask You for her goodness and the goodness of the nature You created in her, and I seek refuge in You from her evil and the evil of the nature You created in her.',
+      ar: 'اللهم إني أسألك خير زوجتي وخير ما فطرتها وجبلتها عليه من الطباع الحسنة، وأعوذ بك من شرها ومن شر ما جبلتها عليه.',
     },
   },
 ];

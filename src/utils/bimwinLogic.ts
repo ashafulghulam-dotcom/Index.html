@@ -12,6 +12,9 @@ import {
   BimwinUser,
   EDUCATION_LEVEL_OPTIONS,
   EducationLevel,
+  LocalizedModuleContent,
+  ModuleDefinition,
+  ModuleLanguage,
   QuizQuestion,
   StuntingCheckRecord,
   StuntingStatus,
@@ -1245,4 +1248,113 @@ export function validateRencanaAkadDate(
 
   return { ok: true, minDate };
 }
+
+/**
+ * Resolves the complete structured reading view for a MOOC module in any supported language
+ * (Indonesian, Jawa Krama, English, or Arabic) without truncating sections, bullets, or takeaways.
+ */
+export function resolveLocalizedModuleView(
+  module: ModuleDefinition,
+  lang: ModuleLanguage
+): LocalizedModuleContent {
+  if (lang === 'id') {
+    return {
+      judul: module.judul,
+      keyTakeawayLabel: 'Intisari Kunci Evaluasi',
+      sections: module.sections,
+      keyTakeaway: module.keyTakeaway,
+    };
+  }
+
+  const localized = module.localizedContent?.[lang];
+  if (localized && localized.sections.length > 0) {
+    return localized;
+  }
+
+  const fallbackLabel =
+    lang === 'jv'
+      ? 'Intisari Wosipun Evaluasi'
+      : lang === 'en'
+        ? 'Key Evaluation Takeaway'
+        : 'الخلاصة الأساسية للتقييم';
+
+  return {
+    judul: module.judul,
+    keyTakeawayLabel: fallbackLabel,
+    sections: module.translations[lang]
+      ? [
+          {
+            heading: module.judul,
+            paragraphs: [module.translations[lang]],
+          },
+        ]
+      : module.sections,
+    keyTakeaway: module.keyTakeaway,
+  };
+}
+
+/**
+ * Builds the complete text narration string for speech synthesis across all headings,
+ * paragraphs, bullet points, and the evaluation takeaway in the selected language.
+ */
+export function buildModuleSpeechText(
+  module: ModuleDefinition,
+  lang: ModuleLanguage
+): string {
+  const view = resolveLocalizedModuleView(module, lang);
+  const parts: string[] = [view.judul];
+
+  for (const sec of view.sections) {
+    parts.push(sec.heading);
+    for (const p of sec.paragraphs) {
+      parts.push(p);
+    }
+    if (sec.bullets && sec.bullets.length > 0) {
+      for (const b of sec.bullets) {
+        parts.push(b);
+      }
+    }
+  }
+
+  if (view.keyTakeaway) {
+    parts.push(`${view.keyTakeawayLabel}. ${view.keyTakeaway}`);
+  }
+
+  return parts.join('. ');
+}
+
+/**
+ * Hydrates legacy localStorage module records with full canonical localizedContent and translations
+ * while preserving any custom admin modifications (such as updated video URLs, Drive links, or quiz items).
+ */
+export function mergeModuleLocalizedDefaults(
+  storedModules: ModuleDefinition[],
+  defaultModules: ModuleDefinition[]
+): ModuleDefinition[] {
+  const defaultsById = new Map<number, ModuleDefinition>(
+    defaultModules.map((m) => [m.id, m])
+  );
+
+  return storedModules.map((stored) => {
+    const def = defaultsById.get(stored.id);
+    if (!def) return stored;
+
+    return {
+      ...stored,
+      translations: {
+        jv: stored.localizedContent?.jv ? stored.translations.jv : def.translations.jv,
+        en: stored.localizedContent?.en ? stored.translations.en : def.translations.en,
+        ar: stored.localizedContent?.ar ? stored.translations.ar : def.translations.ar,
+      },
+      localizedContent: stored.localizedContent
+        ? {
+            jv: stored.localizedContent.jv || def.localizedContent?.jv!,
+            en: stored.localizedContent.en || def.localizedContent?.en!,
+            ar: stored.localizedContent.ar || def.localizedContent?.ar!,
+          }
+        : def.localizedContent,
+    };
+  });
+}
+
 

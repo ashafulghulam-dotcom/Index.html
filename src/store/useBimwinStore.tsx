@@ -32,6 +32,7 @@ import {
   generateUniqueCertificateCode,
   getSmartFaqReply,
   mergeKuaDirectoryWithDefaults,
+  mergeModuleLocalizedDefaults,
   normalizeEducationLevel,
   normalizeVillageName,
   validateKuaDirectoryUpdate,
@@ -232,7 +233,10 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
     ...seed,
     ...parsed,
     users,
-    modules: Array.isArray(parsed.modules) && parsed.modules.length > 0 ? parsed.modules : seed.modules,
+    modules:
+      Array.isArray(parsed.modules) && parsed.modules.length > 0
+        ? mergeModuleLocalizedDefaults(parsed.modules, seed.modules)
+        : seed.modules,
     pretest: Array.isArray(parsed.pretest) && parsed.pretest.length > 0 ? parsed.pretest : seed.pretest,
     postest: Array.isArray(parsed.postest) && parsed.postest.length > 0 ? parsed.postest : seed.postest,
     compatibilityQuiz:

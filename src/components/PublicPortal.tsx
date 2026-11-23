@@ -367,24 +367,8 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                 {/* Editorial Luxury Institutional Pitch (7 cols) */}
                 <div className="lg:col-span-7 space-y-6 sm:space-y-7">
                   <div className="space-y-3.5 sm:space-y-4">
-                    <div className="flex items-center gap-1.5 sm:gap-2.5 text-[10.5px] sm:text-xs font-medium whitespace-nowrap">
-                      <span className="w-5 sm:w-8 h-[2px] rounded-full bg-gradient-to-r from-[#0F684E] to-[#C9A654] shrink-0" />
-                      <span className="text-[#0F684E] dark:text-[#F2D884] font-semibold tracking-[0.01em]">
-                        Kemenag Kabupaten Jepara
-                      </span>
-                      <span aria-hidden="true" className="text-[#C9A654] font-bold">
-                        ·
-                      </span>
-                      <span className="text-slate-600 dark:text-slate-300">
-                        Bimbingan Perkawinan Resmi
-                      </span>
-                    </div>
-
                     <h1 className="font-display text-[clamp(10.5px,3.25vw,14px)] sm:text-[34px] lg:text-[44px] font-semibold tracking-[-0.015em] text-slate-900 dark:text-white leading-[18px] sm:leading-[1.12] whitespace-nowrap sm:whitespace-normal sm:text-balance">
-                      Kenali Diri, Pahami Pasangan,{' '}
-                      <span className="bg-gradient-to-r from-[#0A4D39] via-[#0F684E] to-[#B08422] dark:from-[#F9E9AC] dark:via-[#E8C560] dark:to-[#D4A73B] bg-clip-text text-transparent">
-                        Siapkan Pernikahan.
-                      </span>
+                      Kenali Diri, Pahami Pasangan, Siapkan Pernikahan.
                     </h1>
 
                     <p className="text-[12px] sm:text-[15px] text-slate-600 dark:text-slate-300 leading-[17px] sm:leading-relaxed max-w-xl">
@@ -479,9 +463,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                           Silahkan masuk ke Aplikasi dengan Akun Anda
                         </p>
                       </div>
-                      <span className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F684E]/10 to-[#D4AF37]/18 dark:from-emerald-950/90 dark:to-[#D4AF37]/20 border border-[#D4AF37]/30 text-[#0B523D] dark:text-[#F1D680] flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-5 h-5" />
-                      </span>
                     </div>
 
                     <form onSubmit={handleLoginSubmit} className="space-y-4">

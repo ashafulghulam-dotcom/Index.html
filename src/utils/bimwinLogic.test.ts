@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   addDaysToIsoDate,
+  buildModuleSpeechText,
   buildPesertaCsv,
   calculateAgeFromDob,
   calculateBudgetAllocation,
@@ -22,16 +23,19 @@ import {
   isValidNik,
   maskNik,
   mergeKuaDirectoryWithDefaults,
+  mergeModuleLocalizedDefaults,
   normalizeEducationLevel,
   normalizeVillageName,
   resolveAuditLogKua,
+  resolveLocalizedModuleView,
   shuffleQuizQuestions,
   validateKuaDirectoryUpdate,
   validatePartnerSync,
   validateRencanaAkadDate,
   verifyDocumentQuery,
 } from './bimwinLogic.ts';
-import { buildKuaGoogleMapsUrl, DATA_DIREKTORI_16_KUA } from '../data/jeparaData.ts';
+import { DEFAULT_MODULES } from '../data/curriculumData.ts';
+import { buildKuaGoogleMapsUrl, DATA_DIREKTORI_16_KUA, DOA_PENGANTIN } from '../data/jeparaData.ts';
 import { EDUCATION_LEVEL_OPTIONS } from '../types/bimwin.ts';
 import type { AuditLogItem, BimwinClassSchedule, BimwinUser } from '../types/bimwin.ts';
 
@@ -757,4 +761,94 @@ describe('BIMWIN Pure Domain Logic', () => {
     assert.equal(validateRencanaAkadDate('', undefined, fixedNow).ok, false);
     assert.equal(validateRencanaAkadDate('2027-02-31', undefined, fixedNow).ok, false);
   });
+
+  it('provides complete, unabridged 1-to-1 Jawa Krama, English, and Arabic translations for all 5 MOOC modules and Doa Pengantin', () => {
+    assert.equal(DEFAULT_MODULES.length, 5);
+
+    for (const mod of DEFAULT_MODULES) {
+      const idView = resolveLocalizedModuleView(mod, 'id');
+      assert.equal(idView.sections.length, mod.sections.length);
+      assert.equal(idView.keyTakeaway, mod.keyTakeaway);
+
+      for (const lang of ['jv', 'en', 'ar'] as const) {
+        const view = resolveLocalizedModuleView(mod, lang);
+        assert.ok(view.judul.trim().length > 10, `Modul ${mod.id} (${lang}) missing judul`);
+        assert.notEqual(view.judul, idView.judul, `Modul ${mod.id} (${lang}) judul should be translated`);
+        assert.ok(view.keyTakeawayLabel.trim().length > 5);
+        assert.ok(view.keyTakeaway.trim().length > 30);
+        assert.notEqual(view.keyTakeaway, idView.keyTakeaway);
+
+        // Exact 1-to-1 section, paragraph, and bullet parity with Indonesian
+        assert.equal(
+          view.sections.length,
+          idView.sections.length,
+          `Modul ${mod.id} (${lang}) section count mismatch`
+        );
+
+        view.sections.forEach((sec, idx) => {
+          const idSec = idView.sections[idx];
+          assert.ok(sec.heading.trim().length > 3, `Modul ${mod.id} (${lang}) sec ${idx} missing heading`);
+          assert.equal(
+            sec.paragraphs.length,
+            idSec.paragraphs.length,
+            `Modul ${mod.id} (${lang}) sec ${idx} paragraph count mismatch`
+          );
+          sec.paragraphs.forEach((p, pIdx) => {
+            assert.ok(p.trim().length > 20, `Modul ${mod.id} (${lang}) sec ${idx} p ${pIdx} too short`);
+          });
+          assert.equal(
+            sec.bullets?.length ?? 0,
+            idSec.bullets?.length ?? 0,
+            `Modul ${mod.id} (${lang}) sec ${idx} bullet count mismatch`
+          );
+        });
+
+        // Speech narration includes title, every section heading, every bullet, and takeaway
+        const speech = buildModuleSpeechText(mod, lang);
+        assert.ok(speech.includes(view.judul));
+        assert.ok(speech.includes(view.keyTakeaway));
+        for (const sec of view.sections) {
+          assert.ok(speech.includes(sec.heading));
+          for (const b of sec.bullets || []) {
+            assert.ok(speech.includes(b));
+          }
+        }
+      }
+    }
+
+    // Doa Pengantin also has complete translations across all 4 languages
+    assert.ok(DOA_PENGANTIN.length >= 2);
+    for (const doa of DOA_PENGANTIN) {
+      for (const lang of ['id', 'jv', 'en', 'ar'] as const) {
+        assert.ok(
+          doa.translations[lang].trim().length > 40,
+          `Doa ${doa.id} (${lang}) translation should be complete`
+        );
+      }
+    }
+  });
+
+  it('hydrates legacy localStorage modules with localizedContent while preserving custom admin edits', () => {
+    const legacyStored = DEFAULT_MODULES.map((m) => {
+      const clone = { ...m };
+      delete clone.localizedContent;
+      if (clone.id === 1) {
+        clone.videoUrl = 'https://youtu.be/customAdminVideo123';
+        clone.driveUrl = 'https://drive.google.com/file/d/customAdminPdf';
+      }
+      return clone;
+    });
+
+    const hydrated = mergeModuleLocalizedDefaults(legacyStored, DEFAULT_MODULES);
+    assert.equal(hydrated.length, DEFAULT_MODULES.length);
+    assert.equal(hydrated[0].videoUrl, 'https://youtu.be/customAdminVideo123');
+    assert.equal(hydrated[0].driveUrl, 'https://drive.google.com/file/d/customAdminPdf');
+
+    for (const mod of hydrated) {
+      assert.ok(mod.localizedContent?.jv?.sections.length);
+      assert.ok(mod.localizedContent?.en?.sections.length);
+      assert.ok(mod.localizedContent?.ar?.sections.length);
+    }
+  });
 });
+
