@@ -114,9 +114,9 @@ export const PWAInstallModal: React.FC<{
         <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center p-4 rounded-xl bg-[#F8FAF9] dark:bg-[#0D1613] border border-slate-200 dark:border-emerald-950">
           <div className="sm:col-span-8 flex items-center gap-3.5 min-w-0">
             <img
-              src="/pwa-192x192.png"
+              src="/pwa-512x512.png"
               alt="Ikon Aplikasi SAMAWA"
-              className="w-16 h-16 shrink-0 object-contain"
+              className="w-20 h-20 shrink-0 object-contain"
             />
             <div className="min-w-0 flex-1">
               <h4 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">

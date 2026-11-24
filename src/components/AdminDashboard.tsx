@@ -62,7 +62,7 @@ import {
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { KuaDirectoryManager } from './KuaDirectoryManager';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
-import { AnnouncementsTicketsPanel, CloudSyncBar } from './OperationalPanels';
+import { AnnouncementsTicketsPanel } from './OperationalPanels';
 import { SimkahCsvImportModal } from './SimkahCsvImportModal';
 import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
@@ -360,7 +360,6 @@ export const AdminDashboard: React.FC = () => {
       onSelectTab={setActiveTab}
       roleLabel={isSuper ? 'SuperAdmin Kemenag' : `Admin ${currentUser.kua}`}
     >
-      <CloudSyncBar />
       {/* TAB 1: ANALITIK & HEATMAP 16 KUA */}
       {activeTab === 'analitik' && (
         <div className="space-y-6">

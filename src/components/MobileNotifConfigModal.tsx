@@ -636,7 +636,7 @@ export const MobileNotifConfigModal: React.FC<MobileNotifConfigModalProps> = ({
                         <img
                           src="/pwa-192x192.png"
                           alt="SAMAWA"
-                          className="w-4 h-4 rounded object-contain"
+                          className="w-5 h-5 object-contain"
                         />
                         SAMAWA Kemenag Jepara
                       </span>

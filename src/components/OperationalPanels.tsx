@@ -2,10 +2,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CheckCircle2,
   Clock,
-  Cloud,
-  CloudDownload,
-  CloudUpload,
-  LogIn,
   Megaphone,
   RefreshCw,
   Send,
@@ -17,82 +13,7 @@ import { useBimwin } from '../store/useBimwinStore';
 import { DataTicketStatus } from '../types/bimwin';
 
 /**
- * 1. Cloud Sync Toolbar for Admin Kemenag, Admin KUA, and Fasilitator
- */
-export const CloudSyncBar: React.FC = () => {
-  const {
-    firebaseUser,
-    cloudSyncState,
-    loginWithGoogle,
-    syncWorkspaceToCloud,
-    pullWorkspaceFromCloud,
-  } = useBimwin();
-
-  return (
-    <div className="mb-5 rounded-2xl border border-emerald-200/80 dark:border-emerald-900/70 bg-white dark:bg-[#111C18] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <div
-          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
-            firebaseUser
-              ? 'bg-emerald-50 dark:bg-emerald-950 text-[#0F684E] dark:text-emerald-400'
-              : 'bg-slate-100 dark:bg-emerald-950/50 text-slate-500'
-          }`}
-        >
-          <Cloud className="w-4 h-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-            {firebaseUser
-              ? `Firebase Cloud Aktif · ${firebaseUser.email}`
-              : 'Sinkronisasi Database Cloud (Firebase Firestore)'}
-          </p>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-            {cloudSyncState.lastSyncedAt
-              ? `Terakhir tersinkron: ${new Date(cloudSyncState.lastSyncedAt).toLocaleString('id-ID')}`
-              : 'Hubungkan akun Google petugas untuk sinkronisasi lintas perangkat & verifikasi QR pusat.'}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 shrink-0">
-        {!firebaseUser ? (
-          <button
-            type="button"
-            onClick={() => void loginWithGoogle()}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            Hubungkan Google Cloud
-          </button>
-        ) : (
-          <>
-            <button
-              type="button"
-              disabled={cloudSyncState.syncing}
-              onClick={() => void pullWorkspaceFromCloud()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] hover:bg-slate-100 text-xs font-semibold text-slate-700 dark:text-slate-200 disabled:opacity-50 transition"
-            >
-              <CloudDownload className="w-3.5 h-3.5" />
-              Tarik Cloud
-            </button>
-            <button
-              type="button"
-              disabled={cloudSyncState.syncing}
-              onClick={() => void syncWorkspaceToCloud()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold disabled:opacity-50 transition"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              {cloudSyncState.syncing ? 'Menyinkronkan...' : 'Unggah ke Cloud'}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-};
-
-/**
- * 2. Official Announcements & Data Correction Tickets Manager (Admin Kemenag / Admin KUA)
+ * 1. Official Announcements & Data Correction Tickets Manager (Admin Kemenag / Admin KUA)
  */
 export const AnnouncementsTicketsPanel: React.FC<{ isSuper: boolean; kuaName: string }> = ({
   isSuper,

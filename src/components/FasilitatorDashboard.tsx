@@ -28,7 +28,6 @@ import {
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { ClassAttendanceQrModal } from './ClassAttendanceQrModal';
 import { AttendanceSheetModal } from './OfficialDocuments';
-import { CloudSyncBar } from './OperationalPanels';
 import { QRScannerModal } from './QRScannerModal';
 import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
@@ -145,7 +144,6 @@ export const FasilitatorDashboard: React.FC = () => {
       onSelectTab={setActiveTab}
       roleLabel={`Fasilitator · ${currentUser.kua}`}
     >
-      <CloudSyncBar />
       {/* TAB 1: PESERTA BINAAN */}
       {activeTab === 'binaan' && (
         <div className="space-y-5">
