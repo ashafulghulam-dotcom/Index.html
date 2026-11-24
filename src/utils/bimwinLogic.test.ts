@@ -16,6 +16,7 @@ import {
   countUniqueSyncedCouples,
   evaluatePesertaStep,
   filterAuditLogs,
+  formatRupiahInput,
   getLocalIsoDate,
   getMinAkadDate,
   getSmartFaqReply,
@@ -26,6 +27,7 @@ import {
   mergeModuleLocalizedDefaults,
   normalizeEducationLevel,
   normalizeVillageName,
+  parseRupiahInput,
   resolveAuditLogKua,
   resolveLocalizedModuleView,
   shuffleQuizQuestions,
@@ -104,6 +106,21 @@ describe('BIMWIN Pure Domain Logic', () => {
     );
     assert.equal(res.targetDanaDaruratMin, 9000000);
     assert.equal(res.targetDanaDaruratMax, 18000000);
+  });
+
+  it('formats and parses Indonesian Rupiah currency inputs with dot thousand separators', () => {
+    assert.equal(formatRupiahInput(5000000), '5.000.000');
+    assert.equal(formatRupiahInput(12500000), '12.500.000');
+    assert.equal(formatRupiahInput(750), '750');
+    assert.equal(formatRupiahInput(0), '0');
+    assert.equal(formatRupiahInput(0, { allowEmptyZero: true }), '');
+    assert.equal(formatRupiahInput(-1000, { allowEmptyZero: true }), '');
+
+    assert.equal(parseRupiahInput('5.000.000'), 5000000);
+    assert.equal(parseRupiahInput('Rp 12.500.000'), 12500000);
+    assert.equal(parseRupiahInput('0005000000'), 5000000);
+    assert.equal(parseRupiahInput('5jt abc'), 5);
+    assert.equal(parseRupiahInput(''), 0);
   });
 
   it('evaluates stunting readiness (IMT, LiLA >= 23.5, Hb >= 12)', () => {

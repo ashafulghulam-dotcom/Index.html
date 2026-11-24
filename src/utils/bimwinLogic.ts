@@ -104,6 +104,24 @@ export interface BudgetAllocation {
   targetDanaDaruratMax: number;
 }
 
+export function formatRupiahInput(
+  amount: number,
+  options?: { allowEmptyZero?: boolean }
+): string {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return options?.allowEmptyZero ? '' : '0';
+  }
+  const rounded = Math.round(amount);
+  return rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+}
+
+export function parseRupiahInput(raw: string): number {
+  const digitsOnly = String(raw || '').replace(/\D/g, '');
+  if (!digitsOnly) return 0;
+  const parsed = Number(digitsOnly.slice(0, 12));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
 export function calculateBudgetAllocation(monthlyIncome: number): BudgetAllocation {
   const safeIncome = Number.isFinite(monthlyIncome) && monthlyIncome > 0 ? Math.round(monthlyIncome) : 0;
   const pokok50 = Math.round(safeIncome * 0.5);

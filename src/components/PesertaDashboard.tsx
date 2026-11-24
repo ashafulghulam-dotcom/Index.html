@@ -48,10 +48,12 @@ import {
   canAccessPiagamKompak,
   evaluatePesertaStep,
   formatIndonesianDate,
+  formatRupiahInput,
   getMinAkadDate,
   isUnderageMarriage,
   maskNik,
   normalizeVillageName,
+  parseRupiahInput,
   validateRencanaAkadDate,
 } from '../utils/bimwinLogic';
 import {
@@ -420,8 +422,7 @@ export const PesertaDashboard: React.FC = () => {
     { id: 'notifikasi', label: 'Kotak Masuk Pengingat', icon: Bell, badge: unreadCount || undefined, section: 'Akun Saya' },
   ];
 
-  const formatRupiah = (n: number) =>
-    new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
+  const formatRupiah = (n: number) => `Rp ${formatRupiahInput(n)}`;
 
   const toggleSpeakDoa = (doaId: string, text: string, lang: string) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
@@ -1783,17 +1784,54 @@ export const PesertaDashboard: React.FC = () => {
                 </p>
               </div>
               <div className="max-w-sm">
-                <label className="block text-xs font-semibold mb-1">
+                <label
+                  htmlFor="penghasilan-bulanan-keluarga"
+                  className="block text-xs font-semibold mb-1"
+                >
                   Total Penghasilan Bulanan Keluarga (Rp)
                 </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={100000}
-                  value={monthlyIncome}
-                  onChange={(e) => setMonthlyIncome(Number(e.target.value) || 0)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num text-sm"
-                />
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-sm font-semibold text-slate-500 dark:text-slate-400"
+                  >
+                    Rp
+                  </span>
+                  <input
+                    id="penghasilan-bulanan-keluarga"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Contoh: 5.000.000"
+                    value={formatRupiahInput(monthlyIncome, { allowEmptyZero: true })}
+                    onChange={(e) => {
+                      const inputEl = e.currentTarget;
+                      const selectionStart = inputEl.selectionStart ?? inputEl.value.length;
+                      const digitsBeforeCaret = inputEl.value
+                        .slice(0, selectionStart)
+                        .replace(/\D/g, '').length;
+                      const parsed = parseRupiahInput(inputEl.value);
+                      setMonthlyIncome(parsed);
+                      const formatted = formatRupiahInput(parsed, { allowEmptyZero: true });
+                      requestAnimationFrame(() => {
+                        if (document.activeElement !== inputEl) return;
+                        let seenDigits = 0;
+                        let nextCaret = formatted.length;
+                        for (let i = 0; i < formatted.length; i += 1) {
+                          if (/\d/.test(formatted[i])) {
+                            seenDigits += 1;
+                          }
+                          if (seenDigits >= digitsBeforeCaret) {
+                            nextCaret = digitsBeforeCaret === 0 ? 0 : i + 1;
+                            break;
+                          }
+                        }
+                        inputEl.setSelectionRange(nextCaret, nextCaret);
+                      });
+                    }}
+                    className="w-full pl-11 pr-3.5 py-2.5 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num text-sm font-semibold text-slate-900 dark:text-white"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
