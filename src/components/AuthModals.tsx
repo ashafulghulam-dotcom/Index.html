@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, CheckCircle2, PlayCircle, ExternalLink } from 'lucide-react';
 import { DESA_PER_KUA_JEPARA, LIST_16_KUA } from '../data/jeparaData';
 import { BimwinUser, EDUCATION_LEVEL_OPTIONS, EducationLevel, Gender } from '../types/bimwin';
 import { RegisterPayload, useBimwin } from '../store/useBimwinStore';
@@ -928,21 +928,88 @@ export const PanduanModal: React.FC<{ open: boolean; onClose: () => void }> = ({
         </div>
 
         {tab === 'peserta' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {steps.map((s) => (
-              <div
-                key={s.no}
-                className="p-3.5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111C18] space-y-1.5"
-              >
-                <span className="font-mono-num text-xs font-bold text-[#0F684E] dark:text-emerald-400">
-                  LANGKAH {s.no}
-                </span>
-                <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100">
-                  {s.title}
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{s.desc}</p>
+          <div className="space-y-4">
+            {/* Video Panduan Resmi Khusus Peserta */}
+            <section
+              aria-label="Video Tutorial Resmi Khusus Peserta"
+              data-testid="peserta-panduan-video-section"
+              className="rounded-2xl border border-[#0F684E]/25 dark:border-emerald-800/70 bg-white dark:bg-[#111C18] overflow-hidden shadow-xs"
+            >
+              <div className="px-4 sm:px-5 py-3.5 border-b border-slate-200/80 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#0F684E]/10 dark:bg-emerald-900/50 border border-[#0F684E]/20 dark:border-emerald-800/70 text-[#0F684E] dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                    <PlayCircle className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
+                      Video Tutorial Resmi · Khusus Peserta Catin
+                    </p>
+                    <h4 className="font-display text-base sm:text-lg font-semibold text-slate-900 dark:text-white leading-snug">
+                      Simulasi Lengkap Penggunaan Aplikasi SAMAWA
+                    </h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                      Panduan visual langkah demi langkah mulai dari registrasi akun, sinkronisasi pasangan, pembelajaran 5 modul, hingga cetak sertifikat.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href="https://youtu.be/wHhVoxONVhM?si=Vnjb1wbRhQwpyeMf"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-[#0F684E]/30 dark:border-emerald-700/80 text-[#0F684E] dark:text-emerald-300 bg-white dark:bg-[#111C18] hover:bg-[#0F684E] hover:text-white dark:hover:bg-emerald-700 transition shrink-0 w-full sm:w-auto"
+                >
+                  <span>Buka di YouTube</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               </div>
-            ))}
+
+              <div className="p-3 sm:p-4 bg-slate-950/[0.03] dark:bg-black/30">
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-slate-200 dark:border-emerald-900/80 bg-slate-950 shadow-sm">
+                  <iframe
+                    src="https://www.youtube.com/embed/wHhVoxONVhM?rel=0"
+                    title="Video Tutorial Panduan Aplikasi SAMAWA Khusus Peserta Calon Pengantin"
+                    loading="lazy"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                    className="absolute inset-0 w-full h-full border-0"
+                  />
+                </div>
+              </div>
+
+              <div className="px-4 sm:px-5 py-2.5 border-t border-slate-100 dark:border-emerald-950/80 bg-[#F8FAF9]/70 dark:bg-[#0D1613]/60 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                <span>Disarankan menyimak video tutorial di atas sebelum memulai Langkah 01 agar alur pendaftaran berjalan lancar.</span>
+                <span className="font-semibold text-[#0F684E] dark:text-emerald-400">Tersedia Mode Layar Penuh</span>
+              </div>
+            </section>
+
+            {/* Ringkasan 8 Langkah Tertulis */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-0.5">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  Ringkasan 8 Langkah Peserta BIMWIN
+                </p>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Urutan Wajib Berjenjang
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {steps.map((s) => (
+                  <div
+                    key={s.no}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-emerald-950 bg-white dark:bg-[#111C18] space-y-1.5"
+                  >
+                    <span className="font-mono-num text-xs font-bold text-[#0F684E] dark:text-emerald-400">
+                      LANGKAH {s.no}
+                    </span>
+                    <h4 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100">
+                      {s.title}
+                    </h4>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{s.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

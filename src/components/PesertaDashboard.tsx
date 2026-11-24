@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Award,
   Bell,
@@ -40,13 +40,14 @@ import {
 import { DEFAULT_KOMPAK_COMMITMENTS, DOA_PENGANTIN } from '../data/jeparaData';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useBimwin } from '../store/useBimwinStore';
-import { DataTicketCategory, ModuleDefinition } from '../types/bimwin';
+import { DataTicketCategory, ModuleDefinition, ModuleLanguage } from '../types/bimwin';
 import {
   buildIcsCalendarContent,
   downloadIcsFile,
   isIdentityLockedAfterCert,
 } from '../utils/operationalTools';
 import { resolveMobileNotifPolicy } from '../utils/smartReminder';
+import { prewarmSpeechVoices, SpeechReaderController } from '../utils/speechReader';
 import {
   calculateBudgetAllocation,
   calculateCompatibilityScore,
@@ -258,12 +259,16 @@ export const PesertaDashboard: React.FC = () => {
     setShowAllClassSchedules(false);
   }, [currentUser?.id]);
 
+  const doaSpeechRef = useRef<SpeechReaderController | null>(null);
+  if (!doaSpeechRef.current) {
+    doaSpeechRef.current = new SpeechReaderController();
+  }
+
   // Stop speech synthesis on unmount
   useEffect(() => {
+    prewarmSpeechVoices();
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
+      doaSpeechRef.current?.stop();
     };
   }, []);
 
@@ -447,24 +452,23 @@ export const PesertaDashboard: React.FC = () => {
 
   const formatRupiah = (n: number) => `Rp ${formatRupiahInput(n)}`;
 
-  const toggleSpeakDoa = (doaId: string, text: string, lang: string) => {
-    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
-      pushToast('info', 'Browser Anda belum mendukung fitur pembaca suara.');
-      return;
-    }
+  const toggleSpeakDoa = (doaId: string, text: string, lang: ModuleLanguage) => {
     if (speakingDoaId === doaId) {
-      window.speechSynthesis.cancel();
+      doaSpeechRef.current?.stop();
       setSpeakingDoaId(null);
       return;
     }
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = lang;
-    u.rate = 0.92;
-    u.onend = () => setSpeakingDoaId(null);
-    u.onerror = () => setSpeakingDoaId(null);
     setSpeakingDoaId(doaId);
-    window.speechSynthesis.speak(u);
+    void doaSpeechRef.current?.speak(text, lang, (state) => {
+      if (state.status === 'idle') {
+        setSpeakingDoaId((prev) => (prev === doaId ? null : prev));
+      } else if (state.status === 'error') {
+        setSpeakingDoaId((prev) => (prev === doaId ? null : prev));
+        if (state.message) {
+          pushToast('info', 'Pembaca Suara', state.message);
+        }
+      }
+    });
   };
 
   const copyDoaText = async (judul: string, arab: string, latin: string, terjemah: string) => {
@@ -2210,8 +2214,8 @@ export const PesertaDashboard: React.FC = () => {
                       onClick={() =>
                         toggleSpeakDoa(
                           doa.id,
-                          doa.translations[doaLang],
-                          doaLang === 'en' ? 'en-US' : doaLang === 'ar' ? 'ar-SA' : 'id-ID'
+                          doaLang === 'ar' ? `${doa.arab}. ${doa.translations.ar}` : doa.translations[doaLang],
+                          doaLang
                         )
                       }
                       className={`p-2 rounded-lg border transition ${
