@@ -248,7 +248,7 @@ export const ToastStack: React.FC<{
   if (toasts.length === 0) return null;
   return (
     <div
-      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 w-[calc(100vw-2rem)] sm:w-96 pointer-events-none no-print"
+      className="fixed bottom-20 lg:bottom-5 right-4 z-[60] flex flex-col gap-2 w-[calc(100vw-2rem)] sm:w-96 pointer-events-none no-print"
       aria-live="polite"
     >
       {toasts.map((toast) => {

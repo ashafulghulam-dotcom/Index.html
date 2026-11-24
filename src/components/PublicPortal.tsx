@@ -44,6 +44,7 @@ import {
   buildKuaGoogleMapsUrl,
   LIST_16_KUA,
 } from '../data/jeparaData';
+import { verifyCertificateFromCloud } from '../firebase';
 import { useBimwin } from '../store/useBimwinStore';
 import { VerificationResult } from '../types/bimwin';
 import { countUniqueSyncedCouples, verifyDocumentQuery } from '../utils/bimwinLogic';
@@ -55,6 +56,7 @@ import {
   PanduanModal,
   RegisterModal,
 } from './AuthModals';
+import { PrivacyPolicyModal } from './PrivacyPolicyModal';
 import {
   PWAInstallDrawerItem,
   PWAInstallHeaderButton,
@@ -68,12 +70,13 @@ type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq
 export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   initialVerifyCode = '',
 }) => {
-  const { data, login, darkMode, toggleDarkMode, pushToast } = useBimwin();
+  const { data, login, loginWithGoogle, darkMode, toggleDarkMode, pushToast } = useBimwin();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [installModalOpen, setInstallModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<PortalSection>(
@@ -91,6 +94,7 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   const [forgotOpen, setForgotOpen] = useState(false);
   const [kritikOpen, setKritikOpen] = useState(false);
   const [panduanOpen, setPanduanOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   useEffect(() => {
     if (!menuDrawerOpen) return;
@@ -145,9 +149,47 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
     if (!res.ok) setLoginError(res.error || 'Gagal masuk.');
   };
 
-  const handleVerify = (e?: React.FormEvent) => {
+  const handleGoogleLogin = async () => {
+    setLoginError('');
+    setGoogleLoading(true);
+    try {
+      const res = await loginWithGoogle();
+      if (!res.ok && res.error) setLoginError(res.error);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const resolveVerificationWithCloud = async (code: string): Promise<VerificationResult> => {
+    const localRes = verifyDocumentQuery(code, data.users, data.classes);
+    if (localRes.valid || localRes.found) return localRes;
+    const cloudCert = await verifyCertificateFromCloud(code);
+    if (cloudCert) {
+      return {
+        found: true,
+        type: 'Sertifikat Bimwin',
+        code: cloudCert.certCode,
+        title: `Sertifikat ${cloudCert.documentType} Terverifikasi Cloud`,
+        statusLabel: cloudCert.status === 'valid' ? 'SAH · TERVERIFIKASI CLOUD' : 'DICABUT',
+        valid: cloudCert.status === 'valid',
+        details: [
+          { label: 'Nomor Sertifikat', value: cloudCert.certificateNumber },
+          { label: 'Nama Peserta', value: cloudCert.participantName },
+          ...(cloudCert.partnerName
+            ? [{ label: 'Nama Pasangan', value: cloudCert.partnerName }]
+            : []),
+          { label: 'KUA Kecamatan', value: cloudCert.kua },
+          { label: 'Tanggal Terbit', value: cloudCert.issuedAt },
+        ],
+        note: 'Keabsahan ditarik langsung dari basis data Cloud Firestore Kemenag Kab. Jepara.',
+      };
+    }
+    return localRes;
+  };
+
+  const handleVerify = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const res = verifyDocumentQuery(verifyInput, data.users, data.classes);
+    const res = await resolveVerificationWithCloud(verifyInput);
     setVerifyResult(res);
   };
 
@@ -540,6 +582,44 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                       >
                         Masuk Sistem
                         <ArrowRight className="w-4 h-4 text-[#F3D882] transition-transform group-hover:translate-x-0.5" />
+                      </button>
+
+                      <div className="relative py-1">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-slate-200 dark:border-emerald-900/70" />
+                        </div>
+                        <div className="relative flex justify-center text-[11px]">
+                          <span className="bg-white dark:bg-[#0C1814] px-2.5 text-slate-400">
+                            atau sinkronisasi cloud
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={googleLoading}
+                        onClick={() => void handleGoogleLogin()}
+                        className="w-full py-2.5 rounded-xl border border-slate-200/90 dark:border-emerald-900/80 bg-[#FAFAF8] dark:bg-[#07110E] hover:bg-slate-50 dark:hover:bg-emerald-950/50 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2.5 transition disabled:opacity-60"
+                      >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" className="w-4 h-4 shrink-0">
+                          <path
+                            fill="#4285F4"
+                            d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.3h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.64z"
+                          />
+                          <path
+                            fill="#34A853"
+                            d="M12 24c3.24 0 5.95-1.07 7.93-2.91l-3.87-3c-1.07.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.72-4.95H1.28v3.1A12 12 0 0 0 12 24z"
+                          />
+                          <path
+                            fill="#FBBC05"
+                            d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.28a12 12 0 0 0 0 10.78l4-3.1z"
+                          />
+                          <path
+                            fill="#EA4335"
+                            d="M12 4.76c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.28 6.61l4 3.1C6.23 6.87 8.88 4.76 12 4.76z"
+                          />
+                        </svg>
+                        {googleLoading ? 'Menghubungkan Google...' : 'Masuk dengan Google (Cloud Sync)'}
                       </button>
                     </form>
 
@@ -1014,7 +1094,17 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
               Copyright © Kantor Kementerian Agama Kabupaten Jepara
             </p>
             <p className="whitespace-nowrap">Seksi Bimbingan Masyarakat Islam</p>
-            <p className="whitespace-nowrap">SAMAWA (Sarana Membangun Wawasan Keluarga)</p>
+            <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1">
+              <p className="whitespace-nowrap">SAMAWA (Sarana Membangun Wawasan Keluarga)</p>
+              <span aria-hidden="true" className="text-slate-300 dark:text-emerald-900">·</span>
+              <button
+                type="button"
+                onClick={() => setPrivacyOpen(true)}
+                className="font-semibold text-[#0F684E] dark:text-[#F1D680] hover:underline"
+              >
+                Kebijakan Privasi &amp; Ketentuan Layanan
+              </button>
+            </div>
           </div>
           <nav aria-label="Media sosial resmi" className="flex items-center gap-2 shrink-0">
             <a
@@ -1061,15 +1151,16 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
       <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
       <KritikSaranModal open={kritikOpen} onClose={() => setKritikOpen(false)} />
       <PanduanModal open={panduanOpen} onClose={() => setPanduanOpen(false)} />
+      <PrivacyPolicyModal open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
       <PWAInstallModal open={installModalOpen} onClose={() => setInstallModalOpen(false)} />
       <QRScannerModal
         open={qrScannerOpen}
         onClose={() => setQrScannerOpen(false)}
         title="Pindai QR Code Dokumen Resmi"
         subtitle="Arahkan kamera ke QR Code pada Sertifikat, Piagam Kompak, Daftar Hadir, Laporan, atau unggah gambar QR."
-        onDetected={(code) => {
+        onDetected={async (code) => {
           setVerifyInput(code);
-          const res = verifyDocumentQuery(code, data.users, data.classes);
+          const res = await resolveVerificationWithCloud(code);
           setVerifyResult(res);
           pushToast(
             res.valid ? 'success' : 'error',

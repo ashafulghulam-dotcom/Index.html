@@ -1,0 +1,299 @@
+{
+  "entities": {
+    "AdminRoleRecord": {
+      "title": "AdminRoleRecord",
+      "description": "Authorized Kemenag, Admin KUA, or Fasilitator officer linked to a Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "role": {
+          "type": "string",
+          "enum": ["SuperAdmin", "AdminKUA", "Fasilitator"]
+        },
+        "kua": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "role", "kua", "createdAt"]
+    },
+    "CloudUserProfile": {
+      "title": "CloudUserProfile",
+      "description": "Private authenticated user profile linking Firebase Auth UID to a SAMAWA account (strictly PII-isolated).",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9._\\-]+$"
+        },
+        "kua": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Peserta"]
+        },
+        "identityLocked": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "displayName", "username", "kua", "role", "identityLocked", "createdAt", "updatedAt"]
+    },
+    "PublicCertificate": {
+      "title": "PublicCertificate",
+      "description": "Publicly verifiable non-PII certificate summary indexed by certificate verification code for cross-device QR scanning.",
+      "type": "object",
+      "properties": {
+        "certCode": {
+          "type": "string",
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "certificateNumber": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "documentType": {
+          "type": "string",
+          "enum": ["Sertifikat", "Piagam", "Laporan", "Absensi"]
+        },
+        "participantName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "partnerName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "kua": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "issuedAt": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": ["valid", "revoked"]
+        },
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["certCode", "certificateNumber", "documentType", "participantName", "kua", "issuedAt", "status", "ownerUid", "createdAt", "updatedAt"]
+    },
+    "OfficialAnnouncement": {
+      "title": "OfficialAnnouncement",
+      "description": "Official Kemenag Jepara or KUA announcement displayed to participants and public portal.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "body": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 2000
+        },
+        "kuaScope": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["normal", "penting"]
+        },
+        "authorName": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "authorUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "active": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["title", "body", "kuaScope", "priority", "authorName", "authorUid", "active", "createdAt", "updatedAt"]
+    },
+    "DataCorrectionTicket": {
+      "title": "DataCorrectionTicket",
+      "description": "Participant support ticket requesting KUA review for locked identity corrections or schedule changes.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "pesertaUsername": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "pesertaNama": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "kua": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "category": {
+          "type": "string",
+          "enum": ["Koreksi Identitas", "Pindah KUA", "Ubah Jadwal Akad", "Kendala Teknis"]
+        },
+        "details": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 1200
+        },
+        "status": {
+          "type": "string",
+          "enum": ["menunggu", "selesai", "ditolak"]
+        },
+        "officerNote": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "pesertaUsername", "pesertaNama", "kua", "category", "details", "status", "createdAt", "updatedAt"]
+    },
+    "CloudWorkspaceBackup": {
+      "title": "CloudWorkspaceBackup",
+      "description": "Authorized cloud synchronization state document for cross-device SAMAWA Kemenag Jepara workspace recovery.",
+      "type": "object",
+      "properties": {
+        "ownerUid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedByEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "scopeLabel": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "totalUsers": {
+          "type": "number"
+        },
+        "totalCertificates": {
+          "type": "number"
+        },
+        "snapshot": {
+          "type": "object"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["ownerUid", "updatedByEmail", "scopeLabel", "totalUsers", "totalCertificates", "snapshot", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRoleRecord" },
+      "description": "Registry of verified SuperAdmin Kemenag, Admin KUA, and Fasilitator officers."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/CloudUserProfile" },
+      "description": "Private authenticated participant profile (strictly isolated per owner or admin)."
+    },
+    "/public_certificates/{certCode}": {
+      "schema": { "$ref": "#/entities/PublicCertificate" },
+      "description": "Publicly verifiable non-PII certificate index for QR verification across devices."
+    },
+    "/public_announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/OfficialAnnouncement" },
+      "description": "Official Kemenag Jepara and KUA announcements visible to participants."
+    },
+    "/data_tickets/{ticketId}": {
+      "schema": { "$ref": "#/entities/DataCorrectionTicket" },
+      "description": "Data correction and support tickets submitted by participants to their KUA."
+    },
+    "/cloud_workspaces/{workspaceId}": {
+      "schema": { "$ref": "#/entities/CloudWorkspaceBackup" },
+      "description": "Admin-managed cloud workspace snapshots for real-time cross-device sync."
+    }
+  }
+}

@@ -10,6 +10,9 @@ import {
   BimwinClassSchedule,
   BimwinUser,
   CompatibilityQuestion,
+  DataCorrectionTicketItem,
+  DataTicketCategory,
+  DataTicketStatus,
   DocumentDownloadItem,
   EducationLevel,
   FaqItem,
@@ -17,6 +20,7 @@ import {
   Gender,
   MobileNotifPolicy,
   ModuleDefinition,
+  OfficialAnnouncementItem,
   QuizQuestion,
   ReminderLogItem,
   StuntingCheckRecord,
@@ -51,6 +55,25 @@ import {
   validateCredentialChange,
 } from '../utils/accountCredentials';
 import { extractVerificationCode } from '../utils/qrVerification';
+import {
+  BOOTSTRAP_ADMIN_EMAIL,
+  ensureCloudUserProfile,
+  loadCloudWorkspaceSnapshot,
+  publishAnnouncementToCloud,
+  publishCertificateToCloud,
+  saveCloudWorkspaceSnapshot,
+  signInWithGoogleAccount,
+  signOutFirebaseAccount,
+  submitDataTicketToCloud,
+  subscribeFirebaseAuth,
+  subscribePublicAnnouncements,
+} from '../firebase';
+import {
+  generateSequentialCertificateNumber,
+  isIdentityLockedAfterCert,
+  parseAttendanceQrPayload,
+  SimkahCsvParsedRow,
+} from '../utils/operationalTools';
 
 const STORAGE_KEY = 'bimwin_kemenag_jepara_store_v3';
 const SESSION_KEY = 'bimwin_kemenag_jepara_session_v3';
@@ -240,6 +263,39 @@ interface BimwinContextValue {
   replyKritikSaran: (id: string, balasan: string) => void;
   importBackupJson: (jsonText: string) => { ok: boolean; error?: string };
   resetDemoDatabase: () => void;
+  firebaseUser: {
+    uid: string;
+    email: string;
+    displayName: string;
+    emailVerified: boolean;
+  } | null;
+  cloudSyncState: {
+    connected: boolean;
+    syncing: boolean;
+    lastSyncedAt?: string;
+    error?: string;
+  };
+  loginWithGoogle: () => Promise<{ ok: boolean; error?: string }>;
+  syncWorkspaceToCloud: () => Promise<{ ok: boolean; error?: string }>;
+  pullWorkspaceFromCloud: () => Promise<{ ok: boolean; error?: string }>;
+  importPesertaBatch: (rows: SimkahCsvParsedRow[]) => { imported: number; skipped: number };
+  publishOfficialAnnouncement: (payload: {
+    title: string;
+    body: string;
+    kuaScope: string;
+    priority: 'normal' | 'penting';
+  }) => Promise<void>;
+  toggleAnnouncementActive: (id: string) => void;
+  submitDataCorrectionTicket: (payload: {
+    category: DataTicketCategory;
+    details: string;
+  }) => Promise<void>;
+  resolveDataCorrectionTicket: (
+    ticketId: string,
+    status: DataTicketStatus,
+    officerNote: string
+  ) => void;
+  checkInClassByQrPayload: (rawQrPayload: string) => { ok: boolean; message: string };
 }
 
 const BimwinContext = createContext<BimwinContextValue | null>(null);
@@ -288,6 +344,12 @@ function normalizeStoreSnapshot(parsed: Partial<BimwinStoreSnapshot>): BimwinSto
     journals: Array.isArray(parsed.journals) ? parsed.journals : seed.journals,
     ikmSurveys: Array.isArray(parsed.ikmSurveys) ? parsed.ikmSurveys : seed.ikmSurveys,
     notifications: Array.isArray(parsed.notifications) ? parsed.notifications : seed.notifications,
+    officialAnnouncements: Array.isArray(parsed.officialAnnouncements)
+      ? parsed.officialAnnouncements
+      : seed.officialAnnouncements || [],
+    dataTickets: Array.isArray(parsed.dataTickets)
+      ? parsed.dataTickets
+      : seed.dataTickets || [],
     faqs: Array.isArray(parsed.faqs) ? parsed.faqs : seed.faqs,
     documents: Array.isArray(parsed.documents) ? parsed.documents : seed.documents,
     gallery: Array.isArray(parsed.gallery) ? parsed.gallery : seed.gallery,
@@ -333,6 +395,65 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmOptions | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<{
+    uid: string;
+    email: string;
+    displayName: string;
+    emailVerified: boolean;
+  } | null>(null);
+  const [cloudSyncState, setCloudSyncState] = useState<{
+    connected: boolean;
+    syncing: boolean;
+    lastSyncedAt?: string;
+    error?: string;
+  }>({ connected: false, syncing: false });
+
+  useEffect(() => {
+    const unsubAuth = subscribeFirebaseAuth((fbUser) => {
+      if (fbUser) {
+        setFirebaseUser({
+          uid: fbUser.uid,
+          email: fbUser.email || '',
+          displayName: fbUser.displayName || fbUser.email || 'Pengguna SAMAWA',
+          emailVerified: fbUser.emailVerified,
+        });
+        setCloudSyncState((prev) => ({ ...prev, connected: true, error: undefined }));
+      } else {
+        setFirebaseUser(null);
+        setCloudSyncState((prev) => ({ ...prev, connected: false }));
+      }
+    });
+
+    const unsubAnnouncements = subscribePublicAnnouncements((cloudItems) => {
+      if (cloudItems.length === 0) return;
+      setData((prev) => {
+        const localById = new Map((prev.officialAnnouncements || []).map((a) => [a.id, a]));
+        for (const item of cloudItems) {
+          localById.set(item.id, {
+            id: item.id,
+            title: item.title,
+            body: item.body,
+            kuaScope: item.kuaScope,
+            priority: item.priority,
+            authorName: item.authorName,
+            active: item.active,
+            createdAt: item.createdAtIso || new Date().toISOString(),
+          });
+        }
+        return {
+          ...prev,
+          officialAnnouncements: Array.from(localById.values()).sort((a, b) =>
+            b.createdAt.localeCompare(a.createdAt)
+          ),
+        };
+      });
+    });
+
+    return () => {
+      unsubAuth();
+      unsubAnnouncements();
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -1302,10 +1423,12 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ...prev,
           users: prev.users.map((u) => {
             if (u.id !== currentUser.id) return u;
-            const lockedIdentity = u.role === 'Peserta' && Boolean(u.progress?.verifikasiFasilitator);
+            const lockedIdentity =
+              u.role === 'Peserta' && isIdentityLockedAfterCert(u);
             const safeUpdates: Partial<BimwinUser> = { ...updates };
             if (lockedIdentity) {
               delete safeUpdates.nama;
+              delete safeUpdates.nik;
               delete safeUpdates.tempatLahir;
               delete safeUpdates.tanggalLahir;
               delete safeUpdates.ttl;
@@ -1386,13 +1509,17 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       const todayIndo = formatIndonesianDate(new Date());
+      const issuedCertCode = payload.verified
+        ? target.progress?.nomorSertifikat ||
+          generateSequentialCertificateNumber(data.users, target.kua)
+        : target.progress?.nomorSertifikat;
 
       setData((prev) => {
         const updatedUsers = prev.users.map((u) => {
           if (u.id !== pesertaId || !u.progress) return u;
           const certCode =
             payload.verified
-              ? u.progress.nomorSertifikat || generateUniqueCertificateCode(u.kua, prev.users)
+              ? issuedCertCode || generateUniqueCertificateCode(u.kua, prev.users)
               : u.progress.nomorSertifikat;
           return {
             ...u,
@@ -1417,13 +1544,29 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           `${payload.verified ? 'Mengesahkan' : 'Memperbarui'} verifikasi peserta ${target.nama} (${target.kua})`
         );
       });
+
+      if (payload.verified && issuedCertCode && firebaseUser?.emailVerified) {
+        void publishCertificateToCloud({
+          certCode: issuedCertCode,
+          certificateNumber: issuedCertCode,
+          documentType: 'Sertifikat',
+          participantName: target.nama,
+          partnerName: target.pasanganNama,
+          kua: target.kua,
+          issuedAt: todayIndo,
+          status: 'valid',
+        }).catch(() => {
+          // Graceful local fallback when not an authorized cloud officer
+        });
+      }
+
       pushToast(
         'success',
         payload.verified ? 'Peserta Disahkan & Sertifikat Aktif' : 'Data Binaan Diperbarui',
         target.nama
       );
     },
-    [appendAudit, currentUser, data.modules.length, data.users, pushToast]
+    [appendAudit, currentUser, data.modules.length, data.users, firebaseUser?.emailVerified, pushToast]
   );
 
   const batchVerifyMoocGraduates = useCallback(
@@ -2385,8 +2528,428 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const fresh = createInitialSeedData();
     setData(fresh);
     setSessionUserId(null);
+    void signOutFirebaseAccount().catch(() => {});
     pushToast('info', 'Data Demo Direset', 'Seluruh data kembali ke kondisi awal yang bersih.');
   }, [pushToast]);
+
+  const loginWithGoogle = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      const fbUser = await signInWithGoogleAccount();
+      const emailLower = (fbUser.email || '').toLowerCase();
+      let matched = data.users.find((u) => (u.email || '').toLowerCase() === emailLower);
+
+      if (!matched && emailLower === BOOTSTRAP_ADMIN_EMAIL.toLowerCase()) {
+        matched = data.users.find((u) => u.role === 'SuperAdmin');
+      }
+
+      if (!matched) {
+        const cleanSlug = (fbUser.email || 'peserta').split('@')[0].replace(/[^a-zA-Z0-9._\-]/g, '_');
+        const newId = `usr_google_${fbUser.uid.slice(0, 12)}`;
+        const createdUser: BimwinUser = {
+          id: newId,
+          username: cleanSlug.slice(0, 32),
+          password: `google_${fbUser.uid.slice(0, 8)}`,
+          role: 'Peserta',
+          nama: fbUser.displayName || cleanSlug,
+          email: fbUser.email || undefined,
+          kua: 'KUA Jepara',
+          desaTempatNikah: 'Kauman',
+          createdAt: new Date().toISOString(),
+          progress: {
+            pretestDone: false,
+            pretestScore: 0,
+            postestDone: false,
+            postestScore: 0,
+            videosWatched: [],
+            modulesRead: [],
+            modulesCompleted: [],
+            moduleScores: {},
+            selesaiClicked: false,
+            ikmDone: false,
+            verifikasiFasilitator: false,
+            kehadiranKelas: 'Belum Hadir',
+          },
+        };
+        setData((prev) => ({ ...prev, users: [createdUser, ...prev.users] }));
+        matched = createdUser;
+      }
+
+      setSessionUserId(matched.id);
+      if (matched.role === 'Peserta') {
+        void ensureCloudUserProfile({
+          user: fbUser,
+          username: matched.username,
+          kua: matched.kua,
+        }).catch(() => {});
+      }
+      pushToast(
+        'success',
+        `Tersambung Google Cloud: ${matched.nama}`,
+        `${matched.role} · ${matched.kua} · Sinkronisasi Firestore Aktif`
+      );
+      return { ok: true };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Gagal masuk dengan akun Google.';
+      pushToast('error', 'Login Google Dibatalkan / Gagal', message);
+      return { ok: false, error: message };
+    }
+  }, [data.users, pushToast]);
+
+  const syncWorkspaceToCloud = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!firebaseUser?.emailVerified) {
+      const msg = 'Masuk dengan akun Google terverifikasi terlebih dahulu untuk sinkronisasi ke Firebase Cloud.';
+      pushToast('info', 'Autentikasi Cloud Diperlukan', msg);
+      return { ok: false, error: msg };
+    }
+    setCloudSyncState((prev) => ({ ...prev, syncing: true, error: undefined }));
+    try {
+      const totalCertificates = data.users.filter((u) => Boolean(u.progress?.nomorSertifikat)).length;
+      await saveCloudWorkspaceSnapshot('samawa_jepara_main', {
+        scopeLabel: currentUser?.kua || 'Kemenag Kab. Jepara',
+        totalUsers: data.users.length,
+        totalCertificates,
+        snapshot: {
+          users: data.users,
+          classes: data.classes,
+          consultations: data.consultations,
+          ikmSurveys: data.ikmSurveys,
+          notifications: data.notifications,
+          officialAnnouncements: data.officialAnnouncements || [],
+          dataTickets: data.dataTickets || [],
+          kritikSaran: data.kritikSaran,
+          kuaDirectory: data.kuaDirectory,
+          settings: data.settings,
+        },
+      });
+      // Also mirror verified certificates into /public_certificates for cross-device QR scan
+      const issuedUsers = data.users.filter(
+        (u) => u.role === 'Peserta' && u.progress?.verifikasiFasilitator && u.progress?.nomorSertifikat
+      );
+      for (const u of issuedUsers.slice(0, 30)) {
+        if (!u.progress?.nomorSertifikat) continue;
+        await publishCertificateToCloud({
+          certCode: u.progress.nomorSertifikat,
+          certificateNumber: u.progress.nomorSertifikat,
+          documentType: 'Sertifikat',
+          participantName: u.nama,
+          partnerName: u.pasanganNama,
+          kua: u.kua,
+          issuedAt: u.progress.tanggalTerbitSertifikat || formatIndonesianDate(new Date()),
+          status: 'valid',
+        });
+      }
+      const nowIso = new Date().toISOString();
+      setCloudSyncState({ connected: true, syncing: false, lastSyncedAt: nowIso });
+      pushToast(
+        'success',
+        'Sinkronisasi Firebase Cloud Berhasil',
+        `${data.users.length} akun & ${issuedUsers.length} sertifikat QR tersinkron ke Firestore.`
+      );
+      return { ok: true };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Gagal menyinkronkan ke Firebase Cloud.';
+      setCloudSyncState((prev) => ({ ...prev, syncing: false, error: msg }));
+      pushToast('error', 'Sinkronisasi Cloud Gagal', msg);
+      return { ok: false, error: msg };
+    }
+  }, [currentUser?.kua, data, firebaseUser?.emailVerified, pushToast]);
+
+  const pullWorkspaceFromCloud = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!firebaseUser?.emailVerified) {
+      const msg = 'Masuk dengan akun Google terverifikasi untuk menarik data terbaru dari Cloud.';
+      pushToast('info', 'Autentikasi Cloud Diperlukan', msg);
+      return { ok: false, error: msg };
+    }
+    setCloudSyncState((prev) => ({ ...prev, syncing: true, error: undefined }));
+    try {
+      const cloudDoc = await loadCloudWorkspaceSnapshot('samawa_jepara_main');
+      if (!cloudDoc || !cloudDoc.snapshot) {
+        setCloudSyncState((prev) => ({ ...prev, syncing: false }));
+        pushToast('info', 'Belum Ada Snapshot Cloud', 'Klik "Unggah ke Cloud" terlebih dahulu untuk menyimpan data pertama.');
+        return { ok: false, error: 'Snapshot cloud belum tersedia.' };
+      }
+      setData((prev) =>
+        normalizeStoreSnapshot({
+          ...prev,
+          ...(cloudDoc.snapshot as Partial<BimwinStoreSnapshot>),
+        })
+      );
+      setCloudSyncState({
+        connected: true,
+        syncing: false,
+        lastSyncedAt: cloudDoc.updatedAtIso,
+      });
+      pushToast('success', 'Data Cloud Berhasil Dimuat', `Terakhir diperbarui oleh ${cloudDoc.updatedByEmail}.`);
+      return { ok: true };
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Gagal mengambil data dari Firebase Cloud.';
+      setCloudSyncState((prev) => ({ ...prev, syncing: false, error: msg }));
+      pushToast('error', 'Gagal Memuat Cloud', msg);
+      return { ok: false, error: msg };
+    }
+  }, [firebaseUser?.emailVerified, pushToast]);
+
+  const importPesertaBatch = useCallback(
+    (rows: SimkahCsvParsedRow[]): { imported: number; skipped: number } => {
+      if (!currentUser || rows.length === 0) return { imported: 0, skipped: 0 };
+      const existingNiks = new Set(
+        data.users.map((u) => String(u.nik || '').replace(/\D/g, '')).filter(Boolean)
+      );
+      const existingUsernames = new Set(data.users.map((u) => u.username.toLowerCase()));
+      const newUsers: BimwinUser[] = [];
+      let skipped = 0;
+
+      for (const row of rows) {
+        if (currentUser.role !== 'SuperAdmin' && row.kua !== currentUser.kua) {
+          skipped += 1;
+          continue;
+        }
+        if (existingNiks.has(row.nik)) {
+          skipped += 1;
+          continue;
+        }
+        let username = row.suggestedUsername.toLowerCase();
+        if (existingUsernames.has(username)) {
+          username = `${username}_${Date.now().toString().slice(-3)}`;
+        }
+        existingNiks.add(row.nik);
+        existingUsernames.add(username);
+
+        newUsers.push({
+          id: `usr_csv_${Date.now()}_${row.rowNumber}`,
+          username,
+          password: `catin${row.nik.slice(-4)}`,
+          role: 'Peserta',
+          nama: row.nama,
+          nik: row.nik,
+          jenisKelamin: row.jenisKelamin,
+          tempatLahir: row.tempatLahir,
+          tanggalLahir: row.tanggalLahir,
+          ttl: formatTtlFromParts(row.tempatLahir, row.tanggalLahir),
+          usia: calculateAgeFromDob(row.tanggalLahir) ?? 24,
+          pendidikan: normalizeEducationLevel(row.pendidikan),
+          noHp: row.hp,
+          email: row.email,
+          kua: row.kua,
+          desaTempatNikah: row.desa,
+          tanggalRencanaNikah: row.rencanaAkad,
+          createdAt: new Date().toISOString(),
+          progress: {
+            pretestDone: false,
+            pretestScore: 0,
+            postestDone: false,
+            postestScore: 0,
+            videosWatched: [],
+            modulesRead: [],
+            modulesCompleted: [],
+            moduleScores: {},
+            selesaiClicked: false,
+            ikmDone: false,
+            verifikasiFasilitator: false,
+            kehadiranKelas: 'Belum Hadir',
+          },
+        });
+      }
+
+      if (newUsers.length > 0) {
+        setData((prev) =>
+          appendAudit(
+            { ...prev, users: [...newUsers, ...prev.users] },
+            currentUser.nama,
+            currentUser.role,
+            `Mengimpor massal ${newUsers.length} peserta Catin via CSV SIMKAH (${currentUser.kua || 'Semua KUA'})`
+          )
+        );
+        pushToast(
+          'success',
+          `${newUsers.length} Peserta Catin Berhasil Diimpor`,
+          skipped > 0
+            ? `${skipped} baris dilewati (duplikat NIK / di luar wilayah).`
+            : 'Seluruh baris CSV valid telah masuk ke daftar peserta.'
+        );
+      }
+      return { imported: newUsers.length, skipped };
+    },
+    [appendAudit, currentUser, data.users, pushToast]
+  );
+
+  const publishOfficialAnnouncement = useCallback(
+    async (payload: {
+      title: string;
+      body: string;
+      kuaScope: string;
+      priority: 'normal' | 'penting';
+    }) => {
+      if (!currentUser) return;
+      const scope = currentUser.role === 'SuperAdmin' ? payload.kuaScope : currentUser.kua;
+      const item: OfficialAnnouncementItem = {
+        id: `ann_${Date.now()}`,
+        title: payload.title.trim().slice(0, 160),
+        body: payload.body.trim().slice(0, 2000),
+        kuaScope: scope,
+        priority: payload.priority,
+        authorName: currentUser.nama,
+        active: true,
+        createdAt: new Date().toISOString(),
+      };
+      setData((prev) =>
+        appendAudit(
+          {
+            ...prev,
+            officialAnnouncements: [item, ...(prev.officialAnnouncements || [])],
+          },
+          currentUser.nama,
+          currentUser.role,
+          `Menerbitkan Pengumuman Resmi "${item.title}" (${scope})`
+        )
+      );
+      if (firebaseUser?.emailVerified) {
+        void publishAnnouncementToCloud(item).catch(() => {});
+      }
+      pushToast('success', 'Pengumuman Resmi Diterbitkan', `Cakupan: ${scope === 'ALL' ? 'Semua 16 KUA' : scope}`);
+    },
+    [appendAudit, currentUser, firebaseUser?.emailVerified, pushToast]
+  );
+
+  const toggleAnnouncementActive = useCallback(
+    (id: string) => {
+      setData((prev) => ({
+        ...prev,
+        officialAnnouncements: (prev.officialAnnouncements || []).map((a) =>
+          a.id === id ? { ...a, active: !a.active } : a
+        ),
+      }));
+    },
+    []
+  );
+
+  const submitDataCorrectionTicket = useCallback(
+    async (payload: { category: DataTicketCategory; details: string }) => {
+      if (!currentUser || currentUser.role !== 'Peserta') return;
+      const nowIso = new Date().toISOString();
+      const ticket: DataCorrectionTicketItem = {
+        id: `tkt_${Date.now()}`,
+        pesertaUsername: currentUser.username,
+        pesertaNama: currentUser.nama,
+        kua: currentUser.kua,
+        category: payload.category,
+        details: payload.details.trim().slice(0, 1200),
+        status: 'menunggu',
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      };
+      setData((prev) => ({
+        ...prev,
+        dataTickets: [ticket, ...(prev.dataTickets || [])],
+      }));
+      if (firebaseUser?.emailVerified) {
+        void submitDataTicketToCloud({
+          id: ticket.id,
+          pesertaUsername: ticket.pesertaUsername,
+          pesertaNama: ticket.pesertaNama,
+          kua: ticket.kua,
+          category: ticket.category,
+          details: ticket.details,
+        }).catch(() => {});
+      }
+      pushToast(
+        'success',
+        'Tiket Perubahan Data Terkirim',
+        `Pengajuan "${ticket.category}" telah diteruskan ke ${ticket.kua}.`
+      );
+    },
+    [currentUser, firebaseUser?.emailVerified, pushToast]
+  );
+
+  const resolveDataCorrectionTicket = useCallback(
+    (ticketId: string, status: DataTicketStatus, officerNote: string) => {
+      if (!currentUser || currentUser.role === 'Peserta') return;
+      setData((prev) => {
+        const nextTickets = (prev.dataTickets || []).map((t) =>
+          t.id === ticketId
+            ? {
+                ...t,
+                status,
+                officerNote: officerNote.trim().slice(0, 600),
+                resolvedBy: currentUser.nama,
+                updatedAt: new Date().toISOString(),
+              }
+            : t
+        );
+        return appendAudit(
+          { ...prev, dataTickets: nextTickets },
+          currentUser.nama,
+          currentUser.role,
+          `Memproses tiket bantuan ${ticketId} -> ${status}`
+        );
+      });
+      pushToast('success', 'Tiket Bantuan Diperbarui', `Status diubah menjadi ${status.toUpperCase()}.`);
+    },
+    [appendAudit, currentUser, pushToast]
+  );
+
+  const checkInClassByQrPayload = useCallback(
+    (rawQrPayload: string): { ok: boolean; message: string } => {
+      if (!currentUser || currentUser.role !== 'Peserta') {
+        return { ok: false, message: 'Fitur scan absensi hanya tersedia untuk akun Peserta.' };
+      }
+      const parsed = parseAttendanceQrPayload(rawQrPayload);
+      if (!parsed.valid) {
+        pushToast('error', 'QR Absensi Tidak Valid', parsed.error);
+        return { ok: false, message: parsed.error };
+      }
+      const targetClass = data.classes.find((c) => c.id === parsed.classId);
+      if (!targetClass) {
+        const msg = 'Jadwal kelas dari QR Code tidak ditemukan atau sudah dihapus.';
+        pushToast('error', 'Kelas Tidak Ditemukan', msg);
+        return { ok: false, message: msg };
+      }
+      const attendanceMode: AttendanceStatus =
+        targetClass.tipe === 'Online' ? 'Hadir Kelas Online' : 'Hadir Kelas Offline';
+
+      setData((prev) => ({
+        ...prev,
+        classes: prev.classes.map((c) => {
+          if (c.id !== targetClass.id) return c;
+          const exists = c.rsvps.some((r) => r.username === currentUser.username);
+          const nextRsvps = exists
+            ? c.rsvps.map((r) =>
+                r.username === currentUser.username
+                  ? { ...r, status: 'InsyaAllah Hadir' as const, verifiedHadir: true }
+                  : r
+              )
+            : [
+                ...c.rsvps,
+                {
+                  username: currentUser.username,
+                  nama: currentUser.nama,
+                  kua: currentUser.kua,
+                  status: 'InsyaAllah Hadir' as const,
+                  verifiedHadir: true,
+                  rsvpAt: new Date().toISOString(),
+                },
+              ];
+          return { ...c, rsvps: nextRsvps };
+        }),
+        users: prev.users.map((u) =>
+          u.id === currentUser.id && u.progress
+            ? {
+                ...u,
+                progress: {
+                  ...u.progress,
+                  kehadiranKelas: attendanceMode,
+                },
+              }
+            : u
+        ),
+      }));
+      const msg = `Kehadiran "${targetClass.judul}" (${targetClass.kua}) berhasil tercatat via Scan QR!`;
+      pushToast('success', 'Absensi QR Kelas Berhasil', msg);
+      return { ok: true, message: msg };
+    },
+    [currentUser, data.classes, pushToast]
+  );
 
   const value: BimwinContextValue = {
     data,
@@ -2457,6 +3020,17 @@ export const BimwinProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     replyKritikSaran,
     importBackupJson,
     resetDemoDatabase,
+    firebaseUser,
+    cloudSyncState,
+    loginWithGoogle,
+    syncWorkspaceToCloud,
+    pullWorkspaceFromCloud,
+    importPesertaBatch,
+    publishOfficialAnnouncement,
+    toggleAnnouncementActive,
+    submitDataCorrectionTicket,
+    resolveDataCorrectionTicket,
+    checkInClassByQrPayload,
   };
 
   return <BimwinContext.Provider value={value}>{children}</BimwinContext.Provider>;

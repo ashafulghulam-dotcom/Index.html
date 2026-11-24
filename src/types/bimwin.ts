@@ -347,3 +347,37 @@ export interface VerificationResult {
   details: Array<{ label: string; value: string }>;
   note?: string;
 }
+
+export interface OfficialAnnouncementItem {
+  id: string;
+  title: string;
+  body: string;
+  kuaScope: string; // 'ALL' or specific KUA
+  priority: 'normal' | 'penting';
+  authorName: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export type DataTicketCategory =
+  | 'Koreksi Identitas'
+  | 'Pindah KUA'
+  | 'Ubah Jadwal Akad'
+  | 'Kendala Teknis';
+
+export type DataTicketStatus = 'menunggu' | 'selesai' | 'ditolak';
+
+export interface DataCorrectionTicketItem {
+  id: string;
+  pesertaUsername: string;
+  pesertaNama: string;
+  kua: string;
+  category: DataTicketCategory;
+  details: string;
+  status: DataTicketStatus;
+  officerNote?: string;
+  resolvedBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

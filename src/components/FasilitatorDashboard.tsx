@@ -26,7 +26,9 @@ import {
   normalizeVillageName,
 } from '../utils/bimwinLogic';
 import { AccountSecurityCard } from './AccountSecurityCard';
+import { ClassAttendanceQrModal } from './ClassAttendanceQrModal';
 import { AttendanceSheetModal } from './OfficialDocuments';
+import { CloudSyncBar } from './OperationalPanels';
 import { QRScannerModal } from './QRScannerModal';
 import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
@@ -65,6 +67,7 @@ export const FasilitatorDashboard: React.FC = () => {
   // Class schedule creation modal & printable sheet
   const [newClassOpen, setNewClassOpen] = useState(false);
   const [sheetClass, setSheetClass] = useState<BimwinClassSchedule | null>(null);
+  const [qrClass, setQrClass] = useState<BimwinClassSchedule | null>(null);
   const [qrScanTarget, setQrScanTarget] = useState<'absen' | 'peserta' | null>(null);
   const [classForm, setClassForm] = useState({
     tipe: 'Offline' as 'Online' | 'Offline',
@@ -142,6 +145,7 @@ export const FasilitatorDashboard: React.FC = () => {
       onSelectTab={setActiveTab}
       roleLabel={`Fasilitator · ${currentUser.kua}`}
     >
+      <CloudSyncBar />
       {/* TAB 1: PESERTA BINAAN */}
       {activeTab === 'binaan' && (
         <div className="space-y-5">
@@ -409,7 +413,15 @@ export const FasilitatorDashboard: React.FC = () => {
                       Lokasi/Tautan: {cls.lokasiAtauLink}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setQrClass(cls)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      QR Absensi
+                    </button>
                     <button
                       type="button"
                       onClick={() => setSheetClass(cls)}
@@ -948,6 +960,11 @@ export const FasilitatorDashboard: React.FC = () => {
           </div>
         </ModalDialog>
       )}
+
+      <ClassAttendanceQrModal
+        schedule={qrClass}
+        onClose={() => setQrClass(null)}
+      />
     </WorkspaceShell>
   );
 };

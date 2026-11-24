@@ -22,6 +22,7 @@ import {
   BimwinUser,
   CompatibilityQuestion,
   ConsultationMessage,
+  DataCorrectionTicketItem,
   DocumentDownloadItem,
   FaqItem,
   GalleryItem,
@@ -30,6 +31,7 @@ import {
   MobileNotifPolicy,
   ModuleDefinition,
   NotificationItem,
+  OfficialAnnouncementItem,
   PostMarriageJournal,
   QuizQuestion,
   ReminderLogItem,
@@ -48,6 +50,8 @@ export interface BimwinStoreSnapshot {
   journals: PostMarriageJournal[];
   ikmSurveys: IkmSurveyRecord[];
   notifications: NotificationItem[];
+  officialAnnouncements?: OfficialAnnouncementItem[];
+  dataTickets?: DataCorrectionTicketItem[];
   reminderLogs?: ReminderLogItem[];
   mobileNotifPolicies?: Record<string, MobileNotifPolicy>;
   kritikSaran: KritikSaranItem[];
@@ -768,6 +772,41 @@ export function createInitialSeedData(): BimwinStoreSnapshot {
     journals: [],
     ikmSurveys,
     notifications,
+    officialAnnouncements: [
+      {
+        id: 'ann_kemenag_1',
+        title: 'Bimbingan Perkawinan Mandiri 16 KUA Kabupaten Jepara Tahun 2026',
+        body: 'Seluruh Calon Pengantin wajib menuntaskan 5 Modul MOOC SAMAWA, Postest, Survei IKM, dan menghadiri kelas tatap muka/daring KUA sebelum pengesahan Sertifikat QR resmi.',
+        kuaScope: 'ALL',
+        priority: 'penting',
+        authorName: 'Seksi Bimas Islam Kemenag Kab. Jepara',
+        active: true,
+        createdAt: '2026-03-01T08:00:00.000Z',
+      },
+      {
+        id: 'ann_jepara_1',
+        title: 'Layanan Scan QR Absensi Kelas Tatap Muka KUA Jepara',
+        body: 'Peserta KUA Jepara kini dapat melakukan absensi kehadiran kelas tatap muka secara otomatis dengan memindai QR Code yang ditampilkan Fasilitator di ruang kelas.',
+        kuaScope: 'KUA Jepara',
+        priority: 'normal',
+        authorName: 'Admin KUA Jepara',
+        active: true,
+        createdAt: '2026-03-14T08:30:00.000Z',
+      },
+    ],
+    dataTickets: [
+      {
+        id: 'tkt_demo_1',
+        pesertaUsername: 'rizky_tahunan',
+        pesertaNama: 'Muhammad Rizky Pratama',
+        kua: 'KUA Tahunan',
+        category: 'Ubah Jadwal Akad',
+        details: 'Mohon penyesuaian jadwal kelas tatap muka karena rencana akad dimajukan 1 minggu oleh pihak keluarga.',
+        status: 'menunggu',
+        createdAt: '2026-03-22T09:00:00.000Z',
+        updatedAt: '2026-03-22T09:00:00.000Z',
+      },
+    ],
     reminderLogs: [],
     mobileNotifPolicies: {
       ALL: createDefaultMobileNotifPolicy('ALL'),

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { AdminDashboard } from './components/AdminDashboard';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { FasilitatorDashboard } from './components/FasilitatorDashboard';
+import { OfficerInactivityGuard, PWAUpdatePrompt } from './components/OperationalPanels';
 import { PesertaDashboard } from './components/PesertaDashboard';
 import { PublicPortal } from './components/PublicPortal';
 import { OfflineIndicator, PWAInstallModal } from './components/PWAInstallControls';
 import { ConfirmModal, ToastStack } from './components/UiPrimitives';
 import { VerificationModal } from './components/VerificationModal';
+import { verifyCertificateFromCloud } from './firebase';
 import { BimwinProvider, useBimwin } from './store/useBimwinStore';
 import { VerificationResult } from './types/bimwin';
 import { verifyDocumentQuery } from './utils/bimwinLogic';
@@ -24,11 +27,48 @@ const BimwinRouter: React.FC = () => {
   });
 
   useEffect(() => {
-    if (!urlVerifyCode) {
+    if (!urlVerifyCode || urlVerifyCode === 'verifikasi') {
       setGlobalVerifyResult(null);
       return;
     }
-    setGlobalVerifyResult(verifyDocumentQuery(urlVerifyCode, data.users, data.classes));
+    const localResult = verifyDocumentQuery(urlVerifyCode, data.users, data.classes);
+    if (localResult.found) {
+      setGlobalVerifyResult(localResult);
+      return;
+    }
+    let cancelled = false;
+    verifyCertificateFromCloud(urlVerifyCode)
+      .then((cloudCert) => {
+        if (cancelled) return;
+        if (cloudCert) {
+          setGlobalVerifyResult({
+            found: true,
+            type: 'Sertifikat Bimwin',
+            code: cloudCert.certCode,
+            title: `Sertifikat ${cloudCert.documentType} Terverifikasi Cloud`,
+            statusLabel: cloudCert.status === 'valid' ? 'SAH · TERVERIFIKASI CLOUD' : 'DICABUT',
+            valid: cloudCert.status === 'valid',
+            details: [
+              { label: 'Nomor Sertifikat', value: cloudCert.certificateNumber },
+              { label: 'Nama Peserta', value: cloudCert.participantName },
+              ...(cloudCert.partnerName
+                ? [{ label: 'Nama Pasangan', value: cloudCert.partnerName }]
+                : []),
+              { label: 'KUA Kecamatan', value: cloudCert.kua },
+              { label: 'Tanggal Terbit', value: cloudCert.issuedAt },
+            ],
+            note: 'Data keabsahan ditarik langsung dari basis data Cloud Firestore Kemenag Kab. Jepara.',
+          });
+        } else {
+          setGlobalVerifyResult(localResult);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setGlobalVerifyResult(localResult);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [urlVerifyCode, data.users, data.classes]);
 
   const handleCloseGlobalVerify = () => {
@@ -71,6 +111,8 @@ const BimwinRouter: React.FC = () => {
       <PWAInstallModal open={autoInstallOpen} onClose={handleCloseAutoInstall} />
       <ConfirmModal options={confirmDialog} onClose={closeConfirm} />
       <ToastStack toasts={toasts} onDismiss={dismissToast} />
+      <OfficerInactivityGuard />
+      <PWAUpdatePrompt />
       <OfflineIndicator />
     </>
   );
@@ -78,8 +120,10 @@ const BimwinRouter: React.FC = () => {
 
 export default function App() {
   return (
-    <BimwinProvider>
-      <BimwinRouter />
-    </BimwinProvider>
+    <ErrorBoundary>
+      <BimwinProvider>
+        <BimwinRouter />
+      </BimwinProvider>
+    </ErrorBoundary>
   );
 }

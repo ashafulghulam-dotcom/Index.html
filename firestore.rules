@@ -1,0 +1,280 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // =========================================================================
+    // GLOBAL SAFETY NET (Default Deny Catch-All)
+    // =========================================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // HARDENED GLOBAL PRIMITIVES
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrapAdmin() {
+      return isVerified() && request.auth.token.email == 'ashafulghulam@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrapAdmin() || (
+        isVerified() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================================
+    // VALIDATION BLUEPRINTS (Anti-Update-Gap Helpers)
+    // =========================================================================
+    function isValidAdminRole(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'role', 'kua', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'role', 'kua', 'createdAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.role in ['SuperAdmin', 'AdminKUA', 'Fasilitator'] &&
+        data.kua is string && data.kua.size() >= 1 && data.kua.size() <= 80 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidCloudUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'username', 'kua', 'role', 'identityLocked', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'displayName', 'username', 'kua', 'role', 'identityLocked', 'createdAt', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120 &&
+        data.username is string && data.username.size() >= 2 && data.username.size() <= 64 &&
+        data.username.matches('^[a-zA-Z0-9._\\-]+$') &&
+        data.kua is string && data.kua.size() >= 1 && data.kua.size() <= 80 &&
+        data.role == 'Peserta' &&
+        data.identityLocked is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidPublicCertificate(data) {
+      return data.keys().hasAll(['certCode', 'certificateNumber', 'documentType', 'participantName', 'kua', 'issuedAt', 'status', 'ownerUid', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['certCode', 'certificateNumber', 'documentType', 'participantName', 'partnerName', 'kua', 'issuedAt', 'status', 'ownerUid', 'createdAt', 'updatedAt']) &&
+        isValidId(data.certCode) &&
+        data.certCode.size() <= 64 &&
+        data.certificateNumber is string && data.certificateNumber.size() >= 3 && data.certificateNumber.size() <= 120 &&
+        data.documentType in ['Sertifikat', 'Piagam', 'Laporan', 'Absensi'] &&
+        data.participantName is string && data.participantName.size() >= 1 && data.participantName.size() <= 120 &&
+        (!('partnerName' in data) || (data.partnerName is string && data.partnerName.size() <= 120)) &&
+        data.kua is string && data.kua.size() >= 1 && data.kua.size() <= 80 &&
+        data.issuedAt is string && data.issuedAt.size() >= 4 && data.issuedAt.size() <= 64 &&
+        data.status in ['valid', 'revoked'] &&
+        isValidId(data.ownerUid) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAnnouncement(data) {
+      return data.keys().hasAll(['title', 'body', 'kuaScope', 'priority', 'authorName', 'authorUid', 'active', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['title', 'body', 'kuaScope', 'priority', 'authorName', 'authorUid', 'active', 'createdAt', 'updatedAt']) &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 160 &&
+        data.body is string && data.body.size() >= 5 && data.body.size() <= 2000 &&
+        data.kuaScope is string && data.kuaScope.size() >= 2 && data.kuaScope.size() <= 80 &&
+        data.priority in ['normal', 'penting'] &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 120 &&
+        isValidId(data.authorUid) &&
+        data.active is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidDataTicket(data) {
+      return data.keys().hasAll(['ownerUid', 'pesertaUsername', 'pesertaNama', 'kua', 'category', 'details', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['ownerUid', 'pesertaUsername', 'pesertaNama', 'kua', 'category', 'details', 'status', 'officerNote', 'createdAt', 'updatedAt']) &&
+        isValidId(data.ownerUid) &&
+        data.pesertaUsername is string && data.pesertaUsername.size() >= 2 && data.pesertaUsername.size() <= 64 &&
+        data.pesertaNama is string && data.pesertaNama.size() >= 1 && data.pesertaNama.size() <= 120 &&
+        data.kua is string && data.kua.size() >= 1 && data.kua.size() <= 80 &&
+        data.category in ['Koreksi Identitas', 'Pindah KUA', 'Ubah Jadwal Akad', 'Kendala Teknis'] &&
+        data.details is string && data.details.size() >= 5 && data.details.size() <= 1200 &&
+        data.status in ['menunggu', 'selesai', 'ditolak'] &&
+        (!('officerNote' in data) || (data.officerNote is string && data.officerNote.size() <= 600)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCloudWorkspace(data) {
+      return data.keys().hasAll(['ownerUid', 'updatedByEmail', 'scopeLabel', 'totalUsers', 'totalCertificates', 'snapshot', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['ownerUid', 'updatedByEmail', 'scopeLabel', 'totalUsers', 'totalCertificates', 'snapshot', 'createdAt', 'updatedAt']) &&
+        isValidId(data.ownerUid) &&
+        data.updatedByEmail is string && data.updatedByEmail.size() >= 3 && data.updatedByEmail.size() <= 160 &&
+        data.scopeLabel is string && data.scopeLabel.size() >= 1 && data.scopeLabel.size() <= 100 &&
+        data.totalUsers is number && data.totalUsers >= 0 &&
+        data.totalCertificates is number && data.totalCertificates >= 0 &&
+        data.snapshot is map &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // 1. ADMINS COLLECTION (/admins/{adminUid})
+    // =========================================================================
+    match /admins/{adminUid} {
+      allow get: if isValidId(adminUid) && (isOwner(adminUid) || isAdmin());
+      allow list: if isBootstrapAdmin();
+      allow create: if isValidId(adminUid) &&
+        isAdmin() &&
+        isValidAdminRole(incoming()) &&
+        incoming().uid == adminUid &&
+        incoming().createdAt == request.time;
+      allow update: if isValidId(adminUid) &&
+        isAdmin() &&
+        isValidAdminRole(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'role', 'kua', 'email']);
+      allow delete: if isValidId(adminUid) && isBootstrapAdmin();
+    }
+
+    // =========================================================================
+    // 2. USERS COLLECTION (/users/{userId}) — Strict PII Isolation
+    // =========================================================================
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isBootstrapAdmin());
+      allow create: if isValidId(userId) &&
+        isVerified() &&
+        isOwner(userId) &&
+        isValidCloudUserProfile(incoming()) &&
+        incoming().uid == request.auth.uid &&
+        incoming().identityLocked == false &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(userId) &&
+        isVerified() &&
+        isValidCloudUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'username', 'kua', 'identityLocked', 'updatedAt'])) ||
+          (isOwner(userId) && existing().identityLocked == false && incoming().identityLocked == false && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'username', 'kua', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 3. PUBLIC CERTIFICATES (/public_certificates/{certCode}) — Single-Get QR Only
+    // =========================================================================
+    match /public_certificates/{certCode} {
+      allow get: if isValidId(certCode);
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrapAdmin());
+      allow create: if isValidId(certCode) &&
+        isAdmin() &&
+        isValidPublicCertificate(incoming()) &&
+        incoming().certCode == certCode &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(certCode) &&
+        isAdmin() &&
+        isValidPublicCertificate(incoming()) &&
+        incoming().certCode == existing().certCode &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['certificateNumber', 'participantName', 'partnerName', 'kua', 'issuedAt', 'status', 'updatedAt']);
+      allow delete: if isValidId(certCode) && isAdmin();
+    }
+
+    // =========================================================================
+    // 4. OFFICIAL ANNOUNCEMENTS (/public_announcements/{announcementId})
+    // =========================================================================
+    match /public_announcements/{announcementId} {
+      allow get: if isValidId(announcementId) && (existing().active == true || isAdmin());
+      allow list: if resource.data.active == true || isBootstrapAdmin();
+      allow create: if isValidId(announcementId) &&
+        isAdmin() &&
+        isValidAnnouncement(incoming()) &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(announcementId) &&
+        isAdmin() &&
+        isValidAnnouncement(incoming()) &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'kuaScope', 'priority', 'active', 'updatedAt']);
+      allow delete: if isValidId(announcementId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 5. DATA CORRECTION TICKETS (/data_tickets/{ticketId}) — Terminal Locking
+    // =========================================================================
+    match /data_tickets/{ticketId} {
+      allow get: if isValidId(ticketId) && (isOwner(existing().ownerUid) || isAdmin());
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrapAdmin());
+      allow create: if isValidId(ticketId) &&
+        isVerified() &&
+        isValidDataTicket(incoming()) &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().status == 'menunggu' &&
+        !('officerNote' in incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(ticketId) &&
+        isVerified() &&
+        isValidDataTicket(incoming()) &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'officerNote', 'updatedAt'])) ||
+          (isOwner(existing().ownerUid) && existing().status == 'menunggu' && incoming().status == 'menunggu' && incoming().diff(existing()).affectedKeys().hasOnly(['details', 'updatedAt']))
+        );
+      allow delete: if isValidId(ticketId) && isAdmin();
+    }
+
+    // =========================================================================
+    // 6. CLOUD WORKSPACES (/cloud_workspaces/{workspaceId}) — Admin Real-Time Sync
+    // =========================================================================
+    match /cloud_workspaces/{workspaceId} {
+      allow get: if isValidId(workspaceId) && isAdmin();
+      allow list: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isBootstrapAdmin());
+      allow create: if isValidId(workspaceId) &&
+        isAdmin() &&
+        isValidCloudWorkspace(incoming()) &&
+        incoming().ownerUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(workspaceId) &&
+        isAdmin() &&
+        isValidCloudWorkspace(incoming()) &&
+        incoming().ownerUid == existing().ownerUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['updatedByEmail', 'scopeLabel', 'totalUsers', 'totalCertificates', 'snapshot', 'updatedAt']);
+      allow delete: if isValidId(workspaceId) && isBootstrapAdmin();
+    }
+  }
+}

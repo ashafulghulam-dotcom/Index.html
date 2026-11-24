@@ -244,12 +244,23 @@ export const WorkspaceShell: React.FC<{
       {/* Mobile Compact Bottom Quick Bar (3 Core Tabs + Menu Garis 3) */}
       <nav
         aria-label="Navigasi cepat perangkat seluler"
-        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-t border-slate-200 dark:border-emerald-950 px-1.5 py-1.5 flex items-center justify-around no-print"
+        className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white/95 dark:bg-[#0D1613]/95 backdrop-blur border-t border-slate-200 dark:border-emerald-950 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] flex items-center justify-around no-print"
       >
         {primaryTabs.map((item) => {
           const Icon = item.icon;
           const isActive = item.id === activeTab;
-          const shortLabel = item.label.split(' ')[0];
+          const compactLabelMap: Record<string, string> = {
+            belajar: 'Belajar',
+            selesai: 'Dokumen',
+            kompak: 'Piagam',
+            analitik: 'Analitik',
+            peserta: 'Peserta',
+            ikm: 'Survei',
+            binaan: 'Binaan',
+            kelas: 'Kelas',
+            konsultasi: 'Konsul',
+          };
+          const shortLabel = compactLabelMap[item.id] || item.label.split(' ')[0];
           return (
             <button
               key={item.id}
@@ -269,9 +280,14 @@ export const WorkspaceShell: React.FC<{
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          className="flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[64px] text-slate-500 dark:text-slate-400 font-medium"
+          className="relative flex flex-col items-center justify-center gap-0.5 px-2 py-1 rounded-lg min-w-[64px] text-slate-500 dark:text-slate-400 font-medium"
         >
-          <Menu className="w-4 h-4" />
+          <span className="relative">
+            <Menu className="w-4 h-4" />
+            {unreadNotifications > 0 && (
+              <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-red-600" />
+            )}
+          </span>
           <span className="text-[10px] leading-tight">Menu</span>
         </button>
       </nav>

@@ -45,6 +45,35 @@ export default defineConfig(() => {
               type: 'image/png',
               purpose: 'any',
             },
+            {
+              src: '/pwa-maskable-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
+            },
+          ],
+          shortcuts: [
+            {
+              name: 'Masuk Ruang Belajar',
+              short_name: 'Belajar',
+              description: 'Buka portal pembelajaran MOOC SAMAWA Kemenag Jepara',
+              url: '/#masuk-portal',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Verifikasi QR Sertifikat',
+              short_name: 'Cek QR',
+              description: 'Periksa keabsahan sertifikat & piagam BIMWIN',
+              url: '/?cek=verifikasi',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Install Aplikasi SAMAWA',
+              short_name: 'Install',
+              description: 'Pasang Web APK SAMAWA di layar utama perangkat',
+              url: '/?install=1',
+              icons: [{ src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' }],
+            },
           ],
         },
         workbox: {

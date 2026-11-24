@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   History,
   MapPin,
+  Megaphone,
   MessageSquare,
   Plus,
   Printer,
@@ -61,6 +62,8 @@ import {
 import { AccountSecurityCard } from './AccountSecurityCard';
 import { KuaDirectoryManager } from './KuaDirectoryManager';
 import { CertificatePreviewModal, ExecutiveReportPreviewModal } from './OfficialDocuments';
+import { AnnouncementsTicketsPanel, CloudSyncBar } from './OperationalPanels';
+import { SimkahCsvImportModal } from './SimkahCsvImportModal';
 import { SmartReminderPanel } from './SmartReminderPanel';
 import { ModalDialog } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
@@ -101,6 +104,7 @@ export const AdminDashboard: React.FC = () => {
   const [pesertaNewPass, setPesertaNewPass] = useState('');
   const [certPreviewUser, setCertPreviewUser] = useState<BimwinUser | null>(null);
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
 
   // Staff manager state
   const [staffModalOpen, setStaffModalOpen] = useState(false);
@@ -327,11 +331,16 @@ export const AdminDashboard: React.FC = () => {
     [data.users]
   );
 
+  const pendingTicketCount = (data.dataTickets || []).filter(
+    (t) => t.status === 'menunggu' && (isSuper || t.kua === currentUser.kua)
+  ).length;
+
   const navItems: NavItem[] = [
     { id: 'analitik', label: isSuper ? 'Analitik & Peta 16 KUA' : 'Analitik KUA', icon: BarChart3, section: 'Eksekutif' },
     { id: 'peserta', label: 'Data Peserta Catin', icon: Users, badge: scopedPeserta.length, section: 'Eksekutif' },
     { id: 'ikm', label: 'Survei IKM & Kritik Saran', icon: MessageSquare, badge: data.kritikSaran.length, section: 'Layanan Publik' },
     { id: 'pengingat', label: 'Smart Reminder', icon: Bell, section: 'Layanan Publik' },
+    { id: 'pengumuman', label: 'Pengumuman & Tiket Data', icon: Megaphone, badge: pendingTicketCount || undefined, section: 'Layanan Publik' },
     ...(isSuper
       ? [
           { id: 'lms', label: 'Manajemen Kurikulum LMS', icon: BookMarked, section: 'SuperAdmin Kemenag' },
@@ -351,6 +360,7 @@ export const AdminDashboard: React.FC = () => {
       onSelectTab={setActiveTab}
       roleLabel={isSuper ? 'SuperAdmin Kemenag' : `Admin ${currentUser.kua}`}
     >
+      <CloudSyncBar />
       {/* TAB 1: ANALITIK & HEATMAP 16 KUA */}
       {activeTab === 'analitik' && (
         <div className="space-y-6">
@@ -599,6 +609,14 @@ export const AdminDashboard: React.FC = () => {
                   ))}
                 </select>
               )}
+              <button
+                type="button"
+                onClick={() => setCsvImportOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold transition"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                Impor CSV SIMKAH
+              </button>
             </div>
           </div>
 
@@ -2320,6 +2338,11 @@ export const AdminDashboard: React.FC = () => {
         />
       )}
 
+      {/* TAB PENGUMUMAN & TIKET DATA */}
+      {activeTab === 'pengumuman' && (
+        <AnnouncementsTicketsPanel isSuper={isSuper} kuaName={currentUser.kua} />
+      )}
+
       {/* TAB AKUN SAYA: EDIT PROFIL & KEAMANAN AKUN (ADMIN KUA & SUPERADMIN) */}
       {activeTab === 'akun' && (
         <AccountSecurityCard
@@ -2332,6 +2355,12 @@ export const AdminDashboard: React.FC = () => {
         open={reportModalOpen}
         onClose={() => setReportModalOpen(false)}
         report={executiveReport}
+      />
+
+      <SimkahCsvImportModal
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        lockToKua={isSuper ? undefined : currentUser.kua}
       />
     </WorkspaceShell>
   );

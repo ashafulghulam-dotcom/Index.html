@@ -7,6 +7,7 @@ import {
   Building2,
   Calculator,
   Calendar,
+  CalendarPlus,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -21,12 +22,15 @@ import {
   HeartHandshake,
   HelpCircle,
   Lock,
+  Megaphone,
   MessageCircle,
   PlayCircle,
   Printer,
+  QrCode,
   Share2,
   Smartphone,
   Sparkles,
+  TicketCheck,
   Trash2,
   UserPlus,
   Video,
@@ -36,7 +40,12 @@ import {
 import { DEFAULT_KOMPAK_COMMITMENTS, DOA_PENGANTIN } from '../data/jeparaData';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 import { useBimwin } from '../store/useBimwinStore';
-import { ModuleDefinition } from '../types/bimwin';
+import { DataTicketCategory, ModuleDefinition } from '../types/bimwin';
+import {
+  buildIcsCalendarContent,
+  downloadIcsFile,
+  isIdentityLockedAfterCert,
+} from '../utils/operationalTools';
 import { resolveMobileNotifPolicy } from '../utils/smartReminder';
 import {
   calculateBudgetAllocation,
@@ -75,6 +84,7 @@ import {
   PortfolioPreviewModal,
   StoryCardModal,
 } from './OfficialDocuments';
+import { QRScannerModal } from './QRScannerModal';
 import { KemenagLogo, QRCodeBox } from './UiPrimitives';
 import { NavItem, WorkspaceShell } from './WorkspaceShell';
 
@@ -104,6 +114,8 @@ export const PesertaDashboard: React.FC = () => {
     markNotificationRead,
     registerPesertaApkDevice,
     toggleParticipantMobileNotif,
+    submitDataCorrectionTicket,
+    checkInClassByQrPayload,
     requestConfirm,
     pushToast,
   } = useBimwin();
@@ -138,6 +150,10 @@ export const PesertaDashboard: React.FC = () => {
   // Official documents preview modals
   const [certOpen, setCertOpen] = useState(false);
   const [piagamOpen, setPiagamOpen] = useState(false);
+  const [attendanceQrOpen, setAttendanceQrOpen] = useState(false);
+  const [manualQrInput, setManualQrInput] = useState('');
+  const [ticketCategory, setTicketCategory] = useState<DataTicketCategory>('Koreksi Identitas');
+  const [ticketDetails, setTicketDetails] = useState('');
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [storyOpen, setStoryOpen] = useState(false);
 
@@ -273,6 +289,13 @@ export const PesertaDashboard: React.FC = () => {
   ).length;
 
   const myClasses = (data.classes || []).filter((c) => c.kua === currentUser.kua);
+  const activeAnnouncements = (data.officialAnnouncements || []).filter(
+    (a) => a.active && (a.kuaScope === 'ALL' || a.kuaScope === currentUser.kua)
+  );
+  const myTickets = (data.dataTickets || []).filter(
+    (t) => t.pesertaUsername === currentUser.username
+  );
+  const identityLocked = isIdentityLockedAfterCert(currentUser);
   const myConsultations = (data.consultations || []).filter(
     (c) => c.pesertaUsername === currentUser.username
   );
@@ -469,6 +492,50 @@ export const PesertaDashboard: React.FC = () => {
       {/* TAB 1: RUANG BELAJAR (8 LANGKAH) */}
       {activeTab === 'belajar' && (
         <div className="space-y-6">
+          {/* Pengumuman & Surat Edaran Resmi Kemenag / KUA */}
+          {activeAnnouncements.length > 0 && (
+            <section className="space-y-2.5" aria-label="Pengumuman Resmi Kemenag dan KUA">
+              {activeAnnouncements.slice(0, 2).map((ann) => (
+                <div
+                  key={ann.id}
+                  className={`rounded-2xl border p-4 flex items-start gap-3 ${
+                    ann.priority === 'penting'
+                      ? 'bg-amber-50/80 dark:bg-amber-950/25 border-amber-300 dark:border-amber-800/70'
+                      : 'bg-emerald-50/60 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-900/70'
+                  }`}
+                >
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      ann.priority === 'penting'
+                        ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300'
+                        : 'bg-emerald-100 dark:bg-emerald-900/50 text-[#0F684E] dark:text-emerald-300'
+                    }`}
+                  >
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F684E] dark:text-emerald-400">
+                        Pengumuman Resmi · {ann.kuaScope === 'ALL' ? 'Kemenag Kab. Jepara' : ann.kuaScope}
+                      </span>
+                      {ann.priority === 'penting' && (
+                        <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                          Penting
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
+                      {ann.title}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                      {ann.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </section>
+          )}
+
           {/* 8-Step Progress Summary */}
           <section className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-5 sm:p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1322,7 +1389,39 @@ export const PesertaDashboard: React.FC = () => {
                 )}
               </p>
             </div>
+            <button
+              type="button"
+              onClick={() => setAttendanceQrOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold shrink-0 transition"
+            >
+              <QrCode className="w-4 h-4" />
+              Scan QR Absensi Kelas
+            </button>
           </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!manualQrInput.trim()) return;
+              const ok = checkInClassByQrPayload(manualQrInput.trim());
+              if (ok) setManualQrInput('');
+            }}
+            className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-3.5 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5"
+          >
+            <input
+              type="text"
+              value={manualQrInput}
+              onChange={(e) => setManualQrInput(e.target.value)}
+              placeholder="Atau tempel kode QR absensi dari proyektor Fasilitator (SAMAWA-ABSEN|...)"
+              className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs font-mono-num outline-none focus:border-[#0F684E]"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg border border-[#0F684E]/40 text-[#0F684E] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold shrink-0"
+            >
+              Check-In Kode
+            </button>
+          </form>
 
           {!classAccess.unlocked ? (
             <div className="bg-white dark:bg-[#111C18] border border-amber-300 dark:border-amber-800/70 rounded-2xl p-6 space-y-5">
@@ -1613,6 +1712,31 @@ export const PesertaDashboard: React.FC = () => {
                                     className="px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 text-xs font-semibold"
                                   >
                                     Izin
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const ics = buildIcsCalendarContent({
+                                        uid: `kelas-${cls.id}`,
+                                        title: `BIMWIN SAMAWA: ${cls.judul}`,
+                                        description: `Kelas ${cls.tipe} Bimbingan Perkawinan ${cls.kua}. Narasumber: ${cls.narasumber}. Kode Absen: ${cls.kodeAbsen}`,
+                                        location: cls.lokasiAtauLink,
+                                        dateIso: cls.tanggal,
+                                        startHour: 8,
+                                        startMinute: 30,
+                                        durationMinutes: 180,
+                                      });
+                                      downloadIcsFile(`jadwal-bimwin-${cls.kodeAbsen}.ics`, ics);
+                                      pushToast(
+                                        'success',
+                                        'Jadwal Tersimpan (.ics)',
+                                        'Buka file kalender yang terunduh untuk menambahkan pengingat H-1 ke kalender HP Anda.'
+                                      );
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-[#0F684E]/35 text-[#0F684E] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold"
+                                  >
+                                    <CalendarPlus className="w-3.5 h-3.5" />
+                                    Simpan Kalender (.ics)
                                   </button>
                                 </div>
                               </div>
@@ -2635,119 +2759,269 @@ export const PesertaDashboard: React.FC = () => {
       {/* TAB 10: PROFIL, LENCANA & ID CARD DIGITAL */}
       {activeTab === 'profil' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-7 bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
-            <div>
-              <h2 className="font-bold text-base">Biodata Calon Pengantin</h2>
-              {currentUser.progress?.verifikasiFasilitator && (
-                <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                  Nama dan TTL dikunci otomatis setelah verifikasi Fasilitator demi kesesuaian Sertifikat.
-                </p>
-              )}
-            </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setProfileError('');
-                if (
-                  profileForm.tanggalRencanaNikah !== (currentUser.tanggalRencanaNikah || '')
-                ) {
-                  const akadCheck = validateRencanaAkadDate(
-                    profileForm.tanggalRencanaNikah,
-                    currentUser.createdAt
-                  );
-                  if (!akadCheck.ok) {
-                    setProfileError(
-                      akadCheck.error || 'Rencana tanggal akad nikah tidak valid.'
+          <div className="lg:col-span-7 space-y-5">
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <h2 className="font-bold text-base">Biodata Calon Pengantin</h2>
+                  {identityLocked && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5 flex items-center gap-1.5">
+                      <Lock className="w-3.5 h-3.5 shrink-0" />
+                      Nama, NIK, dan TTL dikunci otomatis setelah Sertifikat BIMWIN terbit. Ajukan Tiket Perubahan Data di bawah jika ada kesalahan ejaan.
+                    </p>
+                  )}
+                </div>
+                {identityLocked && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11px] font-bold text-amber-800 dark:text-amber-300">
+                    <Lock className="w-3 h-3" />
+                    Identitas Terkunci Pasca-Sertifikat
+                  </span>
+                )}
+              </div>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  setProfileError('');
+                  if (
+                    profileForm.tanggalRencanaNikah !== (currentUser.tanggalRencanaNikah || '')
+                  ) {
+                    const akadCheck = validateRencanaAkadDate(
+                      profileForm.tanggalRencanaNikah,
+                      currentUser.createdAt
                     );
-                    return;
+                    if (!akadCheck.ok) {
+                      setProfileError(
+                        akadCheck.error || 'Rencana tanggal akad nikah tidak valid.'
+                      );
+                      return;
+                    }
                   }
-                }
-                updateOwnProfile(profileForm);
-              }}
-              className="space-y-3 text-xs sm:text-sm"
-            >
-              <div>
-                <label className="block font-semibold mb-1">Nama Lengkap</label>
-                <input
-                  type="text"
-                  disabled={Boolean(currentUser.progress?.verifikasiFasilitator)}
-                  value={profileForm.nama}
-                  onChange={(e) => setProfileForm({ ...profileForm, nama: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] disabled:opacity-60"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">No. WhatsApp</label>
-                  <input
-                    type="tel"
-                    value={profileForm.noHp}
-                    onChange={(e) => setProfileForm({ ...profileForm, noHp: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-                  />
+                  updateOwnProfile(profileForm);
+                }}
+                className="space-y-3 text-xs sm:text-sm"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1">Nama Lengkap</label>
+                    <input
+                      type="text"
+                      disabled={identityLocked}
+                      value={profileForm.nama}
+                      onChange={(e) => setProfileForm({ ...profileForm, nama: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] disabled:opacity-60"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">NIK KTP (16 Digit)</label>
+                    <input
+                      type="text"
+                      disabled
+                      readOnly
+                      value={currentUser.nik || '-'}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-slate-100 dark:bg-[#0B1411] font-mono-num opacity-75"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1">No. WhatsApp</label>
+                    <input
+                      type="tel"
+                      value={profileForm.noHp}
+                      onChange={(e) => setProfileForm({ ...profileForm, noHp: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold mb-1">Email Aktif</label>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      placeholder="nama@email.com"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold mb-1">Pekerjaan</label>
+                    <input
+                      type="text"
+                      value={profileForm.pekerjaan}
+                      onChange={(e) => setProfileForm({ ...profileForm, pekerjaan: e.target.value })}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="profil-tanggal-akad" className="block font-semibold mb-1">
+                      Rencana Tanggal Akad Nikah
+                    </label>
+                    <input
+                      id="profil-tanggal-akad"
+                      type="date"
+                      min={minAkadDate}
+                      value={profileForm.tanggalRencanaNikah}
+                      onChange={(e) => {
+                        setProfileError('');
+                        setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value });
+                      }}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      Minimal {formatIndonesianDate(minAkadDate)} (tidak bisa memilih waktu yang telah berlalu).
+                    </p>
+                  </div>
                 </div>
                 <div>
-                  <label className="block font-semibold mb-1">Email Aktif</label>
-                  <input
-                    type="email"
-                    value={profileForm.email}
-                    onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                    placeholder="nama@email.com"
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Pekerjaan</label>
+                  <label className="block font-semibold mb-1">Alamat Domisili</label>
                   <input
                     type="text"
-                    value={profileForm.pekerjaan}
-                    onChange={(e) => setProfileForm({ ...profileForm, pekerjaan: e.target.value })}
+                    value={profileForm.alamat}
+                    onChange={(e) => setProfileForm({ ...profileForm, alamat: e.target.value })}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
                   />
                 </div>
+                {profileError && (
+                  <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
+                    {profileError}
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+                  >
+                    Simpan Perubahan Profil
+                  </button>
+                  {profileForm.tanggalRencanaNikah && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const ics = buildIcsCalendarContent({
+                          uid: `akad-${currentUser.username}-${profileForm.tanggalRencanaNikah}`,
+                          title: `Rencana Akad Nikah — ${currentUser.nama}`,
+                          description: `Pengingat persiapan berkas KUA & Sertifikat BIMWIN SAMAWA di ${currentUser.kua}.`,
+                          location: `${currentUser.kua}, Kab. Jepara`,
+                          dateIso: profileForm.tanggalRencanaNikah,
+                          startHour: 8,
+                          startMinute: 0,
+                          durationMinutes: 120,
+                        });
+                        downloadIcsFile(`rencana-akad-${currentUser.username}.ics`, ics);
+                        pushToast(
+                          'success',
+                          'Jadwal Akad Tersimpan (.ics)',
+                          'Pengingat H-1 akad nikah siap ditambahkan ke kalender HP Anda.'
+                        );
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#0F684E]/40 text-[#0F684E] dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-xs font-semibold"
+                    >
+                      <CalendarPlus className="w-3.5 h-3.5" />
+                      Simpan Jadwal Akad ke Kalender (.ics)
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Tiket Bantuan & Perubahan Data Catin */}
+            <div className="bg-white dark:bg-[#111C18] border border-slate-200 dark:border-emerald-950 rounded-2xl p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <TicketCheck className="w-4 h-4 text-[#0F684E]" />
                 <div>
-                  <label htmlFor="profil-tanggal-akad" className="block font-semibold mb-1">
-                    Rencana Tanggal Akad Nikah
-                  </label>
-                  <input
-                    id="profil-tanggal-akad"
-                    type="date"
-                    min={minAkadDate}
-                    value={profileForm.tanggalRencanaNikah}
-                    onChange={(e) => {
-                      setProfileError('');
-                      setProfileForm({ ...profileForm, tanggalRencanaNikah: e.target.value });
-                    }}
-                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613] font-mono-num"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    Minimal {formatIndonesianDate(minAkadDate)} (tidak bisa memilih waktu yang telah berlalu).
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Ajukan Tiket Perubahan Data / Bantuan KUA
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Untuk koreksi ejaan nama/NIK setelah sertifikat terbit, pindah KUA tujuan, atau kendala akun.
                   </p>
                 </div>
               </div>
-              <div>
-                <label className="block font-semibold mb-1">Alamat Domisili</label>
-                <input
-                  type="text"
-                  value={profileForm.alamat}
-                  onChange={(e) => setProfileForm({ ...profileForm, alamat: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
-                />
-              </div>
-              {profileError && (
-                <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-lg px-3 py-2">
-                  {profileError}
-                </p>
-              )}
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white text-xs font-semibold"
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (ticketDetails.trim().length < 8) return;
+                  await submitDataCorrectionTicket({
+                    category: ticketCategory,
+                    details: ticketDetails,
+                  });
+                  setTicketDetails('');
+                }}
+                className="space-y-3 text-xs"
               >
-                Simpan Perubahan Profil
-              </button>
-            </form>
+                <div>
+                  <label className="block font-semibold mb-1">Kategori Permohonan</label>
+                  <select
+                    value={ticketCategory}
+                    onChange={(e) => setTicketCategory(e.target.value as DataTicketCategory)}
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  >
+                    <option value="Koreksi Identitas">Koreksi Identitas (Nama / NIK / TTL)</option>
+                    <option value="Pindah KUA">Pindah KUA Tujuan Nikah</option>
+                    <option value="Ubah Jadwal Akad">Perubahan Jadwal Akad Nikah</option>
+                    <option value="Kendala Teknis">Kendala Teknis Aplikasi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1">Rincian Permohonan</label>
+                  <textarea
+                    rows={3}
+                    required
+                    minLength={8}
+                    maxLength={800}
+                    value={ticketDetails}
+                    onChange={(e) => setTicketDetails(e.target.value)}
+                    placeholder="Jelaskan perubahan data yang dimohonkan sesuai KTP/KK Anda..."
+                    className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-emerald-900 bg-[#F8FAF9] dark:bg-[#0D1613]"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-[#0F684E] hover:bg-[#0B523D] text-white font-semibold"
+                >
+                  Kirim Tiket ke Admin {currentUser.kua}
+                </button>
+              </form>
+
+              {myTickets.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 dark:border-emerald-950 space-y-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Riwayat Tiket Anda ({myTickets.length})
+                  </p>
+                  <div className="space-y-2">
+                    {myTickets.map((t) => (
+                      <div
+                        key={t.id}
+                        className="p-3 rounded-xl border border-slate-200 dark:border-emerald-950 bg-[#F8FAF9] dark:bg-[#0D1613] text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-slate-900 dark:text-white">{t.category}</span>
+                          <span
+                            className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded ${
+                              t.status === 'selesai'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                : t.status === 'ditolak'
+                                  ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                        </div>
+                        <p className="text-slate-600 dark:text-slate-300">{t.details}</p>
+                        {t.officerNote && (
+                          <p className="text-[11px] text-[#0F684E] dark:text-emerald-400 font-medium pt-1">
+                            Tanggapan Petugas ({t.resolvedBy || 'Admin KUA'}): {t.officerNote}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="lg:col-span-5 space-y-5">
@@ -3086,6 +3360,16 @@ export const PesertaDashboard: React.FC = () => {
         modules={data.modules}
       />
       <StoryCardModal open={storyOpen} onClose={() => setStoryOpen(false)} user={currentUser} />
+      <QRScannerModal
+        open={attendanceQrOpen}
+        onClose={() => setAttendanceQrOpen(false)}
+        title="Scan QR Absensi Kelas BIMWIN"
+        subtitle="Arahkan kamera ke QR Absensi yang ditampilkan Fasilitator di proyektor ruang kelas KUA."
+        onDetected={(code) => {
+          checkInClassByQrPayload(code);
+          setAttendanceQrOpen(false);
+        }}
+      />
     </WorkspaceShell>
   );
 };
