@@ -70,13 +70,12 @@ type PortalSection = 'beranda' | 'verifikasi' | 'statistik' | 'direktori' | 'faq
 export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
   initialVerifyCode = '',
 }) => {
-  const { data, login, loginWithGoogle, darkMode, toggleDarkMode, pushToast } = useBimwin();
+  const { data, login, darkMode, toggleDarkMode, pushToast } = useBimwin();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [menuDrawerOpen, setMenuDrawerOpen] = useState(false);
   const [installModalOpen, setInstallModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<PortalSection>(
@@ -147,17 +146,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
     setLoginError('');
     const res = login(username, password);
     if (!res.ok) setLoginError(res.error || 'Gagal masuk.');
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoginError('');
-    setGoogleLoading(true);
-    try {
-      const res = await loginWithGoogle();
-      if (!res.ok && res.error) setLoginError(res.error);
-    } finally {
-      setGoogleLoading(false);
-    }
   };
 
   const resolveVerificationWithCloud = async (code: string): Promise<VerificationResult> => {
@@ -582,44 +570,6 @@ export const PublicPortal: React.FC<{ initialVerifyCode?: string }> = ({
                       >
                         Masuk Sistem
                         <ArrowRight className="w-4 h-4 text-[#F3D882] transition-transform group-hover:translate-x-0.5" />
-                      </button>
-
-                      <div className="relative py-1">
-                        <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-slate-200 dark:border-emerald-900/70" />
-                        </div>
-                        <div className="relative flex justify-center text-[11px]">
-                          <span className="bg-white dark:bg-[#0C1814] px-2.5 text-slate-400">
-                            atau sinkronisasi cloud
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        disabled={googleLoading}
-                        onClick={() => void handleGoogleLogin()}
-                        className="w-full py-2.5 rounded-xl border border-slate-200/90 dark:border-emerald-900/80 bg-[#FAFAF8] dark:bg-[#07110E] hover:bg-slate-50 dark:hover:bg-emerald-950/50 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold inline-flex items-center justify-center gap-2.5 transition disabled:opacity-60"
-                      >
-                        <svg viewBox="0 0 24 24" aria-hidden="true" className="w-4 h-4 shrink-0">
-                          <path
-                            fill="#4285F4"
-                            d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.3h6.44a5.5 5.5 0 0 1-2.39 3.61v3h3.87c2.26-2.08 3.57-5.15 3.57-8.64z"
-                          />
-                          <path
-                            fill="#34A853"
-                            d="M12 24c3.24 0 5.95-1.07 7.93-2.91l-3.87-3c-1.07.72-2.45 1.15-4.06 1.15-3.12 0-5.77-2.11-6.72-4.95H1.28v3.1A12 12 0 0 0 12 24z"
-                          />
-                          <path
-                            fill="#FBBC05"
-                            d="M5.28 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.28a12 12 0 0 0 0 10.78l4-3.1z"
-                          />
-                          <path
-                            fill="#EA4335"
-                            d="M12 4.76c1.76 0 3.34.61 4.58 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.28 6.61l4 3.1C6.23 6.87 8.88 4.76 12 4.76z"
-                          />
-                        </svg>
-                        {googleLoading ? 'Menghubungkan Google...' : 'Masuk dengan Google (Cloud Sync)'}
                       </button>
                     </form>
 
